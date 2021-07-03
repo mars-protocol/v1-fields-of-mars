@@ -386,7 +386,7 @@ pub fn liquidate<S: Storage, A: Api, Q: Querier>(
     let (.., utilization) = compute_utilization(deps, Some(user.clone()))?;
     if let Some(utilization) = utilization {
         if utilization <= config.liquidation_threshold {
-            return Err(StdError::generic_err("Cannot liquidate a healthy position"));
+            return Err(StdError::generic_err("cannot liquidate a healthy position"));
         }
     }
 
@@ -705,7 +705,7 @@ pub fn _borrow<S: Storage, A: Api, Q: Querier>(
     borrow_amount: Uint128,
 ) -> StdResult<HandleResponse> {
     if borrow_amount.is_zero() {
-        return Err(StdError::generic_err("Borrow amount must be greater than zero"));
+        return Err(StdError::generic_err("borrow amount must be greater than zero"));
     }
 
     let user_raw = deps.api.canonical_address(&user)?;
@@ -766,7 +766,7 @@ pub fn _repay<S: Storage, A: Api, Q: Querier>(
     repay_amount: Uint128,
 ) -> StdResult<HandleResponse> {
     if repay_amount.is_zero() {
-        return Err(StdError::generic_err("Repay amount must be greater than zero"));
+        return Err(StdError::generic_err("repay amount must be greater than zero"));
     }
 
     let user_raw = deps.api.canonical_address(&user)?;
@@ -774,7 +774,7 @@ pub fn _repay<S: Storage, A: Api, Q: Querier>(
     let mut position = read_position(&deps.storage, &user_raw)?;
 
     if position.debt_units.is_zero() {
-        return Err(StdError::generic_err("No debt to repay"));
+        return Err(StdError::generic_err("no debt to repay"));
     }
 
     let mars = deps.api.human_address(&read_config(&deps.storage)?.mars)?;
@@ -926,7 +926,7 @@ pub fn _refund<S: Storage, A: Api, Q: Querier>(
     // Calculate debt ratio, make sure it's below the liquidation threshold
     let (.., debt_value, utilization) = compute_utilization(deps, Some(user.clone()))?;
     if !debt_value.is_zero() && utilization.unwrap() > config.liquidation_threshold {
-        return Err(StdError::generic_err("Debt ratio above liquidation threshold"));
+        return Err(StdError::generic_err("utilization above liquidation threshold"));
     }
 
     // Calculate the amount of UST and asset to refund

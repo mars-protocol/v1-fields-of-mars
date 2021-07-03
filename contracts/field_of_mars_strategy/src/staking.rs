@@ -38,7 +38,7 @@ impl StakingContract {
         match config.staking_type.as_str() {
             "anchor" => Ok(StakingContract::Anchor(staking_config)),
             "mirror" => Ok(StakingContract::Mirror(staking_config)),
-            _ => Err(StdError::generic_err("Invalid staking contract type")),
+            _ => Err(StdError::generic_err("invalid staking contract type")),
         }
     }
 
