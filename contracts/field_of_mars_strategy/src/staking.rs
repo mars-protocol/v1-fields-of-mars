@@ -30,17 +30,14 @@ impl StakingContract {
         deps: &Extern<S, A, Q>,
         config: &Config,
     ) -> StdResult<Self> {
+        let staking_config = StakingConfig {
+            address: deps.api.human_address(&config.staking_contract)?,
+            asset_token: deps.api.human_address(&config.asset_token)?,
+            staking_token: deps.api.human_address(&config.pool_token)?,
+        };
         match config.staking_type.as_str() {
-            "anchor" => Ok(StakingContract::Anchor(StakingConfig {
-                address: deps.api.human_address(&config.staking_contract)?,
-                asset_token: deps.api.human_address(&config.asset_token)?,
-                staking_token: deps.api.human_address(&config.pool_token)?,
-            })),
-            "mirror" => Ok(StakingContract::Mirror(StakingConfig {
-                address: deps.api.human_address(&config.staking_contract)?,
-                asset_token: deps.api.human_address(&config.asset_token)?,
-                staking_token: deps.api.human_address(&config.pool_token)?,
-            })),
+            "anchor" => Ok(StakingContract::Anchor(staking_config)),
+            "mirror" => Ok(StakingContract::Mirror(staking_config)),
             _ => Err(StdError::generic_err("Invalid staking contract type")),
         }
     }
