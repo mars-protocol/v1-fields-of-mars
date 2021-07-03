@@ -1,0 +1,232 @@
+import * as path from "path";
+import chalk from "chalk";
+import { LocalTerra, Wallet } from "@terra-money/terra.js";
+import { storeCode, instantiateContract } from "./helpers";
+
+//----------------------------------------------------------------------------------------
+// CW20 token
+//----------------------------------------------------------------------------------------
+
+export async function deployTerraswapToken(
+  terra: LocalTerra,
+  deployer: Wallet,
+  name: string,
+  symbol: string,
+  decimals?: number,
+  cw20CodeId?: number
+) {
+  if (!cw20CodeId) {
+    process.stdout.write("Uploading TerraSwap Token code... ");
+
+    cw20CodeId = await storeCode(
+      terra,
+      deployer,
+      path.resolve(__dirname, "../artifacts/terraswap_token.wasm")
+    );
+
+    console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${cw20CodeId}`);
+  }
+
+  process.stdout.write(`Instantiating ${symbol} token contract... `);
+
+  const result = await instantiateContract(terra, deployer, cw20CodeId, {
+    name: name,
+    symbol: symbol,
+    decimals: decimals ? decimals : 6,
+    initial_balances: [],
+    mint: {
+      minter: deployer.key.accAddress,
+    },
+  });
+
+  const contractAddress = result.logs[0].events[0].attributes[2].value;
+
+  console.log(
+    chalk.green("Done!"),
+    `${chalk.blue("contractAddress")}=${contractAddress}`
+  );
+
+  return {
+    cw20CodeId,
+    cw20Token: contractAddress,
+  };
+}
+
+//----------------------------------------------------------------------------------------
+// TerraSwap Pair
+//----------------------------------------------------------------------------------------
+
+export async function deployTerraswapPair(
+  terra: LocalTerra,
+  deployer: Wallet,
+  cw20CodeId: number,
+  cw20Token: string
+) {
+  process.stdout.write("Uploading TerraSwap pair code... ");
+
+  const codeId = await storeCode(
+    terra,
+    deployer,
+    path.resolve(__dirname, "../artifacts/terraswap_pair.wasm")
+  );
+
+  console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
+
+  process.stdout.write("Instantiating TerraSwap pair contract... ");
+
+  const result = await instantiateContract(terra, deployer, codeId, {
+    asset_infos: [
+      { native_token: { denom: "uusd" } },
+      { token: { contract_addr: cw20Token } },
+    ],
+    token_code_id: cw20CodeId,
+  });
+
+  const terraswapLpToken = result.logs[0].events[2].attributes[2].value;
+  const terraswapPair = result.logs[0].events[2].attributes[5].value;
+
+  console.log(
+    chalk.green("Done!"),
+    `${chalk.blue("terraswapPair")}=${terraswapPair}`,
+    `${chalk.blue("terraswapLpToken")}=${terraswapLpToken}`
+  );
+
+  return { terraswapPair, terraswapLpToken };
+}
+
+//----------------------------------------------------------------------------------------
+// Mock Anchor Staking
+//----------------------------------------------------------------------------------------
+
+export async function deployMockAnchor(
+  terra: LocalTerra,
+  deployer: Wallet,
+  anchorToken: string,
+  terraswapLpToken: string
+) {
+  process.stdout.write("Uploading Anchor Staking code... ");
+
+  const codeId = await storeCode(
+    terra,
+    deployer,
+    path.resolve(__dirname, "../artifacts/mock_anchor.wasm")
+  );
+
+  console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
+
+  process.stdout.write("Instantiating Anchor Staking contract... ");
+
+  const result = await instantiateContract(terra, deployer, codeId, {
+    anchor_token: anchorToken,
+    staking_token: terraswapLpToken,
+  });
+
+  const anchorStaking = result.logs[0].events[0].attributes[2].value;
+
+  console.log(chalk.green("Done!"), `${chalk.blue("contractAddress")}=${anchorStaking}`);
+
+  return anchorStaking;
+}
+
+//----------------------------------------------------------------------------------------
+// Mock Mirror Staking
+//----------------------------------------------------------------------------------------
+
+export async function deployMockMirror(
+  terra: LocalTerra,
+  deployer: Wallet,
+  mirrorToken: string,
+  mAssetToken: string,
+  terraswapLpToken: string
+) {
+  process.stdout.write("Uploading Mirror Staking code... ");
+
+  const codeId = await storeCode(
+    terra,
+    deployer,
+    path.resolve(__dirname, "../artifacts/mock_mirror.wasm")
+  );
+
+  console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
+
+  process.stdout.write("Instantiating Mirror Staking contract... ");
+
+  const result = await instantiateContract(terra, deployer, codeId, {
+    mirror_token: mirrorToken,
+    asset_token: mAssetToken,
+    staking_token: terraswapLpToken,
+  });
+
+  const mirrorStaking = result.logs[0].events[0].attributes[2].value;
+
+  console.log(chalk.green("Done!"), `${chalk.blue("contractAddress")}=${mirrorStaking}`);
+
+  return mirrorStaking;
+}
+
+//----------------------------------------------------------------------------------------
+// Mock Mars Liquidity Pool
+//----------------------------------------------------------------------------------------
+
+export async function deployMockMars(terra: LocalTerra, deployer: Wallet) {
+  process.stdout.write("Uploading Mock Mars code... ");
+
+  const codeId = await storeCode(
+    terra,
+    deployer,
+    path.resolve(__dirname, "../artifacts/mock_mars.wasm")
+  );
+
+  console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
+
+  process.stdout.write("Instantiating Mock Mars contract... ");
+
+  const result = await instantiateContract(terra, deployer, codeId, {
+    ma_token_code_id: 1, // values of these parameters don't matter
+    close_factor: "0.5", // decimal parameters need to be passed in as strings
+  });
+
+  const mars = result.logs[0].events[0].attributes[2].value;
+
+  console.log(chalk.green("Done!"), `${chalk.blue("contractAddress")}=${mars}`);
+
+  return mars;
+}
+
+//----------------------------------------------------------------------------------------
+// Field of Mars
+//----------------------------------------------------------------------------------------
+
+export async function deployFieldOfMars(
+  terra: LocalTerra,
+  deployer: Wallet,
+  strategyName: string,
+  strategyCode: string,
+  initMsg: object
+) {
+  process.stdout.write(`Uploading Field of Mars ${strategyName} code... `);
+
+  const codeId = await storeCode(terra, deployer, path.resolve(__dirname, strategyCode));
+
+  console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
+
+  process.stdout.write(`Instantiating Field of Mars ${strategyName} contract... `);
+
+  const result = await instantiateContract(
+    terra,
+    deployer,
+    codeId,
+    initMsg,
+    undefined, // initCoins
+    true // IMPORTANT: migratable set to true
+  );
+
+  const contractAddress = result.logs[0].events[1].attributes[2].value;
+
+  console.log(
+    chalk.green("Done!"),
+    `${chalk.blue("contractAddress")}=${contractAddress}`
+  );
+
+  return contractAddress;
+}

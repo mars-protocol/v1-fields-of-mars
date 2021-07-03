@@ -1,0 +1,16 @@
+[package]
+name = "mirror-protocol"
+version = "0.1.0"
+authors = ["Terraform Labs, PTE."]
+edition = "2018"
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cosmwasm-std = { version = "0.10.1", default-features = false, features = ["iterator"] }
+cosmwasm-storage = { version = "0.10.1", default-features = false, features = ["iterator"] }
+cw20 = "0.2"
+schemars = "0.7"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+terraswap = "1.1.0"

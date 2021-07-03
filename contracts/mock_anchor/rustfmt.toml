@@ -1,0 +1,9 @@
+comment_width = 90
+hard_tabs = false
+match_block_trailing_comma = true
+max_width = 90
+newline_style = "unix"
+overflow_delimited_expr = true
+tab_spaces = 4
+use_small_heuristics = "Off"
+wrap_comments = false

@@ -1,0 +1,24 @@
+[package]
+name = "mock-mars"
+version = "0.1.0"
+authors = ["larry0x <larry@delphidigital.io>"]
+edition = "2018"
+exclude = ["contract.wasm", "hash.txt"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cosmwasm-bignumber = "1.0"
+cosmwasm-std = { version = "0.10.1", features = ["iterator"] }
+cosmwasm-storage = { version = "0.10.1", features = ["iterator"] }
+mars = { path = "../../packages/mars" }
+schemars = "0.7"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+terra-cosmwasm = "1.2"
+
+[dev-dependencies]
+cosmwasm-schema = "0.13.2"

@@ -1,0 +1,14 @@
+[package]
+name = "mars"
+version = "0.1.0"
+edition = "2018"
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cosmwasm-std = { version = "0.10.1", features = ["iterator"] }
+cosmwasm-bignumber = "1.0"
+cw20 = "0.2"
+schemars = "0.7"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }

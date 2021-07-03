@@ -1,0 +1,31 @@
+[package]
+name = "field-of-mars-strategy"
+version = "0.1.0"
+authors = ["larry0x <larry@delphidigital.io>"]
+edition = "2018"
+exclude = ["contract.wasm", "hash.txt"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+anchor-token = { path = "../../packages/anchor" }
+cosmwasm-std = { version = "0.10.1", features = ["iterator"] }
+cosmwasm-storage = { version = "0.10.1", features = ["iterator"] }
+cosmwasm-bignumber = "1.0"
+cw20 = "0.2"
+field-of-mars = { path = "../../packages/field_of_mars" }
+mars = { path = "../../packages/mars" }
+mirror-protocol = { path = "../../packages/mirror" }
+schemars = "0.7"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+snafu = "0.6.3"
+terra-cosmwasm = "1.2"
+terraswap = "1.2.0"
+thiserror = "1.0"
+
+[dev-dependencies]
+cosmwasm-schema = "0.13.2"
