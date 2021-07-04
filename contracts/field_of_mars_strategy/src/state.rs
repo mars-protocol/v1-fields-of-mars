@@ -37,7 +37,7 @@ pub struct Config {
     pub performance_fee_rate: Decimal,
     /// Percentage of asset to be charged as liquidation fee
     pub liquidation_fee_rate: Decimal,
-    /// Maximum debt ratio above which a user can be liquidated
+    /// Maximum utilization above which a user can be liquidated
     pub liquidation_threshold: Decimal,
 }
 

@@ -34,21 +34,8 @@ pub struct InitMsg {
     pub performance_fee_rate: Decimal,
     /// Percentage of asset to be charged as liquidation fee
     pub liquidation_fee_rate: Decimal,
-    /// Maximum debt ratio above which a user can be liquidated
+    /// Maximum utilization above which a user can be liquidated
     pub liquidation_threshold: Decimal,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum QueryMsg {
-    /// Return strategy configurations
-    Config {},
-    /// Return the global state of the strategy
-    State {},
-    /// Return data on an individual user's position
-    Position {
-        user: HumanAddr,
-    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -143,6 +130,19 @@ impl CallbackMsg {
         };
         Ok(execute.into())
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryMsg {
+    /// Return strategy configurations
+    Config {},
+    /// Return the global state of the strategy
+    State {},
+    /// Return data on an individual user's position
+    Position {
+        user: HumanAddr,
+    },
 }
 
 // Migration is not implemented for the current version
