@@ -12,7 +12,8 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-anchor-token = { path = "../../packages/anchor" }
+# The Anchor team have not pushed v1.0.0 to crates.io, so we have to import using GitHub URL
+anchor-token = { version = "1.0.0", git = "https://github.com/Anchor-Protocol/anchor-token-contracts" }
 cosmwasm-std = { version = "0.10.1", features = ["iterator"] }
 cosmwasm-storage = { version = "0.10.1", features = ["iterator"] }
 cosmwasm-bignumber = "1.0"
