@@ -169,12 +169,8 @@ name = "fields-of-mars"
 version = "0.1.0"
 dependencies = [
  "cosmwasm-std",
- "cw20",
- "mars",
- "mirror-protocol",
  "schemars",
  "serde",
- "terraswap",
 ]
 
 [[package]]
