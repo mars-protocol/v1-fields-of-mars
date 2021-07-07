@@ -827,7 +827,7 @@ async function testMigrate() {
 
   await setupTest();
 
-  console.log(chalk.yellow("\nTest: Field of Mars - Mirror"));
+  console.log(chalk.yellow("\nTest: Strategy: MIR-UST LP"));
 
   await testConfig();
   await testOpenPosition1();
