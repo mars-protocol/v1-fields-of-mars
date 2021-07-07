@@ -137,7 +137,7 @@ if (argv["code-id"] == 0) {
     const codeId = await storeCode(
       terra,
       deployer,
-      path.resolve("../artifacts/field_of_mars_strategy.wasm")
+      path.resolve("../artifacts/strategy_anc_ust.wasm")
     );
 
     console.log("Done!", `${chalk.blue("codeId")}=${codeId}`);
