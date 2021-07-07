@@ -1,7 +1,7 @@
 {
   "folders": [
     {
-      "path": "contracts/field_of_mars_strategy"
+      "path": "contracts/strategy_anc_ust"
     },
     {
       "path": "contracts/mock_anchor"
@@ -13,7 +13,7 @@
       "path": "contracts/mock_mars"
     },
     {
-      "path": "packages/field_of_mars"
+      "path": "packages/fields_of_mars"
     },
     {
       "path": "packages/anchor"
@@ -23,6 +23,9 @@
     },
     {
       "path": "packages/mars"
+    },
+    {
+      "path": "artifacts"
     },
     {
       "path": "scripts"

@@ -1,5 +1,5 @@
 [package]
-name = "field-of-mars-strategy"
+name = "strategy-anc-ust"
 version = "0.1.0"
 authors = ["larry0x <larry@delphidigital.io>"]
 edition = "2018"
@@ -17,7 +17,7 @@ cosmwasm-std = { version = "0.10.1", features = ["iterator"] }
 cosmwasm-storage = { version = "0.10.1", features = ["iterator"] }
 cosmwasm-bignumber = "1.0"
 cw20 = "0.2"
-field-of-mars = { path = "../../packages/field_of_mars" }
+fields-of-mars = { path = "../../packages/fields_of_mars" }
 mars = { path = "../../packages/mars" }
 mirror-protocol = { path = "../../packages/mirror" }
 schemars = "0.7"

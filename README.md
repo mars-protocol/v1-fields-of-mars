@@ -1,6 +1,6 @@
-# Field of Mars
+# Fields of Mars
 
-**Field of Mars** is a leveraged yield farming strategy designed for [Mirror](https://twitter.com/mirror_protocol) and [Anchor](https://twitter.com/anchor_protocol), utilizing liquidity from [Mars Protocol](https://twitter.com/mars_protocol).
+**Fields of Mars** is a collection of leveraged yield farming strategies utilizing liquidity from [Mars Protocol](https://twitter.com/mars_protocol).
 
 ## Development
 

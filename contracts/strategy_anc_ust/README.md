@@ -1,6 +1,8 @@
-# Field of Mars: Strategy
+# Strategy: ANC-UST LP
 
-Leveraged yield farming strategy for Mirror and Anchor protocols.
+Leveraged yield farming strategy for Anchor Protocol. User deposits ANC, borrows UST from Mars, provide the liquidity to TerraSwap, and stake the LP tokens to Anchor Staking.
+
+This strategy has been generalized to work also with Mirror Protocol's MIR-UST pair. MAsset-UST pairs are not supported in the current version.
 
 ## Messages
 
