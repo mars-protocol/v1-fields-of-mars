@@ -19,6 +19,3 @@ cw20 = "0.2"
 mirror-protocol = { version = "2.0.0" }
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-
-[dev-dependencies]
-cosmwasm-schema = "0.13.2"

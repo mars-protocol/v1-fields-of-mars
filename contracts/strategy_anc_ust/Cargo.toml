@@ -27,6 +27,3 @@ snafu = "0.6.3"
 terra-cosmwasm = "1.2"
 terraswap = "1.2.0"
 thiserror = "1.0"
-
-[dev-dependencies]
-cosmwasm-schema = "0.13.2"

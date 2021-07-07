@@ -20,6 +20,3 @@ cosmwasm-storage = { version = "0.10.1", features = ["iterator"] }
 cw20 = "0.2"
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-
-[dev-dependencies]
-cosmwasm-schema = "0.13.2"

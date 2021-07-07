@@ -238,7 +238,6 @@ version = "0.1.0"
 dependencies = [
  "anchor-token",
  "cosmwasm-bignumber",
- "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
@@ -265,7 +264,6 @@ name = "mock-mirror"
 version = "0.1.0"
 dependencies = [
  "cosmwasm-bignumber",
- "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
@@ -415,13 +413,30 @@ version = "0.1.0"
 dependencies = [
  "anchor-token",
  "cosmwasm-bignumber",
- "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
  "fields-of-mars",
  "mars",
  "mirror-protocol",
+ "schemars",
+ "serde",
+ "snafu",
+ "terra-cosmwasm",
+ "terraswap",
+ "thiserror",
+]
+
+[[package]]
+name = "strategy-bluna-luna"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "fields-of-mars",
+ "mars",
  "schemars",
  "serde",
  "snafu",
