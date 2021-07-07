@@ -4,7 +4,13 @@
       "path": "contracts/strategy_anc_ust"
     },
     {
+      "path": "contracts/strategy_bluna_luna"
+    },
+    {
       "path": "contracts/mock_anchor"
+    },
+    {
+      "path": "contracts/mock_bluna_hub"
     },
     {
       "path": "contracts/mock_mirror"
