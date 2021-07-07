@@ -102,8 +102,8 @@ ts-node 2_terraswap_pair.spec.ts
 ts-node 3_mock_anchor.spec.ts
 ts-node 4_mock_mars.spec.ts
 ts-node 5_mock_mirror.spec.ts
-ts-node 6_strategy_mirror.spec.ts
-ts-node 7_strategy_anchor.spec.ts
+ts-node 6_strategy_anc_ust.spec.ts
+ts-node 7_strategy_mir_ust.spec.ts
 ```
 
 ### Deployment
