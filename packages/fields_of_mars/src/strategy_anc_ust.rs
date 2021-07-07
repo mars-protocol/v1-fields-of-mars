@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 //----------------------------------------------------------------------------------------
-// Messages
+// MESSAGES
 //----------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -150,7 +150,7 @@ pub enum QueryMsg {
 pub struct MigrateMsg {}
 
 //----------------------------------------------------------------------------------------
-// Response types
+// RESPONSES
 //----------------------------------------------------------------------------------------
 
 pub type ConfigResponse = InitMsg;

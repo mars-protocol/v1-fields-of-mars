@@ -3,9 +3,9 @@ use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub static CONFIG_KEY: &[u8] = b"config";
-pub static STATE_KEY: &[u8] = b"state";
-pub static POSITIONS_NAMESPACE: &[u8] = b"positions";
+pub static KEY_CONFIG: &[u8] = b"config";
+pub static KEY_STATE: &[u8] = b"state";
+pub static PREFIX_POSITION: &[u8] = b"positions";
 
 //----------------------------------------------------------------------------------------
 // STORAGE TYPES
@@ -108,26 +108,26 @@ impl Position {
 //----------------------------------------------------------------------------------------
 
 pub fn read_config<S: Storage>(storage: &S) -> StdResult<Config> {
-    singleton_read(storage, CONFIG_KEY).load()
+    singleton_read(storage, KEY_CONFIG).load()
 }
 
 pub fn write_config<S: Storage>(storage: &mut S, config: &Config) -> StdResult<()> {
-    singleton(storage, CONFIG_KEY).save(config)
+    singleton(storage, KEY_CONFIG).save(config)
 }
 
 pub fn read_state<S: Storage>(storage: &S) -> StdResult<State> {
-    singleton_read(storage, STATE_KEY).load()
+    singleton_read(storage, KEY_STATE).load()
 }
 
 pub fn write_state<S: Storage>(storage: &mut S, state: &State) -> StdResult<()> {
-    singleton(storage, STATE_KEY).save(state)
+    singleton(storage, KEY_STATE).save(state)
 }
 
 pub fn read_position<S: Storage>(
     storage: &S,
     account: &CanonicalAddr,
 ) -> StdResult<Position> {
-    bucket_read(POSITIONS_NAMESPACE, storage).load(account.as_slice())
+    bucket_read(PREFIX_POSITION, storage).load(account.as_slice())
 }
 
 pub fn write_position<S: Storage>(
@@ -135,9 +135,9 @@ pub fn write_position<S: Storage>(
     account: &CanonicalAddr,
     position: &Position,
 ) -> StdResult<()> {
-    bucket(POSITIONS_NAMESPACE, storage).save(account.as_slice(), position)
+    bucket(PREFIX_POSITION, storage).save(account.as_slice(), position)
 }
 
 pub fn delete_position<S: Storage>(storage: &mut S, account: &CanonicalAddr) {
-    bucket::<_, Position>(POSITIONS_NAMESPACE, storage).remove(account.as_slice());
+    bucket::<_, Position>(PREFIX_POSITION, storage).remove(account.as_slice());
 }
