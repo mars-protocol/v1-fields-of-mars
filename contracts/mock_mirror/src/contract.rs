@@ -4,11 +4,12 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use mirror_protocol::staking::{
-    Cw20HookMsg, HandleMsg, InitMsg, QueryMsg, RewardInfoResponse, RewardInfoResponseItem,
+    Cw20HookMsg, HandleMsg, QueryMsg, RewardInfoResponse, RewardInfoResponseItem,
 };
 
-use crate::state::{
-    read_config, read_reward_info, write_config, write_reward_info, Config,
+use crate::{
+    msg::InitMsg,
+    state::{read_config, read_reward_info, write_config, write_reward_info, Config},
 };
 
 //----------------------------------------------------------------------------------------

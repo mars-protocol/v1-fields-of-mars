@@ -19,7 +19,7 @@ cosmwasm-bignumber = "1.0"
 cw20 = "0.2"
 fields-of-mars = { path = "../../packages/fields_of_mars" }
 mars = { path = "../../packages/mars" }
-mirror-protocol = { path = "../../packages/mirror" }
+mirror-protocol = { version = "2.0.0" }
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = "0.6.3"

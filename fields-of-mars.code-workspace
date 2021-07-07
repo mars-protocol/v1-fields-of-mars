@@ -19,9 +19,6 @@
       "path": "packages/anchor"
     },
     {
-      "path": "packages/mirror"
-    },
-    {
       "path": "packages/mars"
     },
     {
