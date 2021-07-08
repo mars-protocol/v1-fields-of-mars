@@ -1,0 +1,10 @@
+[package]
+name = "anchor-basset-hub"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+cosmwasm-std = "0.10.1"
+cw20 = "0.2"
+schemars = "0.7"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }

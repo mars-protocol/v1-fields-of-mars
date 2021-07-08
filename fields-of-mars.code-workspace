@@ -19,6 +19,9 @@
       "path": "contracts/mock_mars"
     },
     {
+      "path": "packages/anchor_basset_hub"
+    },
+    {
       "path": "packages/fields_of_mars"
     },
     {

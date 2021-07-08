@@ -260,6 +260,7 @@ pub fn query_config<S: Storage, A: Api, Q: Querier>(
         treasury: deps.api.human_address(&config.treasury)?,
         bluna_hub: deps.api.human_address(&config.bluna_hub)?,
         bluna_token: deps.api.human_address(&config.bluna_token)?,
+        bluna_validator: deps.api.human_address(&config.bluna_validator)?,
         pool: deps.api.human_address(&config.pool)?,
         pool_token: deps.api.human_address(&config.pool_token)?,
         mars: deps.api.human_address(&config.mars)?,

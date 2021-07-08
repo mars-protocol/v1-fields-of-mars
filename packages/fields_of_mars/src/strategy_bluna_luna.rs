@@ -18,6 +18,8 @@ pub struct InitMsg {
     pub bluna_hub: HumanAddr,
     /// Address of the bLUNA token
     pub bluna_token: HumanAddr,
+    /// Address of the validator to use when bonding LUNA
+    pub bluna_validator: HumanAddr,
     /// Address of Terraswap bLUNA-LUNA pair
     pub pool: HumanAddr,
     /// Address of Terraswap LP token

@@ -21,6 +21,8 @@ pub struct Config {
     pub bluna_hub: CanonicalAddr,
     /// Address of the bLUNA token
     pub bluna_token: CanonicalAddr,
+    /// Address of the validator to use when bonding LUNA
+    pub bluna_validator: CanonicalAddr,
     /// Address of Terraswap bLUNA-LUNA pair
     pub pool: CanonicalAddr,
     /// Address of Terraswap LP token
