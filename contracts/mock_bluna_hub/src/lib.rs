@@ -1,5 +1,5 @@
 pub mod contract;
-mod helpers;
+mod math;
 mod msg;
 mod state;
 

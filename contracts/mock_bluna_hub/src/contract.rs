@@ -9,7 +9,7 @@ use cw20::Cw20HandleMsg;
 use terraswap::querier::query_supply;
 
 use crate::{
-    helpers::decimal_division,
+    math::decimal_division,
     msg::InitMsg,
     state::{read_config, read_state, write_config, write_state, Config, State},
 };
@@ -82,7 +82,7 @@ pub fn bond<S: Storage, A: Api, Q: Querier>(
     let token_contract = deps.api.human_address(&config.token_contract)?;
     let total_supply = query_supply(deps, &token_contract)?;
 
-    // Find the amount of LUNA sent with the message
+    // Find the amount of LUNA shelpers
     let payment =
         env.message.sent_funds.iter().find(|x| x.denom == "uluna").ok_or_else(|| {
             StdError::generic_err("No uluna assets are provided to bond")
