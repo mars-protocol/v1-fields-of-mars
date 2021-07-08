@@ -82,20 +82,20 @@ Diagram below shows how these callbacks are used in the execution of each Handle
 | Mirror Staking             | [`terra17f7zu97865jmknk7p2glqvxzhduk78772ezac5`](https://finder.terra.money/columbus-4/address/terra17f7zu97865jmknk7p2glqvxzhduk78772ezac5) |
 | TerraSwap MIR-UST Pair     | [`terra1amv303y8kzxuegvurh0gug2xe9wkgj65enq2ux`](https://finder.terra.money/columbus-4/address/terra1amv303y8kzxuegvurh0gug2xe9wkgj65enq2ux) |
 | TerraSwap MIR-UST LP Token | [`terra17gjf2zehfvnyjtdgua9p9ygquk6gukxe7ucgwh`](https://finder.terra.money/columbus-4/address/terra17gjf2zehfvnyjtdgua9p9ygquk6gukxe7ucgwh) |
-| Field of Mars: Anchor      | TBD                                                                                                                                          |
-| Field of Mars: Mirror      | TBD                                                                                                                                          |
+| Fields of Mars: ANC-UST LP | TBD                                                                                                                                          |
+| Fields of Mars: MIR-UST-LP | TBD                                                                                                                                          |
 
 ### Tequila-004
 
-| Contract                   | Address                                                                                                                                      |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Anchor Token               | [`terra1747mad58h0w4y589y3sk84r5efqdev9q4r02pc`](https://finder.terra.money/columbus-4/address/terra1747mad58h0w4y589y3sk84r5efqdev9q4r02pc) |
-| Anchor Staking             | [`terra19nxz35c8f7t3ghdxrxherym20tux8eccar0c3k`](https://finder.terra.money/columbus-4/address/terra19nxz35c8f7t3ghdxrxherym20tux8eccar0c3k) |
-| TerraSwap ANC-UST Pair     | [`terra1wfvczps2865j0awnurk9m04u7wdmd6qv3fdnvz`](https://finder.terra.money/columbus-4/address/terra1wfvczps2865j0awnurk9m04u7wdmd6qv3fdnvz) |
-| TerraSwap ANC-UST LP Token | [`terra1vg0qyq92ky9z9dp0j9fv5rmr2s80sg605dah6f`](https://finder.terra.money/columbus-4/address/terra1vg0qyq92ky9z9dp0j9fv5rmr2s80sg605dah6f) |
-| Mirror Token               | [`terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u`](https://finder.terra.money/columbus-4/address/terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u) |
-| Mirror Staking             | [`terra1a06dgl27rhujjphsn4drl242ufws267qxypptx`](https://finder.terra.money/columbus-4/address/terra1a06dgl27rhujjphsn4drl242ufws267qxypptx) |
-| TerraSwap MIR-UST Pair     | [`terra1cz6qp8lfwht83fh9xm9n94kj04qc35ulga5dl0`](https://finder.terra.money/columbus-4/address/terra1cz6qp8lfwht83fh9xm9n94kj04qc35ulga5dl0) |
-| TerraSwap MIR-UST LP Token | [`terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j`](https://finder.terra.money/columbus-4/address/terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j) |
-| Field of Mars: Anchor      | TBD                                                                                                                                          |
-| Field of Mars: Mirror      | TBD                                                                                                                                          |
+| Contract                   | Address                                                                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Anchor Token               | [`terra1747mad58h0w4y589y3sk84r5efqdev9q4r02pc`](https://finder.terra.money/tequila-0004/address/terra1747mad58h0w4y589y3sk84r5efqdev9q4r02pc) |
+| Anchor Staking             | [`terra19nxz35c8f7t3ghdxrxherym20tux8eccar0c3k`](https://finder.terra.money/tequila-0004/address/terra19nxz35c8f7t3ghdxrxherym20tux8eccar0c3k) |
+| TerraSwap ANC-UST Pair     | [`terra1wfvczps2865j0awnurk9m04u7wdmd6qv3fdnvz`](https://finder.terra.money/tequila-0004/address/terra1wfvczps2865j0awnurk9m04u7wdmd6qv3fdnvz) |
+| TerraSwap ANC-UST LP Token | [`terra1vg0qyq92ky9z9dp0j9fv5rmr2s80sg605dah6f`](https://finder.terra.money/tequila-0004/address/terra1vg0qyq92ky9z9dp0j9fv5rmr2s80sg605dah6f) |
+| Mirror Token               | [`terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u`](https://finder.terra.money/tequila-0004/address/terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u) |
+| Mirror Staking             | [`terra1a06dgl27rhujjphsn4drl242ufws267qxypptx`](https://finder.terra.money/tequila-0004/address/terra1a06dgl27rhujjphsn4drl242ufws267qxypptx) |
+| TerraSwap MIR-UST Pair     | [`terra1cz6qp8lfwht83fh9xm9n94kj04qc35ulga5dl0`](https://finder.terra.money/tequila-0004/address/terra1cz6qp8lfwht83fh9xm9n94kj04qc35ulga5dl0) |
+| TerraSwap MIR-UST LP Token | [`terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j`](https://finder.terra.money/tequila-0004/address/terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j) |
+| Fields of Mars: ANC-UST LP | TBD                                                                                                                                            |
+| Fields of Mars: MIR-UST-LP | TBD                                                                                                                                            |
