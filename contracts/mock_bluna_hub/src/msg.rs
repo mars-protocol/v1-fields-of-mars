@@ -9,3 +9,8 @@ pub struct InitMsg {
     pub peg_recovery_fee: Decimal,
     pub requested_with_fee: Uint128,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {
+    pub new_exchange_rate: Decimal,
+}

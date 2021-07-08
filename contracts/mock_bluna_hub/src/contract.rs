@@ -3,14 +3,15 @@ use anchor_basset_hub::{
 };
 use cosmwasm_std::{
     log, to_binary, Api, Binary, CanonicalAddr, CosmosMsg, Env, Extern, HandleResponse,
-    HumanAddr, InitResponse, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
+    HumanAddr, InitResponse, MigrateResponse, Querier, StdError, StdResult, Storage,
+    Uint128, WasmMsg,
 };
 use cw20::Cw20HandleMsg;
 use terraswap::querier::query_supply;
 
 use crate::{
     math::decimal_division,
-    msg::InitMsg,
+    msg::{InitMsg, MigrateMsg},
     state::{read_config, read_state, write_config, write_state, Config, State},
 };
 
@@ -31,6 +32,12 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
             er_threshold: msg.er_threshold,
             peg_recovery_fee: msg.peg_recovery_fee,
             requested_with_fee: msg.requested_with_fee,
+        },
+    )?;
+    write_state(
+        &mut deps.storage,
+        &State {
+            total_bond_amount: Uint128::zero(),
         },
     )?;
     Ok(InitResponse::default())
@@ -63,6 +70,22 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         QueryMsg::CurrentBatch {} => to_binary(&query_current_batch(&deps)?),
         _ => Err(StdError::generic_err("unimplemented")),
     }
+}
+
+pub fn migrate<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    _env: Env,
+    msg: MigrateMsg,
+) -> StdResult<MigrateResponse> {
+    let mut config = read_config(&deps.storage)?;
+    config.exchange_rate = msg.new_exchange_rate;
+    write_config(&mut deps.storage, &config)?;
+
+    Ok(MigrateResponse {
+        messages: vec![],
+        log: vec![log("new_exchange_rate", config.exchange_rate)],
+        data: None,
+    })
 }
 
 //----------------------------------------------------------------------------------------
