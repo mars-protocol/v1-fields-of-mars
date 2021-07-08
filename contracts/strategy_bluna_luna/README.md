@@ -22,6 +22,6 @@ Leverage liquidity provision strategy similar to [Alpha Homora V2](https://alpha
 | bLuna Hub                         | [`terra1fflas6wv4snv8lsda9knvq2w0cyt493r8puh2e`](https://finder.terra.money/columbus-4/address/terra1fflas6wv4snv8lsda9knvq2w0cyt493r8puh2e)               |
 | bLuna Token                       | [`terra1u0t35drzyy0mujj8rkdyzhe264uls4ug3wdp3x`](https://finder.terra.money/columbus-4/address/terra1u0t35drzyy0mujj8rkdyzhe264uls4ug3wdp3x)               |
 | bLuna Validator (terran.one)      | [`terravaloper1krj7amhhagjnyg2tkkuh6l0550y733jnjnnlzy`](https://finder.terra.money/columbus-4/address/terravaloper1krj7amhhagjnyg2tkkuh6l0550y733jnjnnlzy) |
-| TerraSwap bLUNA-LUNA Pair         | TBD                                                                                                                                                        |
-| TerraSwap bLUNA-LUNA LP Token     | TBD                                                                                                                                                        |
+| TerraSwap bLUNA-LUNA Pair         | [`terra13e4jmcjnwrauvl2fnjdwex0exuzd8zrh5xk29v`](https://finder.terra.money/columbus-4/address/terra13e4jmcjnwrauvl2fnjdwex0exuzd8zrh5xk29v)               |
+| TerraSwap bLUNA-LUNA LP Token     | [`terra1tj4pavqjqjfm0wh73sh7yy9m4uq3m2cpmgva6n`](https://finder.terra.money/columbus-4/address/terra1tj4pavqjqjfm0wh73sh7yy9m4uq3m2cpmgva6n)               |
 | Fields of Mars: bLUNA LP Strategy | TBD                                                                                                                                                        |
