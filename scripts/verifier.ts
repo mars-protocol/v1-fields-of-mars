@@ -54,20 +54,18 @@ export class Verifier {
   /**
    * @notice Verify whether the strategy's debt owed to Mars equals the expected value
    */
-  async verifyDebt(amount: string) {
-    const response = await this.terra.wasm.contractQuery(this.mars, {
+  async verifyDebt(denom: "uluna" | "uusd", amount: string) {
+    const response = (await this.terra.wasm.contractQuery(this.mars, {
       debt: {
         address: this.strategy,
       },
+    })) as {
+      debts: { denom: string; amount: string }[];
+    };
+    const debt = response.debts.find((debt) => {
+      return debt.denom == denom;
     });
-    expect(response).to.deep.equal({
-      debts: [
-        {
-          denom: "uusd",
-          amount: amount,
-        },
-      ],
-    });
+    expect(debt?.amount).to.equal(amount);
   }
 
   /**

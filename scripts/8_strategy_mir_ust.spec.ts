@@ -283,7 +283,7 @@ async function testOpenPosition1() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyDebt("420000000");
+  await verifier.verifyDebt("uusd", "420000000");
   await verifier.verifyBondInfo("mirror", "169895170");
 
   console.log(chalk.green("Passed!"));
@@ -329,7 +329,7 @@ async function testHarvest() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyDebt("420000000");
+  await verifier.verifyDebt("uusd", "420000000");
   await verifier.verifyBondInfo("mirror", "170876125");
 
   // Fee collector should have received 0.2 MIR performance fee
@@ -398,7 +398,7 @@ async function testOpenPosition2() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyDebt("420000000");
+  await verifier.verifyDebt("uusd", "420000000");
   await verifier.verifyBondInfo("mirror", "255577722");
 
   console.log(chalk.green("Passed!"));
@@ -453,7 +453,7 @@ async function testPayDebt() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyDebt("320099901");
+  await verifier.verifyDebt("uusd", "320099901");
   await verifier.verifyBondInfo("mirror", "255577722");
 
   console.log(chalk.green("Passed!"));
@@ -502,7 +502,7 @@ async function testReducePosition() {
     unbonded_asset_amount: "0",
   });
   await verifier.verifyBondInfo("mirror", "185278986");
-  await verifier.verifyDebt("147505687");
+  await verifier.verifyDebt("uusd", "147505687");
 
   // User 1 should have received 28610622 uMIR
   const user1MirBalance = await queryTokenBalance(
@@ -562,7 +562,7 @@ async function testLiquidation1() {
     unbonded_asset_amount: "0",
   });
   await verifier.verifyBondInfo("mirror", "185278986");
-  await verifier.verifyDebt("147505687");
+  await verifier.verifyDebt("uusd", "147505687");
 
   await sendTransaction(terra, liquidator1, [
     new MsgExecuteContract(
@@ -607,7 +607,7 @@ async function testLiquidation1() {
     unbonded_asset_amount: "0",
   });
   await verifier.verifyBondInfo("mirror", "84701598");
-  await verifier.verifyDebt("41561268");
+  await verifier.verifyDebt("uusd", "41561268");
 
   // Liquidator should have receive correct amount of MIR token
   const liquidatorMirBalance = await queryTokenBalance(
@@ -651,7 +651,7 @@ async function testLiquidation2() {
     total_debt_units: "0",
     utilization: "0",
   });
-  await verifier.verifyDebt("0");
+  await verifier.verifyDebt("uusd", "0");
 
   // User 1 is fully liquidated, so his position data should have been purged from storage
   // Querying it should fail with statue cide 500

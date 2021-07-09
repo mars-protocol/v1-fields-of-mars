@@ -310,7 +310,7 @@ async function testOpenPosition1() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyDebt("420000000");
+  await verifier.verifyDebt("uusd", "420000000");
   await verifier.verifyBondInfo("anchor", "169895170");
 
   console.log(chalk.green("Passed!"));
@@ -414,7 +414,7 @@ async function testHarvest() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyDebt("420000000");
+  await verifier.verifyDebt("uusd", "420000000");
   await verifier.verifyBondInfo("anchor", "170876125");
 
   // Fee collector should have received 0.2 ANC performance fee
@@ -539,7 +539,7 @@ async function testOpenPosition2() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyDebt("420000000");
+  await verifier.verifyDebt("uusd", "420000000");
   await verifier.verifyBondInfo("anchor", "255577722");
 
   console.log(chalk.green("Passed!"));
@@ -613,7 +613,7 @@ async function testPayDebt() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyDebt("320099901");
+  await verifier.verifyDebt("uusd", "320099901");
   await verifier.verifyBondInfo("anchor", "255577722");
 
   console.log(chalk.green("Passed!"));
@@ -726,7 +726,7 @@ async function testReducePosition() {
     unbonded_asset_amount: "0",
   });
   await verifier.verifyBondInfo("anchor", "185278986");
-  await verifier.verifyDebt("147505687");
+  await verifier.verifyDebt("uusd", "147505687");
 
   // User 1 should have received 28610622 uANC
   const user1AncBalance = await queryTokenBalance(
@@ -833,7 +833,7 @@ async function testLiquidation1() {
     unbonded_asset_amount: "0",
   });
   await verifier.verifyBondInfo("anchor", "185278986");
-  await verifier.verifyDebt("147505687");
+  await verifier.verifyDebt("uusd", "147505687");
 
   await sendTransaction(terra, liquidator1, [
     new MsgExecuteContract(
@@ -955,7 +955,7 @@ async function testLiquidation1() {
     unbonded_asset_amount: "0",
   });
   await verifier.verifyBondInfo("anchor", "84701598");
-  await verifier.verifyDebt("41561268");
+  await verifier.verifyDebt("uusd", "41561268");
 
   // Liquidator should have receive correct amount of ANC token
   const liquidatorAncBalance = await queryTokenBalance(
@@ -999,7 +999,7 @@ async function testLiquidation2() {
     total_debt_units: "0",
     utilization: "0",
   });
-  await verifier.verifyDebt("0");
+  await verifier.verifyDebt("uusd", "0");
 
   // User 1 is fully liquidated, so his position data should have been purged from storage
   // Querying it should fail with statue cide 500
