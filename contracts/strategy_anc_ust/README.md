@@ -82,10 +82,11 @@ Diagram below shows how these callbacks are used in the execution of each Handle
 | Mirror Staking             | [`terra17f7zu97865jmknk7p2glqvxzhduk78772ezac5`](https://finder.terra.money/columbus-4/address/terra17f7zu97865jmknk7p2glqvxzhduk78772ezac5) |
 | TerraSwap MIR-UST Pair     | [`terra1amv303y8kzxuegvurh0gug2xe9wkgj65enq2ux`](https://finder.terra.money/columbus-4/address/terra1amv303y8kzxuegvurh0gug2xe9wkgj65enq2ux) |
 | TerraSwap MIR-UST LP Token | [`terra17gjf2zehfvnyjtdgua9p9ygquk6gukxe7ucgwh`](https://finder.terra.money/columbus-4/address/terra17gjf2zehfvnyjtdgua9p9ygquk6gukxe7ucgwh) |
+| Mars Liquidity Pool        | TBD                                                                                                                                          |
 | Fields of Mars: ANC-UST LP | TBD                                                                                                                                          |
 | Fields of Mars: MIR-UST-LP | TBD                                                                                                                                          |
 
-### Tequila-004
+### Tequila-0004
 
 | Contract                   | Address                                                                                                                                        |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -97,5 +98,6 @@ Diagram below shows how these callbacks are used in the execution of each Handle
 | Mirror Staking             | [`terra1a06dgl27rhujjphsn4drl242ufws267qxypptx`](https://finder.terra.money/tequila-0004/address/terra1a06dgl27rhujjphsn4drl242ufws267qxypptx) |
 | TerraSwap MIR-UST Pair     | [`terra1cz6qp8lfwht83fh9xm9n94kj04qc35ulga5dl0`](https://finder.terra.money/tequila-0004/address/terra1cz6qp8lfwht83fh9xm9n94kj04qc35ulga5dl0) |
 | TerraSwap MIR-UST LP Token | [`terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j`](https://finder.terra.money/tequila-0004/address/terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j) |
+| Mars Liquidity Pool        | [`terra1knxh6cd43jswu3ahyx2cd9mzchynmpcqzpa65x`](https://finder.terra.money/tequila-0004/address/terra1knxh6cd43jswu3ahyx2cd9mzchynmpcqzpa65x) |
 | Fields of Mars: ANC-UST LP | TBD                                                                                                                                            |
 | Fields of Mars: MIR-UST-LP | TBD                                                                                                                                            |
