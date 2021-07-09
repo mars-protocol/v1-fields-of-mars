@@ -1,7 +1,7 @@
 import * as path from "path";
 import chalk from "chalk";
-import { LocalTerra, Wallet } from "@terra-money/terra.js";
-import { storeCode, instantiateContract } from "./helpers";
+import { LocalTerra, MsgExecuteContract, Wallet } from "@terra-money/terra.js";
+import { storeCode, instantiateContract, sendTransaction } from "./helpers";
 
 //----------------------------------------------------------------------------------------
 // CW20 token
@@ -16,7 +16,7 @@ export async function deployTerraswapToken(
   cw20CodeId?: number
 ) {
   if (!cw20CodeId) {
-    process.stdout.write("Uploading TerraSwap Token code... ");
+    process.stdout.write("CW20 code ID not given! Uploading CW20 code... ");
 
     cw20CodeId = await storeCode(
       terra,
@@ -191,6 +191,91 @@ export async function deployMockMars(terra: LocalTerra, deployer: Wallet) {
   console.log(chalk.green("Done!"), `${chalk.blue("contractAddress")}=${mars}`);
 
   return mars;
+}
+
+//----------------------------------------------------------------------------------------
+// Mock bLuna Hub and bLuna Token
+//----------------------------------------------------------------------------------------
+
+export async function deployBLuna(
+  terra: LocalTerra,
+  deployer: Wallet,
+  cw20CodeId?: number
+) {
+  process.stdout.write("Uploading Mock bLuna Hub code... ");
+
+  const codeId = await storeCode(
+    terra,
+    deployer,
+    path.resolve(__dirname, "../artifacts/mock_bluna_hub.wasm")
+  );
+
+  console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
+
+  process.stdout.write("Instantiating Mock bLuna Hub contract... ");
+
+  const hubInitResult = await instantiateContract(
+    terra,
+    deployer,
+    codeId,
+    {
+      exchange_rate: "1.000007185261045766",
+      er_threshold: "1",
+      peg_recovery_fee: "0.005",
+      requested_with_fee: "12345",
+    },
+    undefined, // no coin to send upon instantiation
+    true // set the contract to be migratable
+  );
+
+  const bLunaHub = hubInitResult.logs[0].events[0].attributes[2].value;
+
+  console.log(chalk.green("Done!"), `${chalk.blue("contractAddress")}=${bLunaHub}`);
+
+  if (!cw20CodeId) {
+    process.stdout.write("CW20 code ID not given! Uploading CW20 code... ");
+
+    cw20CodeId = await storeCode(
+      terra,
+      deployer,
+      path.resolve(__dirname, "../artifacts/terraswap_token.wasm")
+    );
+
+    console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${cw20CodeId}`);
+  }
+
+  process.stdout.write(`Instantiating Mock bLuna Token contract... `);
+
+  const tokenInitResult = await instantiateContract(terra, deployer, cw20CodeId, {
+    name: "Bonded Luna",
+    symbol: "bLUNA",
+    decimals: 6,
+    initial_balances: [],
+    mint: {
+      minter: bLunaHub,
+    },
+  });
+
+  const bLunaToken = tokenInitResult.logs[0].events[0].attributes[2].value;
+
+  console.log(chalk.green("Done!"), `${chalk.blue("contractAddress")}=${bLunaToken}`);
+
+  process.stdout.write("Updating bLuna Hub config... ");
+
+  await sendTransaction(terra, deployer, [
+    new MsgExecuteContract(deployer.key.accAddress, bLunaHub, {
+      update_config: {
+        owner: undefined,
+        token_contract: bLunaToken,
+        reward_contract: undefined,
+        airdrop_registry_contract: undefined,
+      },
+    }),
+  ]);
+
+  console.log(chalk.green("Done!"));
+
+  return { bLunaHub, bLunaToken };
 }
 
 //----------------------------------------------------------------------------------------
