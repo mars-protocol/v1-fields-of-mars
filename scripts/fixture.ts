@@ -95,6 +95,45 @@ export async function deployTerraswapPair(
 }
 
 //----------------------------------------------------------------------------------------
+// Mock Mars Liquidity Pool
+//----------------------------------------------------------------------------------------
+
+export async function deployMockMars(
+  terra: LocalTerra,
+  deployer: Wallet,
+  mockInterestRate: string = "1"
+) {
+  process.stdout.write("Uploading Mock Mars code... ");
+
+  const codeId = await storeCode(
+    terra,
+    deployer,
+    path.resolve(__dirname, "../artifacts/mock_mars.wasm")
+  );
+
+  console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
+
+  process.stdout.write("Instantiating Mock Mars contract... ");
+
+  const result = await instantiateContract(
+    terra,
+    deployer,
+    codeId,
+    {
+      mock_interest_rate: mockInterestRate,
+    },
+    undefined, // no coin to send upon instantiation
+    true // set the contract to be migratable
+  );
+
+  const mars = result.logs[0].events[0].attributes[2].value;
+
+  console.log(chalk.green("Done!"), `${chalk.blue("contractAddress")}=${mars}`);
+
+  return mars;
+}
+
+//----------------------------------------------------------------------------------------
 // Mock Anchor Staking
 //----------------------------------------------------------------------------------------
 
@@ -162,35 +201,6 @@ export async function deployMockMirror(
   console.log(chalk.green("Done!"), `${chalk.blue("contractAddress")}=${mirrorStaking}`);
 
   return mirrorStaking;
-}
-
-//----------------------------------------------------------------------------------------
-// Mock Mars Liquidity Pool
-//----------------------------------------------------------------------------------------
-
-export async function deployMockMars(terra: LocalTerra, deployer: Wallet) {
-  process.stdout.write("Uploading Mock Mars code... ");
-
-  const codeId = await storeCode(
-    terra,
-    deployer,
-    path.resolve(__dirname, "../artifacts/mock_mars.wasm")
-  );
-
-  console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
-
-  process.stdout.write("Instantiating Mock Mars contract... ");
-
-  const result = await instantiateContract(terra, deployer, codeId, {
-    ma_token_code_id: 1, // values of these parameters don't matter
-    close_factor: "0.5", // decimal parameters need to be passed in as strings
-  });
-
-  const mars = result.logs[0].events[0].attributes[2].value;
-
-  console.log(chalk.green("Done!"), `${chalk.blue("contractAddress")}=${mars}`);
-
-  return mars;
 }
 
 //----------------------------------------------------------------------------------------
