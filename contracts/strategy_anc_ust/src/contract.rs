@@ -5,7 +5,7 @@ use cosmwasm_std::{
     StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20HandleMsg;
-use mars::liquidity_pool as mars;
+use mars::red_bank;
 use terraswap::{
     asset::{Asset, AssetInfo},
     querier::{query_balance, query_supply, query_token_balance},
@@ -757,7 +757,7 @@ pub fn _borrow<S: Storage, A: Api, Q: Querier>(
     let user_raw = deps.api.canonical_address(&user)?;
     let config = read_config(&deps.storage)?;
     let mut state = read_state(&deps.storage)?;
-    let mars = deps.api.human_address(&config.mars)?;
+    let red_bank = deps.api.human_address(&config.red_bank)?;
 
     // If the user doesn't have a position yet, we initialize a new one
     let mut position = match read_position(&deps.storage, &user_raw) {
@@ -784,10 +784,10 @@ pub fn _borrow<S: Storage, A: Api, Q: Querier>(
 
     Ok(HandleResponse {
         messages: vec![WasmMsg::Execute {
-            contract_addr: mars,
+            contract_addr: red_bank,
             send: vec![],
-            msg: to_binary(&mars::HandleMsg::Borrow {
-                asset: mars::Asset::Native {
+            msg: to_binary(&red_bank::HandleMsg::Borrow {
+                asset: red_bank::Asset::Native {
                     denom: "uusd".to_string(),
                 },
                 amount: Uint256::from(borrow_amount),
@@ -817,6 +817,7 @@ pub fn _repay<S: Storage, A: Api, Q: Querier>(
     }
 
     let user_raw = deps.api.canonical_address(&user)?;
+    let config = &read_config(&deps.storage)?;
     let mut state = read_state(&deps.storage)?;
     let mut position = read_position(&deps.storage, &user_raw)?;
 
@@ -824,7 +825,7 @@ pub fn _repay<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("no debt to repay"));
     }
 
-    let mars = deps.api.human_address(&read_config(&deps.storage)?.mars)?;
+    let red_bank = deps.api.human_address(&config.red_bank)?;
     let total_debt_amount = query_debt_amount(&deps, &env.contract.address)?;
 
     // The amount of UST owed by the user
@@ -858,12 +859,12 @@ pub fn _repay<S: Storage, A: Api, Q: Querier>(
 
     Ok(HandleResponse {
         messages: vec![WasmMsg::Execute {
-            contract_addr: mars,
+            contract_addr: red_bank,
             send: vec![Coin {
                 denom: "uusd".to_string(),
                 amount: ust_to_repay,
             }],
-            msg: to_binary(&mars::HandleMsg::RepayNative {
+            msg: to_binary(&red_bank::HandleMsg::RepayNative {
                 denom: "uusd".to_string(),
             })?,
         }
@@ -1119,7 +1120,7 @@ pub fn _update_config<S: Storage, A: Api, Q: Querier>(
             reward_token: deps.api.canonical_address(&config.reward_token)?,
             pool: deps.api.canonical_address(&config.pool)?,
             pool_token: deps.api.canonical_address(&config.pool_token)?,
-            mars: deps.api.canonical_address(&config.mars)?,
+            red_bank: deps.api.canonical_address(&config.red_bank)?,
             staking_contract: deps.api.canonical_address(&config.staking_contract)?,
             staking_type: config.staking_type,
             max_ltv: config.max_ltv,
@@ -1205,7 +1206,7 @@ pub fn query_config<S: Storage, A: Api, Q: Querier>(
         reward_token: deps.api.human_address(&config.reward_token)?,
         pool: deps.api.human_address(&config.pool)?,
         pool_token: deps.api.human_address(&config.pool_token)?,
-        mars: deps.api.human_address(&config.mars)?,
+        red_bank: deps.api.human_address(&config.red_bank)?,
         staking_contract: deps.api.human_address(&config.staking_contract)?,
         staking_type: config.staking_type,
         max_ltv: config.max_ltv,

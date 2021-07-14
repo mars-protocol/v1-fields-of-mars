@@ -30,8 +30,8 @@ pub struct Config {
     pub pool: CanonicalAddr,
     /// Address of the TerraSwap LP token
     pub pool_token: CanonicalAddr,
-    /// Address of Mars liquidity pool
-    pub mars: CanonicalAddr,
+    /// Address of Mars liquidity pool aka Red Bank
+    pub red_bank: CanonicalAddr,
     /// Address of the staking contract
     pub staking_contract: CanonicalAddr,
     /// Type of the staking contract ("anchor" or "mirror")

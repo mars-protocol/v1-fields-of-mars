@@ -1,5 +1,5 @@
 import * as path from "path";
-import BN from "bn.js";
+import BN, { red } from "bn.js";
 import chalk from "chalk";
 import chai from "chai";
 import chaiAsPromised from "chai-as-promised";
@@ -41,7 +41,7 @@ let mirrorToken: string;
 let mirrorStaking: string;
 let terraswapPair: string;
 let terraswapLpToken: string;
-let mars: string;
+let redBank: string;
 let strategy: string;
 let verifier: Verifier;
 
@@ -73,7 +73,7 @@ async function setupTest() {
     terraswapLpToken
   );
 
-  mars = await deployMockMars(terra, deployer);
+  redBank = await deployMockMars(terra, deployer);
 
   strategy = await deployFieldOfMars(
     terra,
@@ -88,7 +88,7 @@ async function setupTest() {
       reward_token: mirrorToken,
       pool: terraswapPair,
       pool_token: terraswapLpToken,
-      mars: mars,
+      red_bank: redBank,
       staking_contract: mirrorStaking,
       staking_type: "mirror",
       max_ltv: "0.67", // 67% debt ratio, i.e. 150% collateralization ratio
@@ -101,7 +101,7 @@ async function setupTest() {
 
   verifier = new Verifier(terra, {
     strategy,
-    mars,
+    redBank,
     assetToken: mirrorToken,
     staking: mirrorStaking,
   });
@@ -163,7 +163,7 @@ async function setupTest() {
   process.stdout.write("Fund Mars contract with UST...");
 
   await sendTransaction(terra, deployer, [
-    new MsgSend(deployer.key.accAddress, mars, { uusd: 99999000000 }), // 99999 UST
+    new MsgSend(deployer.key.accAddress, redBank, { uusd: 99999000000 }), // 99999 UST
   ]);
 
   console.log(chalk.green("Done!"));
@@ -226,7 +226,7 @@ async function testConfig() {
     reward_token: mirrorToken,
     pool: terraswapPair,
     pool_token: terraswapLpToken,
-    mars: mars,
+    red_bank: redBank,
     staking_contract: mirrorStaking,
     staking_type: "mirror",
     max_ltv: "0.67",
@@ -764,7 +764,7 @@ async function testUpdateConfig() {
         mirror_staking: mirrorStaking,
         pool: terraswapPair,
         pool_token: terraswapLpToken,
-        mars: mars,
+        red_bank: redBank,
         staking_contract: mirrorStaking,
         staking_type: "mirror",
         max_ltv: "0.67",
@@ -794,7 +794,7 @@ async function testUpdateConfig() {
     reward_token: mirrorToken,
     pool: terraswapPair,
     pool_token: terraswapLpToken,
-    mars: mars,
+    red_bank: redBank,
     staking_contract: mirrorStaking,
     staking_type: "mirror",
     max_ltv: "0.67",
@@ -856,14 +856,14 @@ async function testMigrate() {
   await testConfig();
   await testOpenPosition1();
   await testHarvest();
-  // await testOpenPosition2();
-  // await testPayDebt();
-  // await testReducePosition();
-  // await testLiquidation1();
-  // await testLiquidation2();
-  // await testClosePosition();
-  // await testUpdateConfig();
-  // await testMigrate();
+  await testOpenPosition2();
+  await testPayDebt();
+  await testReducePosition();
+  await testLiquidation1();
+  await testLiquidation2();
+  await testClosePosition();
+  await testUpdateConfig();
+  await testMigrate();
 
   console.log("");
 })();

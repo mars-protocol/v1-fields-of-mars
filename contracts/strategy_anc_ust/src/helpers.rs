@@ -2,7 +2,7 @@ use cosmwasm_std::{
     to_binary, Api, Decimal, Extern, HumanAddr, MessageInfo, Querier, QueryRequest,
     StdResult, Storage, Uint128, WasmQuery,
 };
-use mars::liquidity_pool as mars;
+use mars::red_bank;
 use std::str::FromStr;
 use terra_cosmwasm::TerraQuerier;
 use terraswap::querier::{query_balance, query_supply};
@@ -184,13 +184,13 @@ pub fn query_debt_amount<S: Storage, A: Api, Q: Querier>(
     borrower: &HumanAddr,
 ) -> StdResult<Uint128> {
     let config = read_config(&deps.storage)?;
-    let mars = deps.api.human_address(&config.mars)?;
+    let red_bank = deps.api.human_address(&config.red_bank)?;
 
     let debts = deps
         .querier
-        .query::<mars::DebtResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: mars,
-            msg: to_binary(&mars::QueryMsg::Debt {
+        .query::<red_bank::DebtResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: red_bank,
+            msg: to_binary(&red_bank::QueryMsg::Debt {
                 address: HumanAddr::from(borrower),
             })?,
         }))?

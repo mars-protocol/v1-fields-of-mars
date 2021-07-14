@@ -3,7 +3,7 @@ use cosmwasm_std::{
     log, to_binary, Api, BankMsg, Binary, Coin, Env, Extern, HandleResponse, HumanAddr,
     InitResponse, MigrateResponse, Querier, StdError, StdResult, Storage,
 };
-use mars::liquidity_pool::{Asset, DebtInfo, DebtResponse, HandleMsg, QueryMsg};
+use mars::red_bank::{Asset, DebtInfo, DebtResponse, HandleMsg, QueryMsg};
 
 use crate::{
     helpers::{deduct_tax, get_denom_amount_from_coins},

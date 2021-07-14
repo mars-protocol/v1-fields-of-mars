@@ -18,17 +18,17 @@ const terra = new LocalTerra();
 const deployer = terra.wallets.test1;
 const user = terra.wallets.test2;
 
-let mars: string;
+let redBank: string;
 
 async function setupTest() {
-  mars = await deployMockMars(terra, deployer, "1.1");
+  redBank = await deployMockMars(terra, deployer, "1.1");
 
   process.stdout.write("Fund contract with LUNA and UST...");
 
   await sendTransaction(terra, deployer, [
     new MsgSend(
       deployer.key.accAddress,
-      mars,
+      redBank,
       { uluna: 100000000, uusd: 100000000 } // fund contract with 100 LUNA + 100 UST
     ),
   ]);
@@ -46,7 +46,7 @@ async function testBorrow1() {
   );
 
   await sendTransaction(terra, user, [
-    new MsgExecuteContract(user.key.accAddress, mars, {
+    new MsgExecuteContract(user.key.accAddress, redBank, {
       borrow: {
         asset: {
           native: {
@@ -70,7 +70,7 @@ async function testBorrow1() {
   );
 
   // Should be 42000000 * 1.1 = 46200000 uluna
-  const debtResponse = await terra.wasm.contractQuery(mars, {
+  const debtResponse = await terra.wasm.contractQuery(redBank, {
     debt: {
       address: user.key.accAddress,
     },
@@ -101,7 +101,7 @@ async function testBorrow2() {
   );
 
   await sendTransaction(terra, user, [
-    new MsgExecuteContract(user.key.accAddress, mars, {
+    new MsgExecuteContract(user.key.accAddress, redBank, {
       borrow: {
         asset: {
           native: {
@@ -127,7 +127,7 @@ async function testBorrow2() {
   );
 
   // With mockInterestRate = 1.1, debt amount should be 69000000 * 1.1 = 75900000 uusd
-  const debtResponse = await terra.wasm.contractQuery(mars, {
+  const debtResponse = await terra.wasm.contractQuery(redBank, {
     debt: {
       address: user.key.accAddress,
     },
@@ -154,7 +154,7 @@ async function testRepay1() {
   await sendTransaction(terra, user, [
     new MsgExecuteContract(
       user.key.accAddress,
-      mars,
+      redBank,
       {
         repay_native: {
           denom: "uluna",
@@ -170,7 +170,7 @@ async function testRepay1() {
   // = 30776657 * 1.1
   // = 33854322
   // 46200000 - 12345678 = 33854322 (match)
-  const debtResponse = await terra.wasm.contractQuery(mars, {
+  const debtResponse = await terra.wasm.contractQuery(redBank, {
     debt: {
       address: user.key.accAddress,
     },
@@ -197,7 +197,7 @@ async function testRepay2() {
   await sendTransaction(terra, user, [
     new MsgExecuteContract(
       user.key.accAddress,
-      mars,
+      redBank,
       {
         repay_native: {
           denom: "uusd",
@@ -213,7 +213,7 @@ async function testRepay2() {
   // = 60919193 * 1.1
   // = 67011112
   // 75900000 - 8888888 = 67011112 (match)
-  const debtResponse = await terra.wasm.contractQuery(mars, {
+  const debtResponse = await terra.wasm.contractQuery(redBank, {
     debt: {
       address: user.key.accAddress,
     },
@@ -238,10 +238,10 @@ async function testMigrate() {
   process.stdout.write("Should migrate... ");
 
   // We don't actually change the code ID during migration
-  const codeId = (await terra.wasm.contractInfo(mars)).code_id;
+  const codeId = (await terra.wasm.contractInfo(redBank)).code_id;
 
   await sendTransaction(terra, deployer, [
-    new MsgMigrateContract(deployer.key.accAddress, mars, codeId, {
+    new MsgMigrateContract(deployer.key.accAddress, redBank, codeId, {
       mock_interest_rate: "1.2",
     }),
   ]);
@@ -249,7 +249,7 @@ async function testMigrate() {
   // With the new mockInterestRate, debt amounts should be:
   // uluna: 30776657 * 1.2 = 36931988
   // uusd: 60919193 * 1.2 = 73103031
-  const debtResponse = await terra.wasm.contractQuery(mars, {
+  const debtResponse = await terra.wasm.contractQuery(redBank, {
     debt: {
       address: user.key.accAddress,
     },

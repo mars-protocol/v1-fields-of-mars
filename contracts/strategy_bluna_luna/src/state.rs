@@ -27,8 +27,8 @@ pub struct Config {
     pub pool: CanonicalAddr,
     /// Address of Terraswap LP token
     pub pool_token: CanonicalAddr,
-    /// Address of Mars liquidity pool
-    pub mars: CanonicalAddr,
+    /// Address of Mars liquidity pool aka Red Bank
+    pub red_bank: CanonicalAddr,
     /// Percentage of asset to be charged as liquidation fee
     pub liquidation_fee_rate: Decimal,
     /// Maximum utilization above which a user can be liquidated

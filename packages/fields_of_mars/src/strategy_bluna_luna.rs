@@ -24,8 +24,8 @@ pub struct InitMsg {
     pub pool: HumanAddr,
     /// Address of Terraswap LP token
     pub pool_token: HumanAddr,
-    /// Address of Mars liquidity pool
-    pub mars: HumanAddr,
+    /// Address of Mars liquidity pool aka Red Bank
+    pub red_bank: HumanAddr,
     /// Percentage of asset to be charged as liquidation fee
     pub liquidation_fee_rate: Decimal,
     /// Maximum utilization above which a user can be liquidated

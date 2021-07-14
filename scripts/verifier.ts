@@ -7,14 +7,14 @@ import { LocalTerra, Wallet } from "@terra-money/terra.js";
 export class Verifier {
   terra: LocalTerra;
   assetToken: string;
-  mars: string;
+  redBank: string;
   staking: string;
   strategy: string;
 
   constructor(terra: LocalTerra, contracts: { [key: string]: string }) {
     this.terra = terra;
     this.assetToken = contracts.assetToken;
-    this.mars = contracts.mars;
+    this.redBank = contracts.redBank;
     this.staking = contracts.staking;
     this.strategy = contracts.strategy;
   }
@@ -71,7 +71,7 @@ export class Verifier {
    * @notice Verify whether the strategy's debt owed to Mars matches the expected value
    */
   async verifyDebt(denom: "uluna" | "uusd", amount: string) {
-    const response = (await this.terra.wasm.contractQuery(this.mars, {
+    const response = (await this.terra.wasm.contractQuery(this.redBank, {
       debt: {
         address: this.strategy,
       },

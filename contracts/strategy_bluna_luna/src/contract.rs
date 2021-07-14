@@ -5,7 +5,7 @@ use cosmwasm_std::{
     StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20HandleMsg;
-use mars::liquidity_pool as mars;
+use mars::red_bank;
 use terraswap::{
     asset::{Asset, AssetInfo},
     querier::{query_balance, query_supply, query_token_balance},
@@ -263,7 +263,7 @@ pub fn query_config<S: Storage, A: Api, Q: Querier>(
         bluna_validator: deps.api.human_address(&config.bluna_validator)?,
         pool: deps.api.human_address(&config.pool)?,
         pool_token: deps.api.human_address(&config.pool_token)?,
-        mars: deps.api.human_address(&config.mars)?,
+        red_bank: deps.api.human_address(&config.red_bank)?,
         liquidation_fee_rate: config.liquidation_fee_rate,
         liquidation_threshold: config.liquidation_threshold,
     })

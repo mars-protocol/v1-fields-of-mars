@@ -126,11 +126,11 @@ export async function deployMockMars(
     true // set the contract to be migratable
   );
 
-  const mars = result.logs[0].events[0].attributes[2].value;
+  const redBank = result.logs[0].events[0].attributes[2].value;
 
-  console.log(chalk.green("Done!"), `${chalk.blue("contractAddress")}=${mars}`);
+  console.log(chalk.green("Done!"), `${chalk.blue("contractAddress")}=${redBank}`);
 
-  return mars;
+  return redBank;
 }
 
 //----------------------------------------------------------------------------------------
