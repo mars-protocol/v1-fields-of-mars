@@ -3,9 +3,12 @@ use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use fields_of_mars::strategy_anc_ust::PositionSnapshotResponse;
+
 pub static KEY_CONFIG: &[u8] = b"config";
 pub static KEY_STATE: &[u8] = b"state";
 pub static PREFIX_POSITION: &[u8] = b"positions";
+pub static PREFIX_POSITION_SNAPSHOT: &[u8] = b"position_snapshot";
 
 //----------------------------------------------------------------------------------------
 // STORAGE TYPES
@@ -103,6 +106,8 @@ impl Position {
     }
 }
 
+pub type PositionSnapshot = PositionSnapshotResponse;
+
 //----------------------------------------------------------------------------------------
 // READ/WRITE FUNCTIONS
 //----------------------------------------------------------------------------------------
@@ -140,4 +145,24 @@ pub fn write_position<S: Storage>(
 
 pub fn delete_position<S: Storage>(storage: &mut S, account: &CanonicalAddr) {
     bucket::<_, Position>(PREFIX_POSITION, storage).remove(account.as_slice());
+}
+
+pub fn read_position_snapshot<S: Storage>(
+    storage: &S,
+    account: &CanonicalAddr,
+) -> StdResult<PositionSnapshot> {
+    bucket_read(PREFIX_POSITION_SNAPSHOT, storage).load(account.as_slice())
+}
+
+pub fn write_position_snapshot<S: Storage>(
+    storage: &mut S,
+    account: &CanonicalAddr,
+    position: &PositionSnapshot,
+) -> StdResult<()> {
+    bucket(PREFIX_POSITION_SNAPSHOT, storage).save(account.as_slice(), position)
+}
+
+pub fn delete_position_snapshot<S: Storage>(storage: &mut S, account: &CanonicalAddr) {
+    bucket::<_, PositionSnapshot>(PREFIX_POSITION_SNAPSHOT, storage)
+        .remove(account.as_slice());
 }

@@ -13,7 +13,7 @@ use terraswap::{
 
 use fields_of_mars::strategy_anc_ust::{
     CallbackMsg, ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PositionResponse,
-    QueryMsg, StateResponse,
+    PositionSnapshotResponse, QueryMsg, StateResponse,
 };
 
 use crate::{
@@ -23,8 +23,9 @@ use crate::{
     },
     staking::StakingContract,
     state::{
-        delete_position, read_config, read_position, read_state, write_config,
-        write_position, write_state, Config, Position, State,
+        delete_position, delete_position_snapshot, read_config, read_position,
+        read_position_snapshot, read_state, write_config, write_position,
+        write_position_snapshot, write_state, Config, Position, PositionSnapshot, State,
     },
 };
 
@@ -123,6 +124,9 @@ pub fn _handle_callback<S: Storage, A: Api, Q: Querier>(
         CallbackMsg::UpdateConfig {
             new_config,
         } => _update_config(deps, env, new_config),
+        CallbackMsg::UpdatePositionSnapshot {
+            user,
+        } => _update_position_snapshot(deps, env, user),
     }
 }
 
@@ -136,6 +140,9 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         QueryMsg::Position {
             user,
         } => to_binary(&query_position(deps, user)?),
+        QueryMsg::PositionSnapshot {
+            user,
+        } => to_binary(&query_initial_position(deps, user)?),
     }
 }
 
@@ -223,7 +230,11 @@ pub fn increase_position<S: Storage, A: Api, Q: Querier>(
         CallbackMsg::ProvideLiquidity {
             asset_amount: asset_to_draw,
             ust_amount: ust_to_provide,
-            user: Some(env.message.sender),
+            user: Some(env.message.sender.clone()),
+        }
+        .into_cosmos_msg(&env.contract.address)?,
+        CallbackMsg::UpdatePositionSnapshot {
+            user: env.message.sender,
         }
         .into_cosmos_msg(&env.contract.address)?,
     ]);
@@ -231,7 +242,7 @@ pub fn increase_position<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages,
         log: vec![
-            log("action", "handle: increase_position"),
+            log("action", "fields_of_mars::HandleMsg::IncreasePosition"),
             log("asset_received", asset_to_draw),
             log("ust_received", ust_received),
         ],
@@ -262,20 +273,31 @@ pub fn reduce_position<S: Storage, A: Api, Q: Querier>(
         position.bond_units
     };
 
-    Ok(HandleResponse {
-        messages: vec![
-            CallbackMsg::Unbond {
-                user: env.message.sender.clone(),
-                bond_units: bond_units_to_reduce,
-            }
-            .into_cosmos_msg(&env.contract.address)?,
-            CallbackMsg::Refund {
+    let mut messages: Vec<CosmosMsg> = vec![
+        CallbackMsg::Unbond {
+            user: env.message.sender.clone(),
+            bond_units: bond_units_to_reduce,
+        }
+        .into_cosmos_msg(&env.contract.address)?,
+        CallbackMsg::Refund {
+            user: env.message.sender.clone(),
+        }
+        .into_cosmos_msg(&env.contract.address)?,
+    ];
+
+    if bond_units_to_reduce < position.bond_units {
+        messages.push(
+            CallbackMsg::UpdatePositionSnapshot {
                 user: env.message.sender,
             }
             .into_cosmos_msg(&env.contract.address)?,
-        ],
+        );
+    };
+
+    Ok(HandleResponse {
+        messages,
         log: vec![
-            log("action", "handle: reduce_position"),
+            log("action", "fields_of_mars::HandleMsg::ReducePosition"),
             log("bond_units_reduced", bond_units_to_reduce),
         ],
         data: None,
@@ -310,16 +332,22 @@ pub fn pay_debt<S: Storage, A: Api, Q: Querier>(
     let user = if let Some(user) = user {
         user
     } else {
-        env.message.sender
+        env.message.sender.clone()
     };
 
     Ok(HandleResponse {
-        messages: vec![CallbackMsg::Repay {
-            user,
-            repay_amount: ust_received,
-        }
-        .into_cosmos_msg(&env.contract.address)?],
-        log: vec![log("action", "handle: pay_debt")],
+        messages: vec![
+            CallbackMsg::Repay {
+                user,
+                repay_amount: ust_received,
+            }
+            .into_cosmos_msg(&env.contract.address)?,
+            CallbackMsg::UpdatePositionSnapshot {
+                user: env.message.sender,
+            }
+            .into_cosmos_msg(&env.contract.address)?,
+        ],
+        log: vec![log("action", "fields_of_mars::HandleMsg::PayDebt")],
         data: None,
     })
 }
@@ -357,7 +385,10 @@ pub fn harvest<S: Storage, A: Api, Q: Querier>(
             }
             .into_cosmos_msg(&env.contract.address)?,
         ],
-        log: vec![log("action", "handle: harvest"), log("reward_amount", reward_amount)],
+        log: vec![
+            log("action", "fields_of_mars::HandleMsg::Harvest"),
+            log("reward_amount", reward_amount),
+        ],
         data: None,
     })
 }
@@ -416,7 +447,10 @@ pub fn liquidate<S: Storage, A: Api, Q: Querier>(
 
     Ok(HandleResponse {
         messages,
-        log: vec![log("action", "handle: liquidate"), log("ust_received", ust_received)],
+        log: vec![
+            log("action", "fields_of_mars::HandleMsg::Liquidate"),
+            log("ust_received", ust_received),
+        ],
         data: None,
     })
 }
@@ -440,7 +474,7 @@ pub fn update_config<S: Storage, A: Api, Q: Querier>(
             new_config,
         }
         .into_cosmos_msg(&env.contract.address)?],
-        log: vec![log("action", "handle: update_config")],
+        log: vec![log("action", "fields_of_mars::HandleMsg::UpdateConfig")],
         data: None,
     })
 }
@@ -509,7 +543,7 @@ pub fn _provide_liquidity<S: Storage, A: Api, Q: Querier>(
             .into_cosmos_msg(&env.contract.address)?,
         ],
         log: vec![
-            log("action", "callback: provide_liquidity"),
+            log("action", "fields_of_mars::CallbackMsg::ProvideLiquidity"),
             log("asset_provided", asset_amount),
             log("ust_provided", ust_amount_after_tax),
         ],
@@ -598,7 +632,7 @@ pub fn _remove_liquidity<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages,
         log: vec![
-            log("action", "callback: remove_liquidity"),
+            log("action", "fields_of_mars::CallbackMsg::RemoveLiquidity"),
             log("pool_tokens_burned", pool_tokens_to_burn),
         ],
         data: None,
@@ -655,7 +689,7 @@ pub fn _bond<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![staking_contract.bond_message(amount_to_bond)?],
         log: vec![
-            log("action", "callback: bond"),
+            log("action", "fields_of_mars::CallbackMsg::Bond"),
             log("amount_bonded", amount_to_bond),
             log("bond_units_added", bond_units_to_add),
         ],
@@ -700,7 +734,7 @@ pub fn _unbond<S: Storage, A: Api, Q: Querier>(
             .into_cosmos_msg(&env.contract.address)?,
         ],
         log: vec![
-            log("action", "callback: unbond"),
+            log("action", "fields_of_mars::CallbackMsg::Unbond"),
             log("amount_unbonded", amount_to_unbond),
         ],
         data: None,
@@ -761,7 +795,7 @@ pub fn _borrow<S: Storage, A: Api, Q: Querier>(
         }
         .into()],
         log: vec![
-            log("action", "callback: borrow"),
+            log("action", "fields_of_mars::CallbackMsg::Borrow"),
             log("amount_borrowed", borrow_amount),
             log("debt_units_added", debt_units_to_add),
         ],
@@ -815,10 +849,11 @@ pub fn _repay<S: Storage, A: Api, Q: Querier>(
 
     // Update position. Delete if empty
     position.debt_units = (position.debt_units - debt_units_to_reduce)?;
-    if position.is_empty() {
-        delete_position(&mut deps.storage, &user_raw);
-    } else {
+    if !position.is_empty() {
         write_position(&mut deps.storage, &user_raw, &position)?;
+    } else {
+        delete_position(&mut deps.storage, &user_raw);
+        delete_position_snapshot(&mut deps.storage, &user_raw);
     };
 
     Ok(HandleResponse {
@@ -834,7 +869,7 @@ pub fn _repay<S: Storage, A: Api, Q: Querier>(
         }
         .into()],
         log: vec![
-            log("action", "callback: repay"),
+            log("action", "fields_of_mars::CallbackMsg::Repay"),
             log("ust_received", repay_amount),
             log("ust_repaid", ust_to_repay),
             log("debt_units_reduced", debt_units_to_reduce),
@@ -912,13 +947,15 @@ pub fn _swap_reward<S: Storage, A: Api, Q: Querier>(
         ])
     } else {
         // We currently only support case where asset_token and reward_token are the same
-        return Err(StdError::generic_err("unimplemented"));
+        return Err(StdError::generic_err(
+            "unimplemented: asset_token and reward_token must be the same",
+        ));
     };
 
     Ok(HandleResponse {
         messages,
         log: vec![
-            log("action", "callback: swap_reward"),
+            log("action", "fields_of_mars::CallbackMsg::SwapReward"),
             log("fee_amount", fee_amount),
             log("reward_amount_after_fee", reward_amount_after_fee),
         ],
@@ -952,10 +989,11 @@ pub fn _refund<S: Storage, A: Api, Q: Querier>(
     position.unbonded_asset_amount = Uint128::zero();
 
     // Delete the user's position if there is no asset and debt left
-    if position.is_empty() {
-        delete_position(&mut deps.storage, &user_raw);
-    } else {
+    if !position.is_empty() {
         write_position(&mut deps.storage, &user_raw, &position)?;
+    } else {
+        delete_position(&mut deps.storage, &user_raw);
+        delete_position_snapshot(&mut deps.storage, &user_raw);
     };
 
     let mut messages: Vec<CosmosMsg> = vec![];
@@ -985,7 +1023,7 @@ pub fn _refund<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages,
         log: vec![
-            log("action", "callback: refund"),
+            log("action", "fields_of_mars::CallbackMsg::Refund"),
             log("asset_refunded", asset_to_refund),
             log("ust_refunded", ust_to_refund),
             log("ltv", ltv.unwrap_or_default()),
@@ -1050,7 +1088,7 @@ pub fn _claim_collateral<S: Storage, A: Api, Q: Querier>(
             .into_cosmos_msg(&env.contract.address)?,
         ],
         log: vec![
-            log("action", "callback: claim_collateral"),
+            log("action", "fields_of_mars::CallbackMsg::ClaimCollateral"),
             log("asset_released", asset_to_release),
         ],
         data: None,
@@ -1092,7 +1130,52 @@ pub fn _update_config<S: Storage, A: Api, Q: Querier>(
 
     Ok(HandleResponse {
         messages: vec![],
-        log: vec![log("action", "callback: update_config")],
+        log: vec![log("action", "fields_of_mars::CallbackMsg::UpdateConfig")],
+        data: None,
+    })
+}
+
+/**
+ * @notice Save a snapshot of a user's position everytime the position is increased,
+ * decreased, or the debt is paid. Useful for the frontend to calculate PnL.
+ */
+pub fn _update_position_snapshot<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    user: HumanAddr,
+) -> StdResult<HandleResponse> {
+    let user_raw = deps.api.canonical_address(&user)?;
+    let position = read_position(&deps.storage, &user_raw)?;
+    let (bond_value, debt_value, ltv) = compute_ltv(deps, Some(user.clone()))?;
+
+    write_position_snapshot(
+        &mut deps.storage,
+        &user_raw,
+        &PositionSnapshot {
+            time: env.block.time,
+            height: env.block.height,
+            snapshot: PositionResponse {
+                is_active: position.is_active(),
+                bond_value,
+                bond_units: position.bond_units,
+                debt_value,
+                debt_units: position.debt_units,
+                ltv,
+                unbonded_ust_amount: position.unbonded_ust_amount,
+                unbonded_asset_amount: position.unbonded_asset_amount,
+            },
+        },
+    )?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "fields_of_mars::CallbackMsg::UpdatePositionSnapshot"),
+            log("user", user),
+            log("bond_value", bond_value),
+            log("debt_value", debt_value),
+            log("ltv", ltv.unwrap_or_default()),
+        ],
         data: None,
     })
 }
@@ -1169,4 +1252,15 @@ pub fn query_position<S: Storage, A: Api, Q: Querier>(
         unbonded_ust_amount: position.unbonded_ust_amount,
         unbonded_asset_amount: position.unbonded_asset_amount,
     })
+}
+
+/**
+ * @notice Return the snapshot taken of a user's position. Used by the frontend to
+ * calculate PnL.
+ */
+pub fn query_initial_position<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    user: HumanAddr,
+) -> StdResult<PositionSnapshotResponse> {
+    Ok(read_position_snapshot(&deps.storage, &deps.api.canonical_address(&user)?)?)
 }

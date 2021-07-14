@@ -20,7 +20,7 @@ export class Verifier {
   }
 
   /**
-   * @notice Verify whether the strategy's config equals the expected value
+   * @notice Verify whether the strategy's config matches the expected value
    */
   async verifyConfig(expectedResponse: object) {
     const response = await this.terra.wasm.contractQuery(this.strategy, {
@@ -30,7 +30,7 @@ export class Verifier {
   }
 
   /**
-   * @notice Verify whether the strategy's state equals the expected value
+   * @notice Verify whether the strategy's state matches the expected value
    */
   async verifyState(expectedResponse: object) {
     const response = await this.terra.wasm.contractQuery(this.strategy, {
@@ -40,7 +40,7 @@ export class Verifier {
   }
 
   /**
-   * @notice Verify whether the a user's position equals the expected value
+   * @notice Verify whether the a user's position matches the expected value
    */
   async verifyPosition(user: Wallet, expectResponse: object) {
     const response = await this.terra.wasm.contractQuery(this.strategy, {
@@ -52,7 +52,23 @@ export class Verifier {
   }
 
   /**
-   * @notice Verify whether the strategy's debt owed to Mars equals the expected value
+   * @notice Verify whether the snapshot for a user's position matches the expected value
+   */
+  async verifyPositionSnapshot(user: Wallet, expectResponse: object) {
+    const response = (await this.terra.wasm.contractQuery(this.strategy, {
+      position_snapshot: {
+        user: user.key.accAddress,
+      },
+    })) as {
+      time: number;
+      height: number;
+      snapshot: object;
+    };
+    expect(response.snapshot).to.deep.equal(expectResponse);
+  }
+
+  /**
+   * @notice Verify whether the strategy's debt owed to Mars matches the expected value
    */
   async verifyDebt(denom: "uluna" | "uusd", amount: string) {
     const response = (await this.terra.wasm.contractQuery(this.mars, {
@@ -69,7 +85,7 @@ export class Verifier {
   }
 
   /**
-   * @notice Verify whether the strategy's bonded asset equals the expected value
+   * @notice Verify whether the strategy's bonded asset matches the expected value
    */
   async verifyBondInfo(stakingType: "anchor" | "mirror", bondAmount: string) {
     if (stakingType == "anchor") {

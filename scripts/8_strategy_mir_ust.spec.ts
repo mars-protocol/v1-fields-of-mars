@@ -273,7 +273,8 @@ async function testOpenPosition1() {
     total_debt_units: "420000000000000",
     ltv: "0.501000502177853357",
   });
-  await verifier.verifyPosition(user1, {
+
+  const expectedPosition = {
     is_active: true,
     bond_value: "838322513",
     bond_units: "169895170000000",
@@ -282,7 +283,10 @@ async function testOpenPosition1() {
     ltv: "0.501000502177853357",
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
-  });
+  };
+  await verifier.verifyPosition(user1, expectedPosition);
+  await verifier.verifyPositionSnapshot(user1, expectedPosition);
+
   await verifier.verifyDebt("uusd", "420000000");
   await verifier.verifyBondInfo("mirror", "169895170");
 
@@ -331,6 +335,18 @@ async function testHarvest() {
   });
   await verifier.verifyDebt("uusd", "420000000");
   await verifier.verifyBondInfo("mirror", "170876125");
+
+  // Although the position is changed, the snapshot should have not changed
+  await verifier.verifyPositionSnapshot(user1, {
+    is_active: true,
+    bond_value: "838322513",
+    bond_units: "169895170000000",
+    debt_value: "420000000",
+    debt_units: "420000000000000",
+    ltv: "0.501000502177853357",
+    unbonded_ust_amount: "0",
+    unbonded_asset_amount: "0",
+  });
 
   // Fee collector should have received 0.2 MIR performance fee
   const treasuryBalance = await queryTokenBalance(
@@ -654,8 +670,13 @@ async function testLiquidation2() {
   await verifier.verifyDebt("uusd", "0");
 
   // User 1 is fully liquidated, so his position data should have been purged from storage
-  // Querying it should fail with statue cide 500
+  // Querying it should fail with statue code 500
   await expect(verifier.verifyPosition(user1, {})).to.be.rejectedWith("status code 500");
+
+  // Same with the position snapshot
+  await expect(verifier.verifyPositionSnapshot(user1, {})).to.be.rejectedWith(
+    "status code 500"
+  );
 
   // Liquidator should have received all of user 1's unstaked MIR, which is 82833879
   const liquidatorMirBalance = await queryTokenBalance(
@@ -698,8 +719,11 @@ async function testClosePosition() {
     ltv: null,
   });
 
-  // User's position data should have been deleted
+  // User's position as well as the snapshot should have been deleted
   await expect(verifier.verifyPosition(user2, {})).to.be.rejectedWith("status code 500");
+  await expect(verifier.verifyPositionSnapshot(user2, {})).to.be.rejectedWith(
+    "status code 500"
+  );
 
   const userMirBalance = await queryTokenBalance(
     terra,
@@ -832,14 +856,14 @@ async function testMigrate() {
   await testConfig();
   await testOpenPosition1();
   await testHarvest();
-  await testOpenPosition2();
-  await testPayDebt();
-  await testReducePosition();
-  await testLiquidation1();
-  await testLiquidation2();
-  await testClosePosition();
-  await testUpdateConfig();
-  await testMigrate();
+  // await testOpenPosition2();
+  // await testPayDebt();
+  // await testReducePosition();
+  // await testLiquidation1();
+  // await testLiquidation2();
+  // await testClosePosition();
+  // await testUpdateConfig();
+  // await testMigrate();
 
   console.log("");
 })();

@@ -117,6 +117,10 @@ pub enum CallbackMsg {
     UpdateConfig {
         new_config: InitMsg,
     },
+    /// Save a snapshot of a user's position; useful for the frontend to calculate PnL
+    UpdatePositionSnapshot {
+        user: HumanAddr,
+    },
 }
 
 // Modified from
@@ -141,6 +145,11 @@ pub enum QueryMsg {
     State {},
     /// Return data on an individual user's position
     Position {
+        user: HumanAddr,
+    },
+    /// Snapshot of a user's position the last time the position was increased, decreased,
+    /// or when debt was paid. Useful for the frontend to calculate PnL
+    PositionSnapshot {
         user: HumanAddr,
     },
 }
@@ -187,4 +196,14 @@ pub struct PositionResponse {
     pub unbonded_ust_amount: Uint128,
     /// Amount of unbonded asset token pending refund or liquidation
     pub unbonded_asset_amount: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct PositionSnapshotResponse {
+    /// UNIX timestamp at which the snapshot was taken
+    pub time: u64,
+    /// Block number at which the snapshot was taken
+    pub height: u64,
+    /// The snapshot
+    pub snapshot: PositionResponse,
 }
