@@ -25,7 +25,7 @@ static COMMISSION_RATE: &str = "0.003";
  * E.g. User has $150 worth of asset and $100 worth of debt, then
  *      debt_ratio = 100 / 150 = 0.666...667
  */
-pub fn compute_utilization<S: Storage, A: Api, Q: Querier>(
+pub fn compute_ltv<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     user: Option<HumanAddr>,
 ) -> StdResult<(Uint128, Uint128, Option<Decimal>)> {

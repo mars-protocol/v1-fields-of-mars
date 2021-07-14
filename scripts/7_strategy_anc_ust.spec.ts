@@ -85,9 +85,9 @@ async function setupTest() {
       mars: mars,
       staking_contract: anchorStaking,
       staking_type: "anchor",
+      max_ltv: "0.67", // 67% debt ratio, i.e. 150% collateralization ratio
       performance_fee_rate: "0.20", // 20%
       liquidation_fee_rate: "0.05", // 5%
-      liquidation_threshold: "0.67", // 67% debt ratio, i.e. 150% collateralization ratio
     }
   );
 
@@ -225,16 +225,16 @@ async function testConfig() {
     mars: mars,
     staking_contract: anchorStaking,
     staking_type: "anchor",
+    max_ltv: "0.67",
     performance_fee_rate: "0.2",
     liquidation_fee_rate: "0.05",
-    liquidation_threshold: "0.67",
   });
   await verifier.verifyState({
     total_bond_value: "0",
     total_bond_units: "0",
     total_debt_value: "0",
     total_debt_units: "0",
-    utilization: null,
+    ltv: null,
   });
 
   console.log(chalk.green("Passed!"));
@@ -298,7 +298,7 @@ async function testOpenPosition1() {
     total_bond_units: "169895170000000",
     total_debt_value: "420000000",
     total_debt_units: "420000000000000",
-    utilization: "0.501000502177853357",
+    ltv: "0.501000502177853357",
   });
   await verifier.verifyPosition(user1, {
     is_active: true,
@@ -306,7 +306,7 @@ async function testOpenPosition1() {
     bond_units: "169895170000000",
     debt_value: "420000000",
     debt_units: "420000000000000",
-    utilization: "0.501000502177853357",
+    ltv: "0.501000502177853357",
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
@@ -402,7 +402,7 @@ async function testHarvest() {
     total_bond_units: "169895170000000",
     total_debt_value: "420000000",
     total_debt_units: "420000000000000",
-    utilization: "0.49956388370312172",
+    ltv: "0.49956388370312172",
   });
   await verifier.verifyPosition(user1, {
     is_active: true,
@@ -410,7 +410,7 @@ async function testHarvest() {
     bond_units: "169895170000000",
     debt_value: "420000000",
     debt_units: "420000000000000",
-    utilization: "0.49956388370312172",
+    ltv: "0.49956388370312172",
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
@@ -517,7 +517,7 @@ async function testOpenPosition2() {
     total_bond_units: "254110517355205",
     total_debt_value: "420000000",
     total_debt_units: "420000000000000",
-    utilization: "0.334002274945161697",
+    ltv: "0.334002274945161697",
   });
   await verifier.verifyPosition(user1, {
     is_active: true,
@@ -525,7 +525,7 @@ async function testOpenPosition2() {
     bond_units: "169895170000000",
     debt_value: "420000000",
     debt_units: "420000000000000",
-    utilization: "0.499563883108921545",
+    ltv: "0.499563883108921545",
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
@@ -535,7 +535,7 @@ async function testOpenPosition2() {
     bond_units: "84215347355205",
     debt_value: "0",
     debt_units: "0",
-    utilization: "0",
+    ltv: "0",
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
@@ -591,7 +591,7 @@ async function testPayDebt() {
     total_bond_units: "254110517355205",
     total_debt_value: "320099901",
     total_debt_units: "320099901000000",
-    utilization: "0.254557369389811999",
+    ltv: "0.254557369389811999",
   });
   await verifier.verifyPosition(user1, {
     is_active: true,
@@ -599,7 +599,7 @@ async function testPayDebt() {
     bond_units: "169895170000000",
     debt_value: "320099901",
     debt_units: "320099901000000",
-    utilization: "0.380738927443669902",
+    ltv: "0.380738927443669902",
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
@@ -609,7 +609,7 @@ async function testPayDebt() {
     bond_units: "84215347355205",
     debt_value: "0",
     debt_units: "0",
-    utilization: "0",
+    ltv: "0",
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
@@ -703,7 +703,7 @@ async function testReducePosition() {
     total_bond_units: "184215347355205",
     total_debt_value: "147505687",
     total_debt_units: "147505687000000",
-    utilization: "0.161810137803894406",
+    ltv: "0.161810137803894406",
   });
   await verifier.verifyPosition(user1, {
     is_active: true,
@@ -711,7 +711,7 @@ async function testReducePosition() {
     bond_units: "100000000000000",
     debt_value: "147505687",
     debt_units: "147505687000000",
-    utilization: "0.298079110007195291",
+    ltv: "0.298079110007195291",
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
@@ -721,7 +721,7 @@ async function testReducePosition() {
     bond_units: "84215347355205",
     debt_value: "0",
     debt_units: "0",
-    utilization: "0",
+    ltv: "0",
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
@@ -810,7 +810,7 @@ async function testLiquidation1() {
     total_bond_units: "184215347355205",
     total_debt_value: "147505687",
     total_debt_units: "147505687000000",
-    utilization: "0.713576314777405596",
+    ltv: "0.713576314777405596",
   });
   await verifier.verifyPosition(user1, {
     is_active: true,
@@ -818,7 +818,7 @@ async function testLiquidation1() {
     bond_units: "100000000000000",
     debt_value: "147505687",
     debt_units: "147505687000000",
-    utilization: "1.314517092710777563",
+    ltv: "1.314517092710777563",
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
@@ -828,7 +828,7 @@ async function testLiquidation1() {
     bond_units: "84215347355205",
     debt_value: "0",
     debt_units: "0",
-    utilization: "0",
+    ltv: "0",
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
@@ -916,7 +916,7 @@ async function testLiquidation1() {
   // total_bond_units = 84215347355205 (unchanged)
   // total_debt_value = 41561268 uusd
   // total_debt_units = 91511317000000 - 49950049000000 = 41561268000000
-  // utilization = 41561268 / 94500429 = 0.439799781226389988
+  // ltv = 41561268 / 94500429 = 0.439799781226389988
   //
   // User 1 position:
   // unbonded_anc_amount = 182387057 - 99553178 = 82833879
@@ -932,7 +932,7 @@ async function testLiquidation1() {
     total_bond_units: "84215347355205",
     total_debt_value: "41561268",
     total_debt_units: "41561268000000",
-    utilization: "0.439799781226389988",
+    ltv: "0.439799781226389988",
   });
   await verifier.verifyPosition(user1, {
     is_active: false,
@@ -940,7 +940,7 @@ async function testLiquidation1() {
     bond_units: "0",
     debt_value: "41561268",
     debt_units: "41561268000000",
-    utilization: null, // Option<T>::None is serialized as null
+    ltv: null, // Option<T>::None is serialized as null
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "82833879",
   });
@@ -950,7 +950,7 @@ async function testLiquidation1() {
     bond_units: "84215347355205",
     debt_value: "0",
     debt_units: "0",
-    utilization: "0",
+    ltv: "0",
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
@@ -997,7 +997,7 @@ async function testLiquidation2() {
     total_bond_units: "84215347355205",
     total_debt_value: "0",
     total_debt_units: "0",
-    utilization: "0",
+    ltv: "0",
   });
   await verifier.verifyDebt("uusd", "0");
 
@@ -1043,7 +1043,7 @@ async function testClosePosition() {
     total_bond_units: "0",
     total_debt_value: "0",
     total_debt_units: "0",
-    utilization: null,
+    ltv: null,
   });
 
   // User's position data should have been deleted
@@ -1104,9 +1104,9 @@ async function testUpdateConfig() {
         mars: mars,
         staking_contract: anchorStaking,
         staking_type: "anchor",
+        max_ltv: "0.67",
         performance_fee_rate: "1.00", // used to be 20%; try updating this to 100%
         liquidation_fee_rate: "0.05",
-        liquidation_threshold: "0.67",
       },
     },
   };
@@ -1134,9 +1134,9 @@ async function testUpdateConfig() {
     mars: mars,
     staking_contract: anchorStaking,
     staking_type: "anchor",
+    max_ltv: "0.67",
     performance_fee_rate: "1", // should correctly update to 100%
     liquidation_fee_rate: "0.05",
-    liquidation_threshold: "0.67",
   });
 
   console.log(chalk.green("Passed!"));

@@ -30,12 +30,12 @@ pub struct InitMsg {
     pub staking_contract: HumanAddr,
     /// Type of the staking contract ("anchor" or "mirror")
     pub staking_type: String,
+    /// Maximum loan-to-value ratio (LTV) above which a user can be liquidated
+    pub max_ltv: Decimal,
     /// Percentage of profit to be charged as performance fee
     pub performance_fee_rate: Decimal,
     /// Percentage of asset to be charged as liquidation fee
     pub liquidation_fee_rate: Decimal,
-    /// Maximum utilization above which a user can be liquidated
-    pub liquidation_threshold: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -166,7 +166,7 @@ pub struct StateResponse {
     /// Total amount of debt units; used to calculate each user's share of the debt
     pub total_debt_units: Uint128,
     /// The strategy's overall loan-to-value ratio
-    pub utilization: Option<Decimal>,
+    pub ltv: Option<Decimal>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -182,7 +182,7 @@ pub struct PositionResponse {
     /// Amount of debt units representing user's share of the debt
     pub debt_units: Uint128,
     /// The user's loan-to-value ratio
-    pub utilization: Option<Decimal>,
+    pub ltv: Option<Decimal>,
     /// Amount of unbonded UST pending refund or liquidation
     pub unbonded_ust_amount: Uint128,
     /// Amount of unbonded asset token pending refund or liquidation

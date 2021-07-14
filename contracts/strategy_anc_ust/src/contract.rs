@@ -18,8 +18,8 @@ use fields_of_mars::strategy_anc_ust::{
 
 use crate::{
     helpers::{
-        add_tax, compute_swap_return_amount, compute_utilization, deduct_tax,
-        parse_ust_received, query_debt_amount,
+        add_tax, compute_ltv, compute_swap_return_amount, deduct_tax, parse_ust_received,
+        query_debt_amount,
     },
     staking::StakingContract,
     state::{
@@ -387,9 +387,9 @@ pub fn liquidate<S: Storage, A: Api, Q: Querier>(
     // The position must be closed, or has a debt ratio above the liquidation threshold
     // Note: If the position is closed, `compute_debt_ratio` should return `None` for
     // `debt_ratio`. Therefore we only need to verify when `debt_ratio` is not None.
-    let (.., utilization) = compute_utilization(deps, Some(user.clone()))?;
-    if let Some(utilization) = utilization {
-        if utilization <= config.liquidation_threshold {
+    let (.., ltv) = compute_ltv(deps, Some(user.clone()))?;
+    if let Some(ltv) = ltv {
+        if ltv <= config.max_ltv {
             return Err(StdError::generic_err("cannot liquidate a healthy position"));
         }
     }
@@ -939,9 +939,9 @@ pub fn _refund<S: Storage, A: Api, Q: Querier>(
     let mut position = read_position(&deps.storage, &user_raw)?;
 
     // Calculate debt ratio, make sure it's below the liquidation threshold
-    let (.., debt_value, utilization) = compute_utilization(deps, Some(user.clone()))?;
-    if !debt_value.is_zero() && utilization.unwrap() > config.liquidation_threshold {
-        return Err(StdError::generic_err("utilization above liquidation threshold"));
+    let (.., debt_value, ltv) = compute_ltv(deps, Some(user.clone()))?;
+    if !debt_value.is_zero() && ltv.unwrap() > config.max_ltv {
+        return Err(StdError::generic_err("LTV above liquidation threshold"));
     }
 
     // Calculate the amount of UST and asset to refund
@@ -988,7 +988,7 @@ pub fn _refund<S: Storage, A: Api, Q: Querier>(
             log("action", "callback: refund"),
             log("asset_refunded", asset_to_refund),
             log("ust_refunded", ust_to_refund),
-            log("utilization", utilization.unwrap_or_default()),
+            log("ltv", ltv.unwrap_or_default()),
             log("position_deleted", position.is_empty()),
         ],
         data: None,
@@ -1084,9 +1084,9 @@ pub fn _update_config<S: Storage, A: Api, Q: Querier>(
             mars: deps.api.canonical_address(&config.mars)?,
             staking_contract: deps.api.canonical_address(&config.staking_contract)?,
             staking_type: config.staking_type,
+            max_ltv: config.max_ltv,
             performance_fee_rate: config.performance_fee_rate,
             liquidation_fee_rate: config.liquidation_fee_rate,
-            liquidation_threshold: config.liquidation_threshold,
         },
     )?;
 
@@ -1125,9 +1125,9 @@ pub fn query_config<S: Storage, A: Api, Q: Querier>(
         mars: deps.api.human_address(&config.mars)?,
         staking_contract: deps.api.human_address(&config.staking_contract)?,
         staking_type: config.staking_type,
+        max_ltv: config.max_ltv,
         performance_fee_rate: config.performance_fee_rate,
         liquidation_fee_rate: config.liquidation_fee_rate,
-        liquidation_threshold: config.liquidation_threshold,
     })
 }
 
@@ -1138,14 +1138,14 @@ pub fn query_state<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
 ) -> StdResult<StateResponse> {
     let state = read_state(&deps.storage)?;
-    let (bond_value, debt_value, utilization) = compute_utilization(deps, None)?;
+    let (bond_value, debt_value, ltv) = compute_ltv(deps, None)?;
 
     Ok(StateResponse {
         total_bond_value: bond_value,
         total_bond_units: state.total_bond_units,
         total_debt_value: debt_value,
         total_debt_units: state.total_debt_units,
-        utilization,
+        ltv,
     })
 }
 
@@ -1157,7 +1157,7 @@ pub fn query_position<S: Storage, A: Api, Q: Querier>(
     user: HumanAddr,
 ) -> StdResult<PositionResponse> {
     let position = read_position(&deps.storage, &deps.api.canonical_address(&user)?)?;
-    let (bond_value, debt_value, utilization) = compute_utilization(deps, Some(user))?;
+    let (bond_value, debt_value, ltv) = compute_ltv(deps, Some(user))?;
 
     Ok(PositionResponse {
         is_active: position.is_active(),
@@ -1165,7 +1165,7 @@ pub fn query_position<S: Storage, A: Api, Q: Querier>(
         bond_units: position.bond_units,
         debt_value,
         debt_units: position.debt_units,
-        utilization,
+        ltv,
         unbonded_ust_amount: position.unbonded_ust_amount,
         unbonded_asset_amount: position.unbonded_asset_amount,
     })

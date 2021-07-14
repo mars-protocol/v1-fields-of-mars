@@ -33,12 +33,12 @@ pub struct Config {
     pub staking_contract: CanonicalAddr,
     /// Type of the staking contract ("anchor" or "mirror")
     pub staking_type: String,
+    /// Maximum loan-to-value ratio (LTV) above which a user can be liquidated
+    pub max_ltv: Decimal,
     /// Percentage of profit to be charged as performance fee
     pub performance_fee_rate: Decimal,
     /// Percentage of asset to be charged as liquidation fee
     pub liquidation_fee_rate: Decimal,
-    /// Maximum utilization above which a user can be liquidated
-    pub liquidation_threshold: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
