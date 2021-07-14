@@ -231,6 +231,7 @@ pub fn increase_position<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages,
         log: vec![
+            log("action", "handle: increase_position"),
             log("asset_received", asset_to_draw),
             log("ust_received", ust_received),
         ],
@@ -273,7 +274,10 @@ pub fn reduce_position<S: Storage, A: Api, Q: Querier>(
             }
             .into_cosmos_msg(&env.contract.address)?,
         ],
-        log: vec![log("bond_units_reduced", bond_units_to_reduce)],
+        log: vec![
+            log("action", "handle: reduce_position"),
+            log("bond_units_reduced", bond_units_to_reduce),
+        ],
         data: None,
     })
 }
@@ -315,7 +319,7 @@ pub fn pay_debt<S: Storage, A: Api, Q: Querier>(
             repay_amount: ust_received,
         }
         .into_cosmos_msg(&env.contract.address)?],
-        log: vec![],
+        log: vec![log("action", "handle: pay_debt")],
         data: None,
     })
 }
@@ -353,7 +357,7 @@ pub fn harvest<S: Storage, A: Api, Q: Querier>(
             }
             .into_cosmos_msg(&env.contract.address)?,
         ],
-        log: vec![log("reward_amount", reward_amount)],
+        log: vec![log("action", "handle: harvest"), log("reward_amount", reward_amount)],
         data: None,
     })
 }
@@ -412,7 +416,7 @@ pub fn liquidate<S: Storage, A: Api, Q: Querier>(
 
     Ok(HandleResponse {
         messages,
-        log: vec![log("ust_received", ust_received)],
+        log: vec![log("action", "handle: liquidate"), log("ust_received", ust_received)],
         data: None,
     })
 }
@@ -436,7 +440,7 @@ pub fn update_config<S: Storage, A: Api, Q: Querier>(
             new_config,
         }
         .into_cosmos_msg(&env.contract.address)?],
-        log: vec![],
+        log: vec![log("action", "handle: update_config")],
         data: None,
     })
 }
@@ -505,6 +509,7 @@ pub fn _provide_liquidity<S: Storage, A: Api, Q: Querier>(
             .into_cosmos_msg(&env.contract.address)?,
         ],
         log: vec![
+            log("action", "callback: provide_liquidity"),
             log("asset_provided", asset_amount),
             log("ust_provided", ust_amount_after_tax),
         ],
@@ -592,7 +597,10 @@ pub fn _remove_liquidity<S: Storage, A: Api, Q: Querier>(
 
     Ok(HandleResponse {
         messages,
-        log: vec![log("pool_tokens_burned", pool_tokens_to_burn)],
+        log: vec![
+            log("action", "callback: remove_liquidity"),
+            log("pool_tokens_burned", pool_tokens_to_burn),
+        ],
         data: None,
     })
 }
@@ -647,6 +655,7 @@ pub fn _bond<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![staking_contract.bond_message(amount_to_bond)?],
         log: vec![
+            log("action", "callback: bond"),
             log("amount_bonded", amount_to_bond),
             log("bond_units_added", bond_units_to_add),
         ],
@@ -690,7 +699,10 @@ pub fn _unbond<S: Storage, A: Api, Q: Querier>(
             }
             .into_cosmos_msg(&env.contract.address)?,
         ],
-        log: vec![log("amount_unbonded", amount_to_unbond)],
+        log: vec![
+            log("action", "callback: unbond"),
+            log("amount_unbonded", amount_to_unbond),
+        ],
         data: None,
     })
 }
@@ -749,6 +761,7 @@ pub fn _borrow<S: Storage, A: Api, Q: Querier>(
         }
         .into()],
         log: vec![
+            log("action", "callback: borrow"),
             log("amount_borrowed", borrow_amount),
             log("debt_units_added", debt_units_to_add),
         ],
@@ -821,6 +834,7 @@ pub fn _repay<S: Storage, A: Api, Q: Querier>(
         }
         .into()],
         log: vec![
+            log("action", "callback: repay"),
             log("ust_received", repay_amount),
             log("ust_repaid", ust_to_repay),
             log("debt_units_reduced", debt_units_to_reduce),
@@ -904,6 +918,7 @@ pub fn _swap_reward<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages,
         log: vec![
+            log("action", "callback: swap_reward"),
             log("fee_amount", fee_amount),
             log("reward_amount_after_fee", reward_amount_after_fee),
         ],
@@ -970,6 +985,7 @@ pub fn _refund<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages,
         log: vec![
+            log("action", "callback: refund"),
             log("asset_refunded", asset_to_refund),
             log("ust_refunded", ust_to_refund),
             log("utilization", utilization.unwrap_or_default()),
@@ -1033,7 +1049,10 @@ pub fn _claim_collateral<S: Storage, A: Api, Q: Querier>(
             }
             .into_cosmos_msg(&env.contract.address)?,
         ],
-        log: vec![log("asset_released", asset_to_release)],
+        log: vec![
+            log("action", "callback: claim_collateral"),
+            log("asset_released", asset_to_release),
+        ],
         data: None,
     })
 }
@@ -1071,7 +1090,11 @@ pub fn _update_config<S: Storage, A: Api, Q: Querier>(
         },
     )?;
 
-    Ok(HandleResponse::default())
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![log("action", "callback: update_config")],
+        data: None,
+    })
 }
 
 //----------------------------------------------------------------------------------------
