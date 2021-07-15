@@ -23,7 +23,7 @@ const COLUMBUS_CONTRACTS = {
     terraswapLpToken: "terra17gjf2zehfvnyjtdgua9p9ygquk6gukxe7ucgwh",
   },
   mars: {
-    liquidityPool: "",
+    redBank: "",
   },
 };
 
@@ -41,7 +41,7 @@ const TEQUILA_CONTRACTS = {
     terraswapLpToken: "terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j",
   },
   mars: {
-    liquidityPool: "terra1knxh6cd43jswu3ahyx2cd9mzchynmpcqzpa65x",
+    redBank: "terra1knxh6cd43jswu3ahyx2cd9mzchynmpcqzpa65x",
   },
 };
 
@@ -167,13 +167,13 @@ if (argv["code-id"] == 0) {
         argv.strategy == "anchor"
           ? contracts.anchor.terraswapLpToken
           : contracts.mirror.terraswapLpToken,
-      mars: contracts.mars.liquidityPool,
+      red_bank: contracts.mars.redBank,
       staking_contract:
         argv.strategy == "anchor" ? contracts.anchor.staking : contracts.mirror.staking,
       staking_type: argv.strategy,
+      max_ltv: "0.67",
       performance_fee_rate: "0.20",
       liquidation_fee_rate: "0.05",
-      liquidation_threshold: "0.67",
     },
     undefined, // coins
     true // INPORTANT: migratable needs to be set to true
@@ -181,6 +181,6 @@ if (argv["code-id"] == 0) {
 
   console.log(
     "Done!",
-    `${chalk.blue("contractAddress")}=${result.logs[0].events[1].attributes[2].value}`
+    `${chalk.blue("contractAddress")}=${result.logs[0].events[2].attributes[2].value}`
   );
 })();
