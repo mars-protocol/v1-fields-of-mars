@@ -104,7 +104,6 @@ ts-node 4_mock_mars.spec.ts
 ts-node 5_mock_mirror.spec.ts
 ts-node 6_strategy_anc_ust.spec.ts
 ts-node 7_strategy_mir_ust.spec.ts
-ts-node 8_strategy_bluna_luna.spec.ts
 ```
 
 ### Deployment

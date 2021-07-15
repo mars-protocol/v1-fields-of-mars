@@ -256,20 +256,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mock-bluna-hub"
-version = "0.1.0"
-dependencies = [
- "anchor-basset-hub",
- "cosmwasm-bignumber",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "schemars",
- "serde",
- "terraswap",
-]
-
-[[package]]
 name = "mock-mars"
 version = "0.1.0"
 dependencies = [
@@ -443,24 +429,6 @@ dependencies = [
  "fields-of-mars",
  "mars",
  "mirror-protocol",
- "schemars",
- "serde",
- "snafu",
- "terra-cosmwasm",
- "terraswap",
- "thiserror",
-]
-
-[[package]]
-name = "strategy-bluna-luna"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-bignumber",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "fields-of-mars",
- "mars",
  "schemars",
  "serde",
  "snafu",

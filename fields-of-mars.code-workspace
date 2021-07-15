@@ -4,22 +4,13 @@
       "path": "contracts/strategy_anc_ust"
     },
     {
-      "path": "contracts/strategy_bluna_luna"
-    },
-    {
       "path": "contracts/mock_anchor"
-    },
-    {
-      "path": "contracts/mock_bluna_hub"
     },
     {
       "path": "contracts/mock_mirror"
     },
     {
       "path": "contracts/mock_mars"
-    },
-    {
-      "path": "packages/anchor_basset_hub"
     },
     {
       "path": "packages/fields_of_mars"
