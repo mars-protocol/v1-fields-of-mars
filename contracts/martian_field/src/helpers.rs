@@ -2,10 +2,11 @@ use cosmwasm_std::{
     to_binary, Api, Decimal, Extern, HumanAddr, MessageInfo, Querier, QueryRequest,
     StdResult, Storage, Uint128, WasmQuery,
 };
-use mars::red_bank;
 use std::str::FromStr;
 use terra_cosmwasm::TerraQuerier;
 use terraswap::querier::{query_balance, query_supply};
+
+use fields_of_mars::red_bank;
 
 use crate::{
     staking::StakingContract,

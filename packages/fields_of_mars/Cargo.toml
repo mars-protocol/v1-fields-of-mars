@@ -1,10 +1,12 @@
 [package]
 name = "fields-of-mars"
 version = "0.1.0"
-authors = ["larry0x <larry@delphidigital.io>"]
+authors = ["larry_0x <larry@delphidigital.io>"]
 edition = "2018"
 
 [dependencies]
+cosmwasm-bignumber = "1.0"
 cosmwasm-std = "0.10.1"
+cw20 = "0.2"
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }

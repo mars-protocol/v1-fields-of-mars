@@ -168,7 +168,9 @@ checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 name = "fields-of-mars"
 version = "0.1.0"
 dependencies = [
+ "cosmwasm-bignumber",
  "cosmwasm-std",
+ "cw20",
  "schemars",
  "serde",
 ]
@@ -192,17 +194,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320cfe77175da3a483efed4bc0adc1968ca050b098ce4f2f1c13a56626128790"
 
 [[package]]
-name = "mars"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-bignumber",
- "cosmwasm-std",
- "cw20",
- "schemars",
- "serde",
-]
-
-[[package]]
 name = "martian-field"
 version = "0.1.0"
 dependencies = [
@@ -212,7 +203,6 @@ dependencies = [
  "cosmwasm-storage",
  "cw20",
  "fields-of-mars",
- "mars",
  "mirror-protocol",
  "schemars",
  "serde",
@@ -273,7 +263,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "mars",
+ "fields-of-mars",
  "schemars",
  "serde",
  "terra-cosmwasm",

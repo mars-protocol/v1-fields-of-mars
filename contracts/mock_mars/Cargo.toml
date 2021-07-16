@@ -15,7 +15,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 cosmwasm-bignumber = "1.0"
 cosmwasm-std = { version = "0.10.1", features = ["iterator"] }
 cosmwasm-storage = { version = "0.10.1", features = ["iterator"] }
-mars = { path = "../../packages/mars" }
+fields-of-mars = { path = "../../packages/fields_of_mars" }
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 terra-cosmwasm = "1.2"

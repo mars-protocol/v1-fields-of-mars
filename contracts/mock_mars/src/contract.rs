@@ -3,7 +3,8 @@ use cosmwasm_std::{
     log, to_binary, Api, BankMsg, Binary, Coin, Env, Extern, HandleResponse, HumanAddr,
     InitResponse, MigrateResponse, Querier, StdError, StdResult, Storage,
 };
-use mars::red_bank::{Asset, DebtInfo, DebtResponse, HandleMsg, QueryMsg};
+
+use fields_of_mars::red_bank::{Asset, DebtInfo, DebtResponse, HandleMsg, QueryMsg};
 
 use crate::{
     helpers::{deduct_tax, get_denom_amount_from_coins},

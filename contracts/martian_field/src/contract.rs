@@ -5,15 +5,17 @@ use cosmwasm_std::{
     StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20HandleMsg;
-use mars::red_bank;
 use terraswap::{
     asset::{Asset, AssetInfo},
     querier::{query_balance, query_supply, query_token_balance},
 };
 
-use fields_of_mars::martian_field::{
-    CallbackMsg, ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PositionResponse,
-    PositionSnapshotResponse, QueryMsg, StateResponse,
+use fields_of_mars::{
+    martian_field::{
+        CallbackMsg, ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PositionResponse,
+        PositionSnapshotResponse, QueryMsg, StateResponse,
+    },
+    red_bank,
 };
 
 use crate::{
