@@ -183,7 +183,6 @@ checksum = "320cfe77175da3a483efed4bc0adc1968ca050b098ce4f2f1c13a56626128790"
 name = "martian-field"
 version = "0.1.0"
 dependencies = [
- "cosmwasm-bignumber",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",

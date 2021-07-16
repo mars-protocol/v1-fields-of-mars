@@ -1,12 +1,9 @@
 use cosmwasm_std::{
-    to_binary, Api, Decimal, Extern, HumanAddr, MessageInfo, Querier, QueryRequest,
-    StdResult, Storage, Uint128, WasmQuery,
+    Api, Decimal, Extern, HumanAddr, MessageInfo, Querier, StdResult, Storage, Uint128,
 };
 use std::str::FromStr;
 use terra_cosmwasm::TerraQuerier;
 use terraswap::querier::{query_balance, query_supply};
-
-use fields_of_mars::red_bank;
 
 use crate::state::{read_config, read_position, read_state, Position};
 
@@ -34,6 +31,7 @@ pub fn compute_ltv<S: Storage, A: Api, Q: Querier>(
     let strategy = deps.api.human_address(&state.strategy)?;
 
     let staking = config.staking.to_normal(deps)?;
+    let red_bank = config.red_bank.to_normal(deps)?;
 
     // If `user` is provided, calculate debt ratio of the user; if not, calculate the
     // overall debt ratio of the strategy.
@@ -51,7 +49,7 @@ pub fn compute_ltv<S: Storage, A: Api, Q: Querier>(
     // Query data necessary for calculating the user's debt ratio
     let pool_ust = query_balance(deps, &pool, "uusd".to_string())?;
     let pool_token_supply = query_supply(deps, &pool_token)?;
-    let total_debt_amount = query_debt_amount(&deps, &strategy)?;
+    let total_debt_amount = red_bank.query_debt(&deps, &strategy)?;
     let total_bond_amount = staking.query_bond_amount(&deps, &strategy)?;
 
     // UST value of each LP token
@@ -171,31 +169,5 @@ pub fn parse_ust_received(message: &MessageInfo) -> Uint128 {
     match message.sent_funds.iter().find(|fund| fund.denom == "uusd") {
         Some(coin) => coin.amount,
         None => Uint128::zero(),
-    }
-}
-
-/**
- * @dev Find the amount of debt owed by a borrower to Mars.
- */
-pub fn query_debt_amount<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    borrower: &HumanAddr,
-) -> StdResult<Uint128> {
-    let config = read_config(&deps.storage)?;
-    let red_bank = deps.api.human_address(&config.red_bank)?;
-
-    let debts = deps
-        .querier
-        .query::<red_bank::DebtResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: red_bank,
-            msg: to_binary(&red_bank::QueryMsg::Debt {
-                address: HumanAddr::from(borrower),
-            })?,
-        }))?
-        .debts;
-
-    match debts.iter().find(|debt| debt.denom == "uusd") {
-        Some(debt) => Ok(debt.amount.into()),
-        None => Ok(Uint128::zero()),
     }
 }

@@ -4,7 +4,7 @@ use cosmwasm_std::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::staking::Staking;
+use crate::{red_bank::RedBank, staking::Staking};
 
 //----------------------------------------------------------------------------------------
 // Message Types
@@ -27,7 +27,7 @@ pub struct InitMsg {
     /// Address of the TerraSwap LP token
     pub pool_token: HumanAddr,
     /// Address of Mars liquidity pool aka Red Bank
-    pub red_bank: HumanAddr,
+    pub red_bank: RedBank,
     /// Staking contract where LP tokens can be bonded to earn rewards
     pub staking: Staking,
     /// Maximum loan-to-value ratio (LTV) above which a user can be liquidated

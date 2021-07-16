@@ -81,7 +81,14 @@ async function setupTest() {
       reward_token: anchorToken,
       pool: terraswapPair,
       pool_token: terraswapLpToken,
-      red_bank: redBank,
+      red_bank: {
+        contract_addr: redBank,
+        borrow_asset: {
+          native: {
+            denom: "uusd",
+          },
+        },
+      },
       staking: {
         anchor: {
           contract_addr: anchorStaking,
@@ -226,7 +233,14 @@ async function testConfig() {
     reward_token: anchorToken,
     pool: terraswapPair,
     pool_token: terraswapLpToken,
-    red_bank: redBank,
+    red_bank: {
+      contract_addr: redBank,
+      borrow_asset: {
+        native: {
+          denom: "uusd",
+        },
+      },
+    },
     staking: {
       anchor: {
         contract_addr: anchorStaking,
@@ -1134,7 +1148,14 @@ async function testUpdateConfig() {
         reward_token: anchorToken,
         pool: terraswapPair,
         pool_token: terraswapLpToken,
-        red_bank: redBank,
+        red_bank: {
+          contract_addr: redBank,
+          borrow_asset: {
+            native: {
+              denom: "uusd",
+            },
+          },
+        },
         staking: {
           anchor: {
             contract_addr: anchorStaking,
@@ -1169,7 +1190,14 @@ async function testUpdateConfig() {
     reward_token: anchorToken,
     pool: terraswapPair,
     pool_token: terraswapLpToken,
-    red_bank: redBank,
+    red_bank: {
+      contract_addr: redBank,
+      borrow_asset: {
+        native: {
+          denom: "uusd",
+        },
+      },
+    },
     staking: {
       anchor: {
         contract_addr: anchorStaking,

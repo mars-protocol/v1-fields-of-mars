@@ -4,7 +4,10 @@ use cosmwasm_std::{
     InitResponse, MigrateResponse, Querier, StdError, StdResult, Storage,
 };
 
-use fields_of_mars::red_bank::{Asset, DebtInfo, DebtResponse, HandleMsg, QueryMsg};
+use fields_of_mars::{
+    asset::Asset,
+    red_bank::{DebtInfo, DebtResponse, HandleMsg, QueryMsg},
+};
 
 use crate::{
     helpers::{deduct_tax, get_denom_amount_from_coins},

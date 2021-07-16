@@ -1,4 +1,3 @@
-use cosmwasm_bignumber::Uint256;
 use cosmwasm_std::{
     log, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Decimal, Env, Extern,
     HandleResponse, HumanAddr, InitResponse, MigrateResponse, Querier, StdError,
@@ -10,18 +9,14 @@ use terraswap::{
     querier::{query_balance, query_supply, query_token_balance},
 };
 
-use fields_of_mars::{
-    martian_field::{
-        CallbackMsg, ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PositionResponse,
-        PositionSnapshotResponse, QueryMsg, StateResponse,
-    },
-    red_bank,
+use fields_of_mars::martian_field::{
+    CallbackMsg, ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PositionResponse,
+    PositionSnapshotResponse, QueryMsg, StateResponse,
 };
 
 use crate::{
     helpers::{
         add_tax, compute_ltv, compute_swap_return_amount, deduct_tax, parse_ust_received,
-        query_debt_amount,
     },
     state::{
         delete_position, delete_position_snapshot, read_config, read_position,
@@ -566,6 +561,7 @@ pub fn _remove_liquidity<S: Storage, A: Api, Q: Querier>(
     let asset_token = deps.api.human_address(&config.asset_token)?;
     let pool = deps.api.human_address(&config.pool)?;
     let pool_token = deps.api.human_address(&config.pool_token)?;
+    let red_bank = config.red_bank.to_normal(deps)?;
 
     // Find the amount of LP tokens the contract has received from unstaking
     let pool_tokens_to_burn =
@@ -588,7 +584,7 @@ pub fn _remove_liquidity<S: Storage, A: Api, Q: Querier>(
 
     // Calculate the amount of UST the user owes to Mars
     // Note: Must handle division of zero!
-    let total_ust_owed = query_debt_amount(&deps, &env.contract.address)?;
+    let total_ust_owed = red_bank.query_debt(&deps, &env.contract.address)?;
     let ust_owed = if state.total_debt_units.is_zero() {
         Uint128::zero()
     } else {
@@ -755,7 +751,7 @@ pub fn _borrow<S: Storage, A: Api, Q: Querier>(
     let user_raw = deps.api.canonical_address(&user)?;
     let config = read_config(&deps.storage)?;
     let mut state = read_state(&deps.storage)?;
-    let red_bank = deps.api.human_address(&config.red_bank)?;
+    let red_bank = config.red_bank.to_normal(deps)?;
 
     // If the user doesn't have a position yet, we initialize a new one
     let mut position = match read_position(&deps.storage, &user_raw) {
@@ -763,7 +759,7 @@ pub fn _borrow<S: Storage, A: Api, Q: Querier>(
         Err(_) => Position::default(),
     };
 
-    let total_debt_amount = query_debt_amount(&deps, &env.contract.address)?;
+    let total_debt_amount = red_bank.query_debt(&deps, &env.contract.address)?;
 
     // Calculate how many debt units the user should be accredited
     // We define the initial debt unit = 100,000 units per UST borrowed
@@ -781,17 +777,7 @@ pub fn _borrow<S: Storage, A: Api, Q: Querier>(
     write_position(&mut deps.storage, &user_raw, &position)?;
 
     Ok(HandleResponse {
-        messages: vec![WasmMsg::Execute {
-            contract_addr: red_bank,
-            send: vec![],
-            msg: to_binary(&red_bank::HandleMsg::Borrow {
-                asset: red_bank::Asset::Native {
-                    denom: "uusd".to_string(),
-                },
-                amount: Uint256::from(borrow_amount),
-            })?,
-        }
-        .into()],
+        messages: vec![red_bank.borrow_message(borrow_amount)?],
         log: vec![
             log("action", "fields_of_mars::CallbackMsg::Borrow"),
             log("amount_borrowed", borrow_amount),
@@ -818,13 +804,13 @@ pub fn _repay<S: Storage, A: Api, Q: Querier>(
     let config = &read_config(&deps.storage)?;
     let mut state = read_state(&deps.storage)?;
     let mut position = read_position(&deps.storage, &user_raw)?;
+    let red_bank = config.red_bank.to_normal(deps)?;
 
     if position.debt_units.is_zero() {
         return Err(StdError::generic_err("no debt to repay"));
     }
 
-    let red_bank = deps.api.human_address(&config.red_bank)?;
-    let total_debt_amount = query_debt_amount(&deps, &env.contract.address)?;
+    let total_debt_amount = red_bank.query_debt(&deps, &env.contract.address)?;
 
     // The amount of UST owed by the user
     let ust_owed =
@@ -835,7 +821,7 @@ pub fn _repay<S: Storage, A: Api, Q: Querier>(
     let ust_to_repay = deduct_tax(deps, repay_amount, "uusd")?;
 
     // If the user pays more than what he owes, we reduce his debt units to zero.
-    // Otherwise, we reduce his debt units proportionatelly.
+    // Otherwise, we reduce his debt units proportionately.
     let debt_units_to_reduce = if ust_to_repay > total_debt_amount {
         position.debt_units
     } else {
@@ -856,17 +842,7 @@ pub fn _repay<S: Storage, A: Api, Q: Querier>(
     };
 
     Ok(HandleResponse {
-        messages: vec![WasmMsg::Execute {
-            contract_addr: red_bank,
-            send: vec![Coin {
-                denom: "uusd".to_string(),
-                amount: ust_to_repay,
-            }],
-            msg: to_binary(&red_bank::HandleMsg::RepayNative {
-                denom: "uusd".to_string(),
-            })?,
-        }
-        .into()],
+        messages: vec![red_bank.repay_message(ust_to_repay)?],
         log: vec![
             log("action", "fields_of_mars::CallbackMsg::Repay"),
             log("ust_received", repay_amount),
@@ -1047,6 +1023,7 @@ pub fn _claim_collateral<S: Storage, A: Api, Q: Querier>(
     let state = read_state(&deps.storage)?;
     let mut position = read_position(&deps.storage, &user_raw)?;
     let asset_token = deps.api.human_address(&config.asset_token)?;
+    let red_bank = config.red_bank.to_normal(deps)?;
 
     // Due to tax, the amount of UST received cannot be fully delivered to Mars
     let repay_amount_after_tax = deduct_tax(deps, repay_amount, "uusd")?;
@@ -1054,7 +1031,7 @@ pub fn _claim_collateral<S: Storage, A: Api, Q: Querier>(
     // Calculate how much tax the user owes
     // Note: we don't need to check for division by zero, as we intend this to fail if
     // there is no debt to pay.
-    let total_debt_amount = query_debt_amount(&deps, &env.contract.address)?;
+    let total_debt_amount = red_bank.query_debt(&deps, &env.contract.address)?;
     let debt_amount =
         total_debt_amount.multiply_ratio(position.debt_units, state.total_debt_units);
 
@@ -1116,7 +1093,7 @@ pub fn _update_config<S: Storage, A: Api, Q: Querier>(
         reward_token: deps.api.canonical_address(&config.reward_token)?,
         pool: deps.api.canonical_address(&config.pool)?,
         pool_token: deps.api.canonical_address(&config.pool_token)?,
-        red_bank: deps.api.canonical_address(&config.red_bank)?,
+        red_bank: config.red_bank.to_raw(deps)?,
         staking: config.staking.to_raw(deps)?,
         max_ltv: config.max_ltv,
         performance_fee_rate: config.performance_fee_rate,
@@ -1202,7 +1179,7 @@ pub fn query_config<S: Storage, A: Api, Q: Querier>(
         reward_token: deps.api.human_address(&config.reward_token)?,
         pool: deps.api.human_address(&config.pool)?,
         pool_token: deps.api.human_address(&config.pool_token)?,
-        red_bank: deps.api.human_address(&config.red_bank)?,
+        red_bank: config.red_bank.to_normal(deps)?,
         staking: config.staking.to_normal(deps)?,
         max_ltv: config.max_ltv,
         performance_fee_rate: config.performance_fee_rate,

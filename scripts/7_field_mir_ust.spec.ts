@@ -87,7 +87,14 @@ async function setupTest() {
       reward_token: mirrorToken,
       pool: terraswapPair,
       pool_token: terraswapLpToken,
-      red_bank: redBank,
+      red_bank: {
+        contract_addr: redBank,
+        borrow_asset: {
+          native: {
+            denom: "uusd",
+          },
+        },
+      },
       staking: {
         mirror: {
           contract_addr: mirrorStaking,
@@ -230,7 +237,14 @@ async function testConfig() {
     reward_token: mirrorToken,
     pool: terraswapPair,
     pool_token: terraswapLpToken,
-    red_bank: redBank,
+    red_bank: {
+      contract_addr: redBank,
+      borrow_asset: {
+        native: {
+          denom: "uusd",
+        },
+      },
+    },
     staking: {
       mirror: {
         contract_addr: mirrorStaking,
@@ -773,7 +787,14 @@ async function testUpdateConfig() {
         mirror_staking: mirrorStaking,
         pool: terraswapPair,
         pool_token: terraswapLpToken,
-        red_bank: redBank,
+        red_bank: {
+          contract_addr: redBank,
+          borrow_asset: {
+            native: {
+              denom: "uusd",
+            },
+          },
+        },
         staking: {
           mirror: {
             contract_addr: mirrorStaking,
@@ -808,7 +829,14 @@ async function testUpdateConfig() {
     reward_token: mirrorToken,
     pool: terraswapPair,
     pool_token: terraswapLpToken,
-    red_bank: redBank,
+    red_bank: {
+      contract_addr: redBank,
+      borrow_asset: {
+        native: {
+          denom: "uusd",
+        },
+      },
+    },
     staking: {
       mirror: {
         contract_addr: mirrorStaking,

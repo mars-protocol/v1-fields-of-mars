@@ -188,10 +188,10 @@ impl Staking {
         &self,
         deps: &Extern<S, A, Q>,
     ) -> StdResult<StakingRaw> {
-        Ok(match self {
-            Staking::Anchor(config) => StakingRaw::Anchor(config.to_raw(deps)?),
-            Staking::Mirror(config) => StakingRaw::Mirror(config.to_raw(deps)?),
-        })
+        match self {
+            Staking::Anchor(config) => Ok(StakingRaw::Anchor(config.to_raw(deps)?)),
+            Staking::Mirror(config) => Ok(StakingRaw::Mirror(config.to_raw(deps)?)),
+        }
     }
 
     /// @notice Return the amount of LP tokens bonded to the staking contract
@@ -342,10 +342,10 @@ impl StakingRaw {
         &self,
         deps: &Extern<S, A, Q>,
     ) -> StdResult<Staking> {
-        Ok(match self {
-            StakingRaw::Anchor(config) => Staking::Anchor(config.to_normal(deps)?),
-            StakingRaw::Mirror(config) => Staking::Mirror(config.to_normal(deps)?),
-        })
+        match self {
+            StakingRaw::Anchor(config) => Ok(Staking::Anchor(config.to_normal(deps)?)),
+            StakingRaw::Mirror(config) => Ok(Staking::Mirror(config.to_normal(deps)?)),
+        }
     }
 }
 

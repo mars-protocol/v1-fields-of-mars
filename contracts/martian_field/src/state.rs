@@ -3,7 +3,9 @@ use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use fields_of_mars::{martian_field::PositionSnapshotResponse, staking::StakingRaw};
+use fields_of_mars::{
+    martian_field::PositionSnapshotResponse, red_bank::RedBankRaw, staking::StakingRaw,
+};
 
 pub static KEY_CONFIG: &[u8] = b"config";
 pub static KEY_STATE: &[u8] = b"state";
@@ -31,7 +33,7 @@ pub struct Config {
     /// Address of the TerraSwap LP token
     pub pool_token: CanonicalAddr,
     /// Address of Mars liquidity pool aka Red Bank
-    pub red_bank: CanonicalAddr,
+    pub red_bank: RedBankRaw,
     /// Staking contract where LP tokens can be bonded to earn rewards
     pub staking: StakingRaw,
     /// Maximum loan-to-value ratio (LTV) above which a user can be liquidated
