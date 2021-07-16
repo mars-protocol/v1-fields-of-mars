@@ -16,16 +16,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
-name = "anchor-basset-hub"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-std",
- "cw20",
- "schemars",
- "serde",
-]
-
-[[package]]
 name = "anchor-token"
 version = "1.0.0"
 source = "git+https://github.com/Anchor-Protocol/anchor-token-contracts#1dd7c5af85b3e7d0a997af44e981f035554781fb"
@@ -210,6 +200,26 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
+]
+
+[[package]]
+name = "martian-field"
+version = "0.1.0"
+dependencies = [
+ "anchor-token",
+ "cosmwasm-bignumber",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "fields-of-mars",
+ "mars",
+ "mirror-protocol",
+ "schemars",
+ "serde",
+ "snafu",
+ "terra-cosmwasm",
+ "terraswap",
+ "thiserror",
 ]
 
 [[package]]
@@ -415,26 +425,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "strategy-anc-ust"
-version = "0.1.0"
-dependencies = [
- "anchor-token",
- "cosmwasm-bignumber",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "fields-of-mars",
- "mars",
- "mirror-protocol",
- "schemars",
- "serde",
- "snafu",
- "terra-cosmwasm",
- "terraswap",
- "thiserror",
 ]
 
 [[package]]

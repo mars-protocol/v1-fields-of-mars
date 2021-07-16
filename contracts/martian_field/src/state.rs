@@ -3,7 +3,7 @@ use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use fields_of_mars::strategy_anc_ust::PositionSnapshotResponse;
+use fields_of_mars::martian_field::PositionSnapshotResponse;
 
 pub static KEY_CONFIG: &[u8] = b"config";
 pub static KEY_STATE: &[u8] = b"state";

@@ -1,7 +1,7 @@
 {
   "folders": [
     {
-      "path": "contracts/strategy_anc_ust"
+      "path": "contracts/martian_field"
     },
     {
       "path": "contracts/mock_anchor"

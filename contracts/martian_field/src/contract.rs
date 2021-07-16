@@ -11,7 +11,7 @@ use terraswap::{
     querier::{query_balance, query_supply, query_token_balance},
 };
 
-use fields_of_mars::strategy_anc_ust::{
+use fields_of_mars::martian_field::{
     CallbackMsg, ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PositionResponse,
     PositionSnapshotResponse, QueryMsg, StateResponse,
 };
