@@ -8,10 +8,7 @@ use terraswap::querier::{query_balance, query_supply};
 
 use fields_of_mars::red_bank;
 
-use crate::{
-    staking::StakingContract,
-    state::{read_config, read_position, read_state, Position},
-};
+use crate::state::{read_config, read_position, read_state, Position};
 
 static DECIMAL_FRACTION: Uint128 = Uint128(1_000_000_000_000_000_000u128);
 static COMMISSION_RATE: &str = "0.003";
@@ -36,7 +33,7 @@ pub fn compute_ltv<S: Storage, A: Api, Q: Querier>(
     let pool_token = deps.api.human_address(&config.pool_token)?;
     let strategy = deps.api.human_address(&state.strategy)?;
 
-    let staking_contract = StakingContract::from_config(deps, &config)?;
+    let staking = config.staking.to_normal(deps)?;
 
     // If `user` is provided, calculate debt ratio of the user; if not, calculate the
     // overall debt ratio of the strategy.
@@ -55,7 +52,7 @@ pub fn compute_ltv<S: Storage, A: Api, Q: Querier>(
     let pool_ust = query_balance(deps, &pool, "uusd".to_string())?;
     let pool_token_supply = query_supply(deps, &pool_token)?;
     let total_debt_amount = query_debt_amount(&deps, &strategy)?;
-    let total_bond_amount = staking_contract.query_bond_amount(&deps, &strategy)?;
+    let total_bond_amount = staking.query_bond_amount(&deps, &strategy)?;
 
     // UST value of each LP token
     // Note: Here we don't check whether `pool_token_supply` is zero here because in

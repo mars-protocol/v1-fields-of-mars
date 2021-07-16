@@ -1,13 +1,15 @@
-use anchor_token::staking::{Cw20HookMsg, HandleMsg, QueryMsg, StakerInfoResponse};
 use cosmwasm_std::{
     from_binary, to_binary, Api, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse,
     HumanAddr, InitResponse, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 
-use crate::{
-    msg::InitMsg,
-    state::{read_config, read_staker_info, write_config, write_staker_info, Config},
+use fields_of_mars::staking::anchor_staking::{
+    Cw20HookMsg, HandleMsg, MockInitMsg, QueryMsg, StakerInfoResponse,
+};
+
+use crate::state::{
+    read_config, read_staker_info, write_config, write_staker_info, Config,
 };
 
 //----------------------------------------------------------------------------------------
@@ -17,7 +19,7 @@ use crate::{
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
-    msg: InitMsg,
+    msg: MockInitMsg,
 ) -> StdResult<InitResponse> {
     write_config(
         &mut deps.storage,
@@ -74,7 +76,6 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
             staker,
             ..
         } => to_binary(&query_staker_info(deps, staker)?),
-        _ => Err(StdError::generic_err("unimplemented")),
     }
 }
 

@@ -4,8 +4,10 @@ use cosmwasm_std::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::staking::Staking;
+
 //----------------------------------------------------------------------------------------
-// Message types
+// Message Types
 //----------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -26,10 +28,8 @@ pub struct InitMsg {
     pub pool_token: HumanAddr,
     /// Address of Mars liquidity pool aka Red Bank
     pub red_bank: HumanAddr,
-    /// Address of the staking contract
-    pub staking_contract: HumanAddr,
-    /// Type of the staking contract ("anchor" or "mirror")
-    pub staking_type: String,
+    /// Staking contract where LP tokens can be bonded to earn rewards
+    pub staking: Staking,
     /// Maximum loan-to-value ratio (LTV) above which a user can be liquidated
     pub max_ltv: Decimal,
     /// Percentage of profit to be charged as performance fee

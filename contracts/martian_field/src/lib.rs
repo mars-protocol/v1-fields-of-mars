@@ -1,6 +1,5 @@
 pub mod contract;
 mod helpers;
-mod staking;
 mod state;
 
 #[cfg(all(target_arch = "wasm32", not(feature = "library")))]

@@ -16,20 +16,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
-name = "anchor-token"
-version = "1.0.0"
-source = "git+https://github.com/Anchor-Protocol/anchor-token-contracts#1dd7c5af85b3e7d0a997af44e981f035554781fb"
-dependencies = [
- "cosmwasm-bignumber",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "schemars",
- "serde",
- "terra-cosmwasm",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -197,13 +183,11 @@ checksum = "320cfe77175da3a483efed4bc0adc1968ca050b098ce4f2f1c13a56626128790"
 name = "martian-field"
 version = "0.1.0"
 dependencies = [
- "anchor-token",
  "cosmwasm-bignumber",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
  "fields-of-mars",
- "mirror-protocol",
  "schemars",
  "serde",
  "snafu",
@@ -229,28 +213,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "mirror-protocol"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0fbb6149470532783dc40fb6ce9129db9a1798771cde9c390b1b9c702619184"
-dependencies = [
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "schemars",
- "serde",
- "terraswap",
-]
-
-[[package]]
 name = "mock-anchor"
 version = "0.1.0"
 dependencies = [
- "anchor-token",
  "cosmwasm-bignumber",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
+ "fields-of-mars",
  "schemars",
  "serde",
 ]
@@ -273,11 +243,10 @@ dependencies = [
 name = "mock-mirror"
 version = "0.1.0"
 dependencies = [
- "cosmwasm-bignumber",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
- "mirror-protocol",
+ "fields-of-mars",
  "schemars",
  "serde",
 ]

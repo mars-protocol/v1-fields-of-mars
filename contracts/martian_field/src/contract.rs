@@ -23,7 +23,6 @@ use crate::{
         add_tax, compute_ltv, compute_swap_return_amount, deduct_tax, parse_ust_received,
         query_debt_amount,
     },
-    staking::StakingContract,
     state::{
         delete_position, delete_position_snapshot, read_config, read_position,
         read_position_snapshot, read_state, write_config, write_position,
@@ -366,7 +365,7 @@ pub fn harvest<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
     let config = read_config(&deps.storage)?;
-    let staking_contract = StakingContract::from_config(deps, &config)?;
+    let staking = config.staking.to_normal(deps)?;
 
     // Only owner and whitelisted operators can call harvest
     if sender_raw != config.owner
@@ -376,12 +375,11 @@ pub fn harvest<S: Storage, A: Api, Q: Querier>(
     }
 
     // Query the amount of MIR reward to expect to receive
-    let reward_amount =
-        staking_contract.query_reward_amount(deps, &env.contract.address)?;
+    let reward_amount = staking.query_reward_amount(deps, &env.contract.address)?;
 
     Ok(HandleResponse {
         messages: vec![
-            staking_contract.withdraw_message()?,
+            staking.withdraw_message()?,
             CallbackMsg::SwapReward {
                 reward_amount,
             }
@@ -652,11 +650,10 @@ pub fn _bond<S: Storage, A: Api, Q: Querier>(
     let config = read_config(&deps.storage)?;
     let mut state = read_state(&deps.storage)?;
     let pool_token = deps.api.human_address(&config.pool_token)?;
-    let staking_contract = StakingContract::from_config(deps, &config)?;
+    let staking = config.staking.to_normal(deps)?;
 
     // Find the amount of LP tokens already bonded to the staking contract
-    let total_bond_amount =
-        staking_contract.query_bond_amount(deps, &env.contract.address)?;
+    let total_bond_amount = staking.query_bond_amount(deps, &env.contract.address)?;
 
     // Find the amount of LP tokens the contract has received from liquidity provision
     let amount_to_bond = query_token_balance(deps, &pool_token, &env.contract.address)?;
@@ -689,7 +686,7 @@ pub fn _bond<S: Storage, A: Api, Q: Querier>(
     }
 
     Ok(HandleResponse {
-        messages: vec![staking_contract.bond_message(amount_to_bond)?],
+        messages: vec![staking.bond_message(amount_to_bond)?],
         log: vec![
             log("action", "fields_of_mars::CallbackMsg::Bond"),
             log("amount_bonded", amount_to_bond),
@@ -712,11 +709,10 @@ pub fn _unbond<S: Storage, A: Api, Q: Querier>(
     let config = read_config(&deps.storage)?;
     let mut state = read_state(&deps.storage)?;
     let mut position = read_position(&deps.storage, &user_raw)?;
-    let staking_contract = StakingContract::from_config(deps, &config)?;
+    let staking = config.staking.to_normal(deps)?;
 
     // Calculate how many LP tokens should be unbonded
-    let total_bond_amount =
-        staking_contract.query_bond_amount(deps, &env.contract.address)?;
+    let total_bond_amount = staking.query_bond_amount(deps, &env.contract.address)?;
     let amount_to_unbond =
         total_bond_amount.multiply_ratio(bond_units, state.total_bond_units);
 
@@ -729,7 +725,7 @@ pub fn _unbond<S: Storage, A: Api, Q: Querier>(
 
     Ok(HandleResponse {
         messages: vec![
-            staking_contract.unbond_message(amount_to_unbond)?,
+            staking.unbond_message(amount_to_unbond)?,
             CallbackMsg::RemoveLiquidity {
                 user,
             }
@@ -1112,24 +1108,22 @@ pub fn _update_config<S: Storage, A: Api, Q: Querier>(
         .map(|operator| deps.api.canonical_address(&operator).unwrap())
         .collect();
 
-    write_config(
-        &mut deps.storage,
-        &Config {
-            owner: deps.api.canonical_address(&config.owner)?,
-            operators: operators_raw,
-            treasury: deps.api.canonical_address(&config.treasury)?,
-            asset_token: deps.api.canonical_address(&config.asset_token)?,
-            reward_token: deps.api.canonical_address(&config.reward_token)?,
-            pool: deps.api.canonical_address(&config.pool)?,
-            pool_token: deps.api.canonical_address(&config.pool_token)?,
-            red_bank: deps.api.canonical_address(&config.red_bank)?,
-            staking_contract: deps.api.canonical_address(&config.staking_contract)?,
-            staking_type: config.staking_type,
-            max_ltv: config.max_ltv,
-            performance_fee_rate: config.performance_fee_rate,
-            liquidation_fee_rate: config.liquidation_fee_rate,
-        },
-    )?;
+    let config = Config {
+        owner: deps.api.canonical_address(&config.owner)?,
+        operators: operators_raw,
+        treasury: deps.api.canonical_address(&config.treasury)?,
+        asset_token: deps.api.canonical_address(&config.asset_token)?,
+        reward_token: deps.api.canonical_address(&config.reward_token)?,
+        pool: deps.api.canonical_address(&config.pool)?,
+        pool_token: deps.api.canonical_address(&config.pool_token)?,
+        red_bank: deps.api.canonical_address(&config.red_bank)?,
+        staking: config.staking.to_raw(deps)?,
+        max_ltv: config.max_ltv,
+        performance_fee_rate: config.performance_fee_rate,
+        liquidation_fee_rate: config.liquidation_fee_rate,
+    };
+
+    write_config(&mut deps.storage, &config)?;
 
     Ok(HandleResponse {
         messages: vec![],
@@ -1209,8 +1203,7 @@ pub fn query_config<S: Storage, A: Api, Q: Querier>(
         pool: deps.api.human_address(&config.pool)?,
         pool_token: deps.api.human_address(&config.pool_token)?,
         red_bank: deps.api.human_address(&config.red_bank)?,
-        staking_contract: deps.api.human_address(&config.staking_contract)?,
-        staking_type: config.staking_type,
+        staking: config.staking.to_normal(deps)?,
         max_ltv: config.max_ltv,
         performance_fee_rate: config.performance_fee_rate,
         liquidation_fee_rate: config.liquidation_fee_rate,

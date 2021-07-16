@@ -3,13 +3,14 @@ use cosmwasm_std::{
     HumanAddr, InitResponse, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
-use mirror_protocol::staking::{
-    Cw20HookMsg, HandleMsg, QueryMsg, RewardInfoResponse, RewardInfoResponseItem,
+
+use fields_of_mars::staking::mirror_staking::{
+    Cw20HookMsg, HandleMsg, MockInitMsg, QueryMsg, RewardInfoResponse,
+    RewardInfoResponseItem,
 };
 
-use crate::{
-    msg::InitMsg,
-    state::{read_config, read_reward_info, write_config, write_reward_info, Config},
+use crate::state::{
+    read_config, read_reward_info, write_config, write_reward_info, Config,
 };
 
 //----------------------------------------------------------------------------------------
@@ -19,7 +20,7 @@ use crate::{
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
-    msg: InitMsg,
+    msg: MockInitMsg,
 ) -> StdResult<InitResponse> {
     write_config(
         &mut deps.storage,
@@ -46,7 +47,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::Withdraw {
             asset_token: _,
         } => withdraw(deps, env),
-        _ => Err(StdError::generic_err("unimplemented")),
     }
 }
 
@@ -68,7 +68,6 @@ pub fn _receive_cw20<S: Storage, A: Api, Q: Querier>(
                     Err(StdError::generic_err("only MIR-UST LP token can be bonded"))
                 }
             }
-            _ => Err(StdError::generic_err("unimplemented")),
         }
     } else {
         Err(StdError::generic_err("data not given"))
@@ -84,7 +83,6 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
             staker_addr,
             ..
         } => to_binary(&query_reward_info(deps, staker_addr)?),
-        _ => Err(StdError::generic_err("unimplemented")),
     }
 }
 

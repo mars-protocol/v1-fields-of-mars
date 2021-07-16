@@ -204,23 +204,22 @@ export async function deployMockMirror(
 }
 
 //----------------------------------------------------------------------------------------
-// Field of Mars
+// Martian Field
 //----------------------------------------------------------------------------------------
 
-export async function deployFieldOfMars(
+export async function deployMartianField(
   terra: LocalTerra,
   deployer: Wallet,
-  strategyName: string,
-  strategyCode: string,
+  codePath: string,
   initMsg: object
 ) {
-  process.stdout.write(`Uploading Field of Mars ${strategyName} code... `);
+  process.stdout.write("Uploading Martian Field code... ");
 
-  const codeId = await storeCode(terra, deployer, path.resolve(__dirname, strategyCode));
+  const codeId = await storeCode(terra, deployer, path.resolve(__dirname, codePath));
 
   console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
 
-  process.stdout.write(`Instantiating Field of Mars ${strategyName} contract... `);
+  process.stdout.write(`Instantiating Martian Field contract... `);
 
   const result = await instantiateContract(
     terra,
