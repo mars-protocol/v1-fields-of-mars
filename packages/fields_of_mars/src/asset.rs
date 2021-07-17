@@ -1,6 +1,7 @@
 use cosmwasm_std::{
-    to_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, Extern, HumanAddr, Querier,
-    QueryRequest, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
+    to_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, Extern, HumanAddr,
+    MessageInfo, Querier, QueryRequest, StdError, StdResult, Storage, Uint128, WasmMsg,
+    WasmQuery,
 };
 use cw20::{Cw20HandleMsg, Cw20QueryMsg, TokenInfoResponse};
 use schemars::JsonSchema;
@@ -43,6 +44,10 @@ impl Asset {
         to: &HumanAddr,
     ) -> StdResult<CosmosMsg> {
         self.info.transfer_message(from, to, self.amount)
+    }
+
+    pub fn assert_sent_fund(&self, message: &MessageInfo) -> StdResult<()> {
+        self.info.assert_send_fund(message, self.amount)
     }
 
     pub fn deduct_tax<S: Storage, A: Api, Q: Querier>(
@@ -215,6 +220,30 @@ impl AssetInfo {
             AssetInfo::NativeToken {
                 denom,
             } => Ok(String::from(denom)),
+        }
+    }
+
+    // @notice Verify whether specified amount of fund is sent along with a message
+    pub fn assert_sent_fund(
+        &self,
+        message: &MessageInfo,
+        amount: Uint128,
+    ) -> StdResult<()> {
+        if let AssetInfo::NativeToken {
+            denom,
+        } = &self.info {
+            match message.sent_funds.iter().find(|fund| fund.denom == denom) {
+                Some(fund) => {
+                    if fund.amount == asset.amount {
+                        Ok(())
+                    } else {
+                        Err(StdError::generic_err("sent fund mismatch"))
+                    }
+                }
+                None => Err(StdError::generic_err("sent fund mismatch")),
+            }
+        } else {
+            Ok(())
         }
     }
 
