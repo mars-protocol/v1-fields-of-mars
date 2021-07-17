@@ -6,6 +6,12 @@ use cw20::{Cw20HandleMsg, Cw20QueryMsg, TokenInfoResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+static DECIMAL_FRACTION: Uint128 = Uint128(1_000_000_000_000_000_000u128);
+
+//----------------------------------------------------------------------------------------
+// Asset
+//----------------------------------------------------------------------------------------
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Asset {
     pub info: AssetInfo,
@@ -38,7 +44,31 @@ impl Asset {
     ) -> StdResult<CosmosMsg> {
         self.info.transfer_message(from, to, self.amount)
     }
+
+    pub fn deduct_tax<S: Storage, A: Api, Q: Querier>(
+        self,
+        deps: &Extern<S, A, Q>,
+    ) -> StdResult<Self> {
+        Ok(Asset {
+            info: self.info,
+            amount: self.info.deduct_tax(deps, self.amount)?,
+        })
+    }
+
+    pub fn add_tax<S: Storage, A: Api, Q: Querier>(
+        self,
+        deps: &Extern<S, A, Q>,
+    ) -> StdResult<Self> {
+        Ok(Asset {
+            info: self.info,
+            amount: self.info.add_tax(deps, self.amount)?,
+        })
+    }
 }
+
+//----------------------------------------------------------------------------------------
+// AssetInfo
+//----------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -52,6 +82,13 @@ pub enum AssetInfo {
 }
 
 impl AssetInfo {
+    pub fn add_amount(self, amount: Uint128) -> Asset {
+        Asset {
+            info: self,
+            amount,
+        }
+    }
+
     pub fn to_raw<S: Storage, A: Api, Q: Querier>(
         &self,
         deps: &Extern<S, A, Q>,
@@ -180,7 +217,70 @@ impl AssetInfo {
             } => Ok(String::from(denom)),
         }
     }
+
+    /// Modified from
+    /// https://github.com/terraswap/terraswap/blob/master/packages/terraswap/src/asset.rs#L58
+    pub fn deduct_tax<S: Storage, A: Api, Q: Querier>(
+        self,
+        deps: &Extern<S, A, Q>,
+        amount: Uint128,
+    ) -> StdResult<Uint128> {
+        match &self {
+            AssetInfo::Token {
+                ..
+            } => Ok(Uint128::zero()),
+            AssetInfo::NativeToken {
+                denom,
+            } => {
+                let tax = if denom == "luna" {
+                    Uint128::zero()
+                } else {
+                    let terra_querier = TerraQuerier::new(&deps.querier);
+                    let tax_rate = terra_querier.query_tax_rate()?.rate;
+                    let tax_cap = terra_querier.query_tax_cap(denom.to_string())?.cap;
+                    std::cmp::min(
+                        (amount
+                            - amount.multiply_ratio(
+                                DECIMAL_FRACTION,
+                                DECIMAL_FRACTION * tax_rate + DECIMAL_FRACTION,
+                            ))?,
+                        tax_cap,
+                    )
+                };
+                amount - tax
+            }
+        }
+    }
+
+    pub fn add_tax<S: Storage, A: Api, Q: Querier>(
+        self,
+        deps: &Extern<S, A, Q>,
+        amount: Uint128,
+    ) -> StdResult<Uint128> {
+        match &self {
+            AssetInfo::Token {
+                ..
+            } => Ok(amount),
+            AssetInfo::NativeToken {
+                denom,
+            } => {
+                let tax = if denom == "luna" {
+                    Uint128::zero()
+                } else {
+                    let terra_querier = TerraQuerier::new(&deps.querier);
+                    let tax_rate = terra_querier.query_tax_rate()?.rate;
+                    let tax_cap = terra_querier.query_tax_cap(denom.to_string())?.cap;
+                    std::cmp::min(amount * tax_rate, tax_cap)
+                };
+                Ok(amount + tax)
+            }
+        }
+    }
 }
+
+//----------------------------------------------------------------------------------------
+// Raw Types
+//----------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AssetRaw {
