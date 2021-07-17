@@ -43,6 +43,9 @@ let terraswapPair: string;
 let terraswapLpToken: string;
 let redBank: string;
 let strategy: string;
+
+let config: object;
+
 let verifier: Verifier;
 
 //----------------------------------------------------------------------------------------
@@ -69,39 +72,50 @@ async function setupTest() {
 
   redBank = await deployMockMars(terra, deployer);
 
+  config = {
+    long_asset: {
+      token: {
+        contract_addr: anchorToken,
+      },
+    },
+    short_asset: {
+      native_token: {
+        denom: "uusd",
+      },
+    },
+    swap: {
+      pair: terraswapPair,
+      share_token: terraswapLpToken,
+    },
+    red_bank: {
+      contract_addr: redBank,
+      borrow_asset: {
+        native_token: {
+          denom: "uusd",
+        },
+      },
+    },
+    staking: {
+      anchor: {
+        contract_addr: anchorStaking,
+        asset_token: anchorToken,
+        staking_token: terraswapLpToken,
+        reward_token: anchorToken,
+      },
+    },
+    owner: deployer.key.accAddress,
+    treasury: treasury.key.accAddress,
+    operators: [user1.key.accAddress],
+    max_ltv: "0.67", // 67% debt ratio, i.e. 150% collateralization ratio
+    performance_fee_rate: "0.20", // 20%
+    liquidation_fee_rate: "0.05", // 5%
+  };
+
   strategy = await deployMartianField(
     terra,
     deployer,
     "../artifacts/martian_field.wasm",
-    {
-      owner: deployer.key.accAddress,
-      operators: [user1.key.accAddress],
-      treasury: treasury.key.accAddress,
-      asset_token: anchorToken,
-      reward_token: anchorToken,
-      swap: {
-        pair: terraswapPair,
-        share_token: terraswapLpToken,
-      },
-      red_bank: {
-        contract_addr: redBank,
-        borrow_asset: {
-          native_token: {
-            denom: "uusd",
-          },
-        },
-      },
-      staking: {
-        anchor: {
-          contract_addr: anchorStaking,
-          asset_token: anchorToken,
-          staking_token: terraswapLpToken,
-        },
-      },
-      max_ltv: "0.67", // 67% debt ratio, i.e. 150% collateralization ratio
-      performance_fee_rate: "0.20", // 20%
-      liquidation_fee_rate: "0.05", // 5%
-    }
+    initMsg
   );
 
   process.stdout.write("Creating verifier object... ");
@@ -227,42 +241,7 @@ async function setupTest() {
 async function testConfig() {
   process.stdout.write("Should store correct config info... ");
 
-  await verifier.verifyConfig({
-    owner: deployer.key.accAddress,
-    operators: [user1.key.accAddress],
-    treasury: treasury.key.accAddress,
-    asset_token: anchorToken,
-    reward_token: anchorToken,
-    swap: {
-      pair: terraswapPair,
-      share_token: terraswapLpToken,
-    },
-    red_bank: {
-      contract_addr: redBank,
-      borrow_asset: {
-        native_token: {
-          denom: "uusd",
-        },
-      },
-    },
-    staking: {
-      anchor: {
-        contract_addr: anchorStaking,
-        asset_token: anchorToken,
-        staking_token: terraswapLpToken,
-      },
-    },
-    max_ltv: "0.67",
-    performance_fee_rate: "0.2",
-    liquidation_fee_rate: "0.05",
-  });
-  await verifier.verifyState({
-    total_bond_value: "0",
-    total_bond_units: "0",
-    total_debt_value: "0",
-    total_debt_units: "0",
-    ltv: null,
-  });
+  await verifier.verifyConfig(config);
 
   console.log(chalk.green("Passed!"));
 }
@@ -1142,58 +1121,17 @@ async function testClosePosition() {
 async function testUpdateConfig() {
   process.stdout.write("Should update config... ");
 
-  const executeMsg = {
-    update_config: {
-      new_config: {
-        owner: deployer.key.accAddress,
-        operators: [],
-        treasury: treasury.key.accAddress,
-        asset_token: anchorToken,
-        reward_token: anchorToken,
-        swap: {
-          pair: terraswapPair,
-          share_token: terraswapLpToken,
-        },
-        red_bank: {
-          contract_addr: redBank,
-          borrow_asset: {
-            native_token: {
-              denom: "uusd",
-            },
-          },
-        },
-        staking: {
-          anchor: {
-            contract_addr: anchorStaking,
-            asset_token: anchorToken,
-            staking_token: terraswapLpToken,
-          },
-        },
-        max_ltv: "0.67",
-        performance_fee_rate: "1.00", // used to be 20%; try updating this to 100%
-        liquidation_fee_rate: "0.05",
+  const newConfig = {
+    long_asset: {
+      token: {
+        contract_addr: anchorToken,
       },
     },
-  };
-
-  // Try updating config with a non-owner user; should fail
-  await expect(
-    sendTransaction(terra, user1, [
-      new MsgExecuteContract(user1.key.accAddress, strategy, executeMsg),
-    ])
-  ).to.be.rejectedWith("unauthorized");
-
-  // Try updating with owner account; should succeed
-  await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, strategy, executeMsg),
-  ]);
-
-  await verifier.verifyConfig({
-    owner: deployer.key.accAddress,
-    operators: [],
-    treasury: treasury.key.accAddress,
-    asset_token: anchorToken,
-    reward_token: anchorToken,
+    short_asset: {
+      native_token: {
+        denom: "uusd",
+      },
+    },
     swap: {
       pair: terraswapPair,
       share_token: terraswapLpToken,
@@ -1211,12 +1149,36 @@ async function testUpdateConfig() {
         contract_addr: anchorStaking,
         asset_token: anchorToken,
         staking_token: terraswapLpToken,
+        reward_token: anchorToken,
       },
     },
+    owner: deployer.key.accAddress,
+    treasury: treasury.key.accAddress,
+    operators: [],
     max_ltv: "0.67",
-    performance_fee_rate: "1", // should correctly update to 100%
+    performance_fee_rate: "1.00", // used to be 20%; try updating this to 100%
     liquidation_fee_rate: "0.05",
-  });
+  };
+
+  const executeMsg = {
+    update_config: {
+      new_config: newConfig,
+    },
+  };
+
+  // Try updating config with a non-owner user; should fail
+  await expect(
+    sendTransaction(terra, user1, [
+      new MsgExecuteContract(user1.key.accAddress, strategy, executeMsg),
+    ])
+  ).to.be.rejectedWith("unauthorized");
+
+  // Try updating with owner account; should succeed
+  await sendTransaction(terra, deployer, [
+    new MsgExecuteContract(deployer.key.accAddress, strategy, executeMsg),
+  ]);
+
+  await verifier.verifyConfig(newConfig);
 
   console.log(chalk.green("Passed!"));
 }

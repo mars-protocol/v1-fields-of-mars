@@ -133,6 +133,8 @@ pub struct StakingConfig {
     pub asset_token: HumanAddr,
     /// Address of the token that is to be bonded (typically, a TerraSwap LP token)
     pub staking_token: HumanAddr,
+    /// Address of the token to be claimed as staking reward
+    pub reward_token: HumanAddr,
 }
 
 impl StakingConfig {

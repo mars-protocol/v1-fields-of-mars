@@ -4,7 +4,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use fields_of_mars::{
-    martian_field::PositionSnapshotResponse, red_bank::RedBankRaw, staking::StakingRaw,
+    asset::{AssetInfoRaw, AssetRaw},
+    martian_field::PositionSnapshotResponse,
+    red_bank::RedBankRaw,
+    staking::StakingRaw,
     swap::SwapRaw,
 };
 
@@ -19,22 +22,22 @@ pub static PREFIX_POSITION_SNAPSHOT: &[u8] = b"position_snapshot";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// Account who can update config
-    pub owner: CanonicalAddr,
-    /// Accounts who can harvest
-    pub operators: Vec<CanonicalAddr>,
-    /// Address of the protocol treasury to receive fees payments
-    pub treasury: CanonicalAddr,
-    /// Address of the token to be deposited by users (MIR, mAsset, ANC)
-    pub asset_token: CanonicalAddr,
-    /// Address of the token that is to be harvested as rewards (MIR, ANC)
-    pub reward_token: CanonicalAddr,
-    /// The TerraSwap/Astroport pair of long/short assets
+    /// Info of the asset to be deposited by the user
+    pub long_asset: AssetInfoRaw,
+    /// Info of the asset to be either deposited by user or borrowed from Mars
+    pub short_asset: AssetInfoRaw,
+    /// TerraSwap/Astroport pair of long/short assets
     pub swap: SwapRaw,
     /// Address of Mars liquidity pool aka Red Bank
     pub red_bank: RedBankRaw,
     /// Staking contract where LP tokens can be bonded to earn rewards
     pub staking: StakingRaw,
+    /// Account who can update config
+    pub owner: CanonicalAddr,
+    /// Address of the protocol treasury to receive fees payments
+    pub treasury: CanonicalAddr,
+    /// Accounts who can harvest
+    pub operators: Vec<CanonicalAddr>,
     /// Maximum loan-to-value ratio (LTV) above which a user can be liquidated
     pub max_ltv: Decimal,
     /// Percentage of profit to be charged as performance fee
@@ -69,19 +72,19 @@ pub struct Position {
     pub bond_units: Uint128,
     /// Amount of debt units representing user's share of the debt
     pub debt_units: Uint128,
-    /// Amount of unstaked UST in the user's position
-    pub unbonded_ust_amount: Uint128,
-    /// Amount of unstaked asset token in the user's position
-    pub unbonded_asset_amount: Uint128,
+    /// Amount of assets not locked in TerrsSwap pool; pending refund or liquidation
+    pub unlocked_assets: [AssetRaw; 2],
 }
 
 impl Position {
-    pub const fn default() -> Self {
+    pub fn new(long_asset: AssetInfoRaw, short_asset: AssetInfoRaw) -> Self {
         Position {
             bond_units: Uint128::zero(),
             debt_units: Uint128::zero(),
-            unbonded_ust_amount: Uint128::zero(),
-            unbonded_asset_amount: Uint128::zero(),
+            unlocked_assets: [
+                long_asset.add_amount(Uint128::zero()),
+                short_asset.add_amount(Uint128::zero()),
+            ],
         }
     }
 
@@ -97,8 +100,8 @@ impl Position {
         vec![
             self.bond_units,
             self.debt_units,
-            self.unbonded_ust_amount,
-            self.unbonded_asset_amount,
+            self.unlocked_assets[0].amount,
+            self.unlocked_assets[1].amount,
         ]
         .iter()
         .all(|x| x.is_zero())

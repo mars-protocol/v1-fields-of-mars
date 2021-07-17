@@ -4,7 +4,12 @@ use cosmwasm_std::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{red_bank::RedBank, staking::Staking, swap::Swap};
+use crate::{
+    asset::{Asset, AssetInfo},
+    red_bank::RedBank,
+    staking::Staking,
+    swap::Swap,
+};
 
 //----------------------------------------------------------------------------------------
 // Message Types
@@ -12,22 +17,22 @@ use crate::{red_bank::RedBank, staking::Staking, swap::Swap};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
-    /// Account who can update config
-    pub owner: HumanAddr,
-    /// Accounts who can harvest
-    pub operators: Vec<HumanAddr>,
-    /// Address of the protocol treasury to receive fees payments
-    pub treasury: HumanAddr,
-    /// Address of the token to be deposited by users (MIR, mAsset, ANC)
-    pub asset_token: HumanAddr,
-    /// Address of the token that is to be harvested as rewards (MIR, ANC)
-    pub reward_token: HumanAddr,
-    /// The TerraSwap/Astroport pair of long/short assets
+    /// Info of the asset to be deposited by the user
+    pub long_asset: AssetInfo,
+    /// Info of the asset to be either deposited by user or borrowed from Mars
+    pub short_asset: AssetInfo,
+    /// TerraSwap/Astroport pair of long/short assets
     pub swap: Swap,
     /// Mars liquidity pool aka Red Bank
     pub red_bank: RedBank,
     /// Staking contract where LP tokens can be bonded to earn rewards
     pub staking: Staking,
+    /// Account who can update config
+    pub owner: HumanAddr,
+    /// Address of the protocol treasury to receive fees payments
+    pub treasury: HumanAddr,
+    /// Accounts who can harvest
+    pub operators: Vec<HumanAddr>,
     /// Maximum loan-to-value ratio (LTV) above which a user can be liquidated
     pub max_ltv: Decimal,
     /// Percentage of profit to be charged as performance fee
@@ -41,7 +46,7 @@ pub struct InitMsg {
 pub enum HandleMsg {
     /// Open a new position or add to an existing position
     IncreasePosition {
-        asset_amount: Uint128,
+        deposits: [Asset; 2],
     },
     /// Reduce a position, or close it completely
     ReducePosition {
@@ -50,10 +55,12 @@ pub enum HandleMsg {
     /// Pay down debt owed to Mars, reduce debt units
     PayDebt {
         user: Option<HumanAddr>,
+        repay_asset: Asset,
     },
     /// Close an underfunded position, pay down remaining debt and claim the collateral
     Liquidate {
         user: HumanAddr,
+        repay_asset: Asset,
     },
     /// Claim staking reward and reinvest
     Harvest {},
@@ -190,10 +197,8 @@ pub struct PositionResponse {
     pub debt_units: Uint128,
     /// The user's loan-to-value ratio
     pub ltv: Option<Decimal>,
-    /// Amount of unbonded UST pending refund or liquidation
-    pub unbonded_ust_amount: Uint128,
-    /// Amount of unbonded asset token pending refund or liquidation
-    pub unbonded_asset_amount: Uint128,
+    /// Amount of assets not locked in TerrsSwap pool; pending refund or liquidation
+    pub unlocked_assets: [Asset; 2],
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
