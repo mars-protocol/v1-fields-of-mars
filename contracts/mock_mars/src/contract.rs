@@ -4,9 +4,8 @@ use cosmwasm_std::{
     InitResponse, MigrateResponse, Querier, StdError, StdResult, Storage,
 };
 
-use fields_of_mars::{
-    asset::Asset,
-    red_bank::{DebtInfo, DebtResponse, HandleMsg, QueryMsg},
+use fields_of_mars::red_bank::{
+    DebtInfo, DebtResponse, HandleMsg, QueryMsg, RedBankAsset as Asset,
 };
 
 use crate::{
@@ -82,7 +81,6 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         QueryMsg::Debt {
             address,
         } => to_binary(&query_debt(deps, address)?),
-        _ => Err(StdError::generic_err("unimplemented")),
     }
 }
 

@@ -1,37 +1,54 @@
 use cosmwasm_std::{
     to_binary, Api, CanonicalAddr, Extern, HumanAddr, Querier, QueryRequest, StdResult,
-    Storage, WasmQuery,
+    Storage, Uint128, WasmQuery,
 };
 use cw20::{Cw20QueryMsg, TokenInfoResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum Asset {
-    Cw20 {
-        contract_addr: HumanAddr,
-    },
-    Native {
-        denom: String,
-    },
+pub struct Asset {
+    pub info: AssetInfo,
+    pub amount: Uint128,
 }
 
 impl Asset {
-    /// @notice Convert `Asset` to `AssetRaw`
     pub fn to_raw<S: Storage, A: Api, Q: Querier>(
         &self,
         deps: &Extern<S, A, Q>,
     ) -> StdResult<AssetRaw> {
-        match self {
-            Asset::Cw20 {
+        Ok(AssetRaw {
+            info: self.info.to_raw(deps)?,
+            amount: self.amount,
+        })
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AssetInfo {
+    Token {
+        contract_addr: HumanAddr,
+    },
+    NativeToken {
+        denom: String,
+    },
+}
+
+impl AssetInfo {
+    pub fn to_raw<S: Storage, A: Api, Q: Querier>(
+        &self,
+        deps: &Extern<S, A, Q>,
+    ) -> StdResult<AssetInfoRaw> {
+        match &self {
+            AssetInfo::Token {
                 contract_addr,
-            } => Ok(AssetRaw::Cw20 {
+            } => Ok(AssetInfoRaw::Token {
                 contract_addr: deps.api.canonical_address(&contract_addr)?,
             }),
-            Asset::Native {
+            AssetInfo::NativeToken {
                 denom,
-            } => Ok(AssetRaw::Native {
+            } => Ok(AssetInfoRaw::NativeToken {
                 denom: String::from(denom),
             }),
         }
@@ -44,7 +61,7 @@ impl Asset {
         deps: &Extern<S, A, Q>,
     ) -> StdResult<String> {
         match self {
-            Asset::Cw20 {
+            AssetInfo::Token {
                 contract_addr,
             } => {
                 let response: TokenInfoResponse =
@@ -54,7 +71,7 @@ impl Asset {
                     }))?;
                 Ok(response.symbol)
             }
-            Asset::Native {
+            AssetInfo::NativeToken {
                 denom,
             } => Ok(String::from(denom)),
         }
@@ -62,31 +79,48 @@ impl Asset {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AssetRaw {
-    Cw20 {
-        contract_addr: CanonicalAddr,
-    },
-    Native {
-        denom: String,
-    },
+pub struct AssetRaw {
+    pub info: AssetInfoRaw,
+    pub amount: Uint128,
 }
 
 impl AssetRaw {
-    /// @notice Convert `AssetRaw` to `Asset`
     pub fn to_normal<S: Storage, A: Api, Q: Querier>(
         &self,
         deps: &Extern<S, A, Q>,
     ) -> StdResult<Asset> {
-        match self {
-            AssetRaw::Cw20 {
+        Ok(Asset {
+            info: self.info.to_normal(deps)?,
+            amount: self.amount,
+        })
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AssetInfoRaw {
+    Token {
+        contract_addr: CanonicalAddr,
+    },
+    NativeToken {
+        denom: String,
+    },
+}
+
+impl AssetInfoRaw {
+    pub fn to_normal<S: Storage, A: Api, Q: Querier>(
+        &self,
+        deps: &Extern<S, A, Q>,
+    ) -> StdResult<AssetInfo> {
+        match &self {
+            AssetInfoRaw::Token {
                 contract_addr,
-            } => Ok(Asset::Cw20 {
+            } => Ok(AssetInfo::Token {
                 contract_addr: deps.api.human_address(&contract_addr)?,
             }),
-            AssetRaw::Native {
+            AssetInfoRaw::NativeToken {
                 denom,
-            } => Ok(Asset::Native {
+            } => Ok(AssetInfo::NativeToken {
                 denom: String::from(denom),
             }),
         }

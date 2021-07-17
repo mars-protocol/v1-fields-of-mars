@@ -7,7 +7,7 @@ use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::asset::{Asset, AssetRaw};
+use crate::asset::{AssetInfo, AssetInfoRaw};
 
 //----------------------------------------------------------------------------------------
 // Message Types
@@ -18,7 +18,7 @@ use crate::asset::{Asset, AssetRaw};
 pub enum HandleMsg {
     Receive(Cw20ReceiveMsg),
     Borrow {
-        asset: Asset,
+        asset: RedBankAsset,
         amount: Uint256,
     },
     RepayNative {
@@ -35,17 +35,8 @@ pub enum ReceiveMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    Config {},
-    Reserve {
-        asset: Asset,
-    },
-    ReservesList {},
     Debt {
         address: HumanAddr,
-    },
-    UncollateralizedLoanLimit {
-        user_address: HumanAddr,
-        asset: Asset,
     },
 }
 
@@ -60,6 +51,34 @@ pub struct DebtInfo {
     pub amount: Uint256,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RedBankAsset {
+    Cw20 {
+        contract_addr: HumanAddr,
+    },
+    Native {
+        denom: String,
+    },
+}
+
+impl From<AssetInfo> for RedBankAsset {
+    fn from(asset_info: AssetInfo) -> Self {
+        match &asset_info {
+            AssetInfo::Token {
+                contract_addr,
+            } => RedBankAsset::Cw20 {
+                contract_addr: HumanAddr::from(contract_addr),
+            },
+            AssetInfo::NativeToken {
+                denom,
+            } => RedBankAsset::Native {
+                denom: String::from(denom),
+            },
+        }
+    }
+}
+
 //----------------------------------------------------------------------------------------
 // Adapter
 //----------------------------------------------------------------------------------------
@@ -69,7 +88,7 @@ pub struct RedBank {
     /// Address of Mars liquidity pool
     pub contract_addr: HumanAddr,
     /// The asset to borrow
-    pub borrow_asset: Asset,
+    pub borrow_asset: AssetInfo,
 }
 
 impl RedBank {
@@ -90,7 +109,7 @@ impl RedBank {
             contract_addr: self.contract_addr.clone(),
             send: vec![],
             msg: to_binary(&HandleMsg::Borrow {
-                asset: self.borrow_asset.clone(),
+                asset: RedBankAsset::from(self.borrow_asset.clone()),
                 amount: Uint256::from(amount),
             })?,
         }))
@@ -99,7 +118,7 @@ impl RedBank {
     /// @notice Generate message for repaying a specified amount of asset
     pub fn repay_message(&self, amount: Uint128) -> StdResult<CosmosMsg> {
         match &self.borrow_asset {
-            Asset::Cw20 {
+            AssetInfo::Token {
                 contract_addr,
             } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: HumanAddr::from(contract_addr),
@@ -110,7 +129,7 @@ impl RedBank {
                     msg: Some(to_binary(&ReceiveMsg::RepayCw20 {})?),
                 })?,
             })),
-            Asset::Native {
+            AssetInfo::NativeToken {
                 denom,
             } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: self.contract_addr.clone(),
@@ -155,7 +174,7 @@ pub struct RedBankRaw {
     /// Address of Mars liquidity pool
     pub contract_addr: CanonicalAddr,
     /// The asset to borrow
-    pub borrow_asset: AssetRaw,
+    pub borrow_asset: AssetInfoRaw,
 }
 
 impl RedBankRaw {

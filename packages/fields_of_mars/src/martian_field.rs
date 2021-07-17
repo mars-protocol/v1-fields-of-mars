@@ -26,7 +26,7 @@ pub struct InitMsg {
     pub pool: HumanAddr,
     /// Address of the TerraSwap LP token
     pub pool_token: HumanAddr,
-    /// Address of Mars liquidity pool aka Red Bank
+    /// Mars liquidity pool aka Red Bank
     pub red_bank: RedBank,
     /// Staking contract where LP tokens can be bonded to earn rewards
     pub staking: Staking,

@@ -84,7 +84,7 @@ async function setupTest() {
       red_bank: {
         contract_addr: redBank,
         borrow_asset: {
-          native: {
+          native_token: {
             denom: "uusd",
           },
         },
@@ -236,7 +236,7 @@ async function testConfig() {
     red_bank: {
       contract_addr: redBank,
       borrow_asset: {
-        native: {
+        native_token: {
           denom: "uusd",
         },
       },
@@ -1151,7 +1151,7 @@ async function testUpdateConfig() {
         red_bank: {
           contract_addr: redBank,
           borrow_asset: {
-            native: {
+            native_token: {
               denom: "uusd",
             },
           },
@@ -1193,7 +1193,7 @@ async function testUpdateConfig() {
     red_bank: {
       contract_addr: redBank,
       borrow_asset: {
-        native: {
+        native_token: {
           denom: "uusd",
         },
       },
