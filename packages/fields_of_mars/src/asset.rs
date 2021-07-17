@@ -1,8 +1,8 @@
 use cosmwasm_std::{
-    to_binary, Api, CanonicalAddr, Extern, HumanAddr, Querier, QueryRequest, StdResult,
-    Storage, Uint128, WasmQuery,
+    to_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, Extern, HumanAddr, Querier,
+    QueryRequest, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
-use cw20::{Cw20QueryMsg, TokenInfoResponse};
+use cw20::{Cw20HandleMsg, Cw20QueryMsg, TokenInfoResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +21,22 @@ impl Asset {
             info: self.info.to_raw(deps)?,
             amount: self.amount,
         })
+    }
+
+    pub fn transfer_message(
+        &self,
+        from: &HumanAddr,
+        to: &HumanAddr,
+    ) -> StdResult<CosmosMsg> {
+        self.info.transfer_message(from, to, self.amount)
+    }
+
+    pub fn transfer_from_message(
+        &self,
+        from: &HumanAddr,
+        to: &HumanAddr,
+    ) -> StdResult<CosmosMsg> {
+        self.info.transfer_message(from, to, self.amount)
     }
 }
 
@@ -83,6 +99,62 @@ impl AssetInfo {
                     } => false,
                 }
             }
+        }
+    }
+
+    pub fn transfer_message(
+        &self,
+        from: &HumanAddr,
+        to: &HumanAddr,
+        amount: Uint128,
+    ) -> StdResult<CosmosMsg> {
+        match &self {
+            AssetInfo::Token {
+                contract_addr,
+            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from(contract_addr),
+                send: vec![],
+                msg: to_binary(&Cw20HandleMsg::Transfer {
+                    recipient: HumanAddr::from(to),
+                    amount,
+                })?,
+            })),
+            AssetInfo::NativeToken {
+                denom,
+            } => Ok(CosmosMsg::Bank(BankMsg::Send {
+                from_address: HumanAddr::from(from),
+                to_address: HumanAddr::from(to),
+                amount: vec![Coin {
+                    denom: String::from(denom),
+                    amount,
+                }],
+            })),
+        }
+    }
+
+    pub fn transfer_from_message(
+        &self,
+        from: &HumanAddr,
+        to: &HumanAddr,
+        amount: Uint128,
+    ) -> StdResult<CosmosMsg> {
+        match &self {
+            AssetInfo::Token {
+                contract_addr,
+            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from(contract_addr),
+                send: vec![],
+                msg: to_binary(&Cw20HandleMsg::TransferFrom {
+                    owner: HumanAddr::from(from),
+                    recipient: HumanAddr::from(to),
+                    amount,
+                })?,
+            })),
+            AssetInfo::NativeToken {
+                ..
+            } => Err(StdError::generic_err(
+                "`TransferFrom` does not apply to native tokens",
+            )),
         }
     }
 
