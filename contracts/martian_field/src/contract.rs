@@ -4,14 +4,14 @@ use cosmwasm_std::{
     StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20HandleMsg;
-use terraswap::{
-    asset::{Asset, AssetInfo},
-    querier::{query_balance, query_supply, query_token_balance},
-};
+use terraswap::querier::query_token_balance;
 
-use fields_of_mars::martian_field::{
-    CallbackMsg, ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PositionResponse,
-    PositionSnapshotResponse, QueryMsg, StateResponse,
+use fields_of_mars::{
+    asset::{Asset, AssetInfo},
+    martian_field::{
+        CallbackMsg, ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PositionResponse,
+        PositionSnapshotResponse, QueryMsg, StateResponse,
+    },
 };
 
 use crate::{
@@ -176,11 +176,20 @@ pub fn increase_position<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     let config = read_config(&deps.storage)?;
     let asset_token = deps.api.human_address(&config.asset_token)?;
-    let pool = deps.api.human_address(&config.pool)?;
+    let swap = config.swap.to_normal(deps)?;
 
     // Query UST and asset balances of the Terraswap pool
-    let pool_ust = query_balance(deps, &pool, "uusd".to_string())?;
-    let pool_asset = query_token_balance(deps, &asset_token, &pool)?;
+    let pool_info = swap.query_pool(
+        deps,
+        &AssetInfo::Token {
+            contract_addr: deps.api.human_address(&config.asset_token)?,
+        },
+        &AssetInfo::NativeToken {
+            denom: "uusd".to_string(),
+        },
+    )?;
+    let pool_ust = pool_info.short_depth;
+    let pool_asset = pool_info.long_depth;
 
     // Calculate how much UST is need for liquidity provision
     // We don't check whether `pool_asset` is zero here because we know it's not
@@ -489,54 +498,37 @@ pub fn _provide_liquidity<S: Storage, A: Api, Q: Querier>(
     user: Option<HumanAddr>,
 ) -> StdResult<HandleResponse> {
     let config = read_config(&deps.storage)?;
-    let asset_token = deps.api.human_address(&config.asset_token)?;
-    let pool = deps.api.human_address(&config.pool)?;
+    let swap = config.swap.to_normal(deps)?;
 
     // Sending native tokens such as UST involves a tax (stability fee), therefore the
     // amount can't be delivered in full. Calculate how much tax will be charged, and
     // the actual deliverable amount.
     let ust_amount_after_tax = deduct_tax(deps, ust_amount, "uusd")?;
 
+    let mut messages = swap.provide_messages([
+        Asset {
+            info: AssetInfo::Token {
+                contract_addr: deps.api.human_address(&config.asset_token)?,
+            },
+            amount: asset_amount,
+        },
+        Asset {
+            info: AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            amount: ust_amount_after_tax,
+        },
+    ])?;
+
+    messages.push(
+        CallbackMsg::Bond {
+            user,
+        }
+        .into_cosmos_msg(&env.contract.address)?,
+    );
+
     Ok(HandleResponse {
-        messages: vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: asset_token.clone(),
-                send: vec![],
-                msg: to_binary(&Cw20HandleMsg::IncreaseAllowance {
-                    spender: pool.clone(),
-                    amount: asset_amount,
-                    expires: None,
-                })?,
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: pool,
-                send: vec![Coin {
-                    denom: "uusd".to_string(),
-                    amount: ust_amount_after_tax,
-                }],
-                msg: to_binary(&terraswap::pair::HandleMsg::ProvideLiquidity {
-                    assets: [
-                        Asset {
-                            info: AssetInfo::NativeToken {
-                                denom: "uusd".to_string(),
-                            },
-                            amount: ust_amount_after_tax,
-                        },
-                        Asset {
-                            info: AssetInfo::Token {
-                                contract_addr: asset_token,
-                            },
-                            amount: asset_amount,
-                        },
-                    ],
-                    slippage_tolerance: None,
-                })?,
-            }),
-            CallbackMsg::Bond {
-                user,
-            }
-            .into_cosmos_msg(&env.contract.address)?,
-        ],
+        messages,
         log: vec![
             log("action", "fields_of_mars::CallbackMsg::ProvideLiquidity"),
             log("asset_provided", asset_amount),
@@ -558,19 +550,26 @@ pub fn _remove_liquidity<S: Storage, A: Api, Q: Querier>(
     let config = read_config(&deps.storage)?;
     let state = read_state(&deps.storage)?;
     let mut position = read_position(&deps.storage, &user_raw)?;
-    let asset_token = deps.api.human_address(&config.asset_token)?;
-    let pool = deps.api.human_address(&config.pool)?;
-    let pool_token = deps.api.human_address(&config.pool_token)?;
+    let swap = config.swap.to_normal(deps)?;
     let red_bank = config.red_bank.to_normal(deps)?;
 
     // Find the amount of LP tokens the contract has received from unstaking
     let pool_tokens_to_burn =
-        query_token_balance(deps, &pool_token, &env.contract.address)?;
+        query_token_balance(deps, &swap.share_token, &env.contract.address)?;
 
     // Query info related to the Terraswap pair
-    let pool_ust = query_balance(deps, &pool, "uusd".to_string())?;
-    let pool_asset = query_token_balance(deps, &asset_token, &pool)?;
-    let pool_token_supply = query_supply(deps, &pool_token)?;
+    let pool_info = swap.query_pool(
+        deps,
+        &AssetInfo::Token {
+            contract_addr: deps.api.human_address(&config.asset_token)?,
+        },
+        &AssetInfo::NativeToken {
+            denom: "uusd".to_string(),
+        },
+    )?;
+    let pool_ust = pool_info.short_depth;
+    let pool_asset = pool_info.long_depth;
+    let pool_token_supply = pool_info.share_supply;
 
     // Calculate how much asset will be released. Logic is copied from:
     // terraswap/terraswap/contracts/pool/src/contract.rs#L294
@@ -605,15 +604,7 @@ pub fn _remove_liquidity<S: Storage, A: Api, Q: Querier>(
     position.unbonded_ust_amount += ust_to_refund;
     write_position(&mut deps.storage, &user_raw, &position)?;
 
-    let mut messages = vec![CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: pool_token.clone(),
-        send: vec![],
-        msg: to_binary(&Cw20HandleMsg::Send {
-            contract: pool,
-            amount: pool_tokens_to_burn,
-            msg: Some(to_binary(&terraswap::pair::Cw20HookMsg::WithdrawLiquidity {})?),
-        })?,
-    })];
+    let mut messages = vec![swap.withdraw_message(pool_tokens_to_burn)?];
 
     if !ust_to_repay.is_zero() {
         messages.push(
@@ -645,14 +636,15 @@ pub fn _bond<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     let config = read_config(&deps.storage)?;
     let mut state = read_state(&deps.storage)?;
-    let pool_token = deps.api.human_address(&config.pool_token)?;
     let staking = config.staking.to_normal(deps)?;
+    let swap = config.swap.to_normal(deps)?;
 
     // Find the amount of LP tokens already bonded to the staking contract
     let total_bond_amount = staking.query_bond_amount(deps, &env.contract.address)?;
 
     // Find the amount of LP tokens the contract has received from liquidity provision
-    let amount_to_bond = query_token_balance(deps, &pool_token, &env.contract.address)?;
+    let amount_to_bond =
+        query_token_balance(deps, &swap.share_token, &env.contract.address)?;
 
     // If a user account is provided, then increment the asset units
     // Initial asset unit = 100,000 units per LP token staked
@@ -866,7 +858,7 @@ pub fn _swap_reward<S: Storage, A: Api, Q: Querier>(
     let treasury = deps.api.human_address(&config.treasury)?;
     let asset_token = deps.api.human_address(&config.asset_token)?;
     let reward_token = deps.api.human_address(&config.reward_token)?;
-    let pool = deps.api.human_address(&config.pool)?;
+    let swap = config.swap.to_normal(deps)?;
 
     // Calculate how much performance fee should be charged
     let fee_amount = reward_amount * config.performance_fee_rate;
@@ -888,31 +880,27 @@ pub fn _swap_reward<S: Storage, A: Api, Q: Querier>(
         let asset_to_provide = (reward_amount_after_fee - reward_to_swap)?;
 
         // Calculate how many UST can to expect from the swap
-        let pool_ust = query_balance(deps, &pool, "uusd".to_string())?;
-        let pool_asset = query_token_balance(deps, &asset_token, &pool)?;
+        let pool_info = swap.query_pool(
+            deps,
+            &AssetInfo::Token {
+                contract_addr: deps.api.human_address(&config.asset_token)?,
+            },
+            &AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+        )?;
+        let pool_ust = pool_info.short_depth;
+        let pool_asset = pool_info.long_depth;
         let ust_to_provide =
             compute_swap_return_amount(deps, reward_to_swap, pool_asset, pool_ust)?;
 
         messages.extend(vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: asset_token.clone(),
-                send: vec![],
-                msg: to_binary(&Cw20HandleMsg::Send {
-                    contract: pool.clone(),
-                    amount: reward_to_swap,
-                    msg: Some(to_binary(&terraswap::pair::HandleMsg::Swap {
-                        offer_asset: Asset {
-                            info: AssetInfo::Token {
-                                contract_addr: asset_token,
-                            },
-                            amount: reward_to_swap,
-                        },
-                        belief_price: None,
-                        max_spread: None,
-                        to: None,
-                    })?),
-                })?,
-            }),
+            swap.swap_message(Asset {
+                info: AssetInfo::Token {
+                    contract_addr: deps.api.human_address(&config.asset_token)?,
+                },
+                amount: reward_to_swap,
+            })?,
             CallbackMsg::ProvideLiquidity {
                 asset_amount: asset_to_provide,
                 ust_amount: ust_to_provide,
@@ -1091,8 +1079,7 @@ pub fn _update_config<S: Storage, A: Api, Q: Querier>(
         treasury: deps.api.canonical_address(&config.treasury)?,
         asset_token: deps.api.canonical_address(&config.asset_token)?,
         reward_token: deps.api.canonical_address(&config.reward_token)?,
-        pool: deps.api.canonical_address(&config.pool)?,
-        pool_token: deps.api.canonical_address(&config.pool_token)?,
+        swap: config.swap.to_raw(deps)?,
         red_bank: config.red_bank.to_raw(deps)?,
         staking: config.staking.to_raw(deps)?,
         max_ltv: config.max_ltv,
@@ -1177,8 +1164,7 @@ pub fn query_config<S: Storage, A: Api, Q: Querier>(
         treasury: deps.api.human_address(&config.treasury)?,
         asset_token: deps.api.human_address(&config.asset_token)?,
         reward_token: deps.api.human_address(&config.reward_token)?,
-        pool: deps.api.human_address(&config.pool)?,
-        pool_token: deps.api.human_address(&config.pool_token)?,
+        swap: config.swap.to_normal(deps)?,
         red_bank: config.red_bank.to_normal(deps)?,
         staking: config.staking.to_normal(deps)?,
         max_ltv: config.max_ltv,

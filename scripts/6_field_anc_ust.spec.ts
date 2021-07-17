@@ -79,8 +79,10 @@ async function setupTest() {
       treasury: treasury.key.accAddress,
       asset_token: anchorToken,
       reward_token: anchorToken,
-      pool: terraswapPair,
-      pool_token: terraswapLpToken,
+      swap: {
+        pair: terraswapPair,
+        share_token: terraswapLpToken,
+      },
       red_bank: {
         contract_addr: redBank,
         borrow_asset: {
@@ -231,8 +233,10 @@ async function testConfig() {
     treasury: treasury.key.accAddress,
     asset_token: anchorToken,
     reward_token: anchorToken,
-    pool: terraswapPair,
-    pool_token: terraswapLpToken,
+    swap: {
+      pair: terraswapPair,
+      share_token: terraswapLpToken,
+    },
     red_bank: {
       contract_addr: redBank,
       borrow_asset: {
@@ -1146,8 +1150,10 @@ async function testUpdateConfig() {
         treasury: treasury.key.accAddress,
         asset_token: anchorToken,
         reward_token: anchorToken,
-        pool: terraswapPair,
-        pool_token: terraswapLpToken,
+        swap: {
+          pair: terraswapPair,
+          share_token: terraswapLpToken,
+        },
         red_bank: {
           contract_addr: redBank,
           borrow_asset: {
@@ -1188,8 +1194,10 @@ async function testUpdateConfig() {
     treasury: treasury.key.accAddress,
     asset_token: anchorToken,
     reward_token: anchorToken,
-    pool: terraswapPair,
-    pool_token: terraswapLpToken,
+    swap: {
+      pair: terraswapPair,
+      share_token: terraswapLpToken,
+    },
     red_bank: {
       contract_addr: redBank,
       borrow_asset: {

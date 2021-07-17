@@ -3,7 +3,8 @@ use cosmwasm_std::{
 };
 use std::str::FromStr;
 use terra_cosmwasm::TerraQuerier;
-use terraswap::querier::{query_balance, query_supply};
+
+use fields_of_mars::asset::AssetInfo;
 
 use crate::state::{read_config, read_position, read_state, Position};
 
@@ -26,10 +27,8 @@ pub fn compute_ltv<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<(Uint128, Uint128, Option<Decimal>)> {
     let config = read_config(&deps.storage)?;
     let state = read_state(&deps.storage)?;
-    let pool = deps.api.human_address(&config.pool)?;
-    let pool_token = deps.api.human_address(&config.pool_token)?;
     let strategy = deps.api.human_address(&state.strategy)?;
-
+    let swap = config.swap.to_normal(deps)?;
     let staking = config.staking.to_normal(deps)?;
     let red_bank = config.red_bank.to_normal(deps)?;
 
@@ -47,8 +46,17 @@ pub fn compute_ltv<S: Storage, A: Api, Q: Querier>(
     };
 
     // Query data necessary for calculating the user's debt ratio
-    let pool_ust = query_balance(deps, &pool, "uusd".to_string())?;
-    let pool_token_supply = query_supply(deps, &pool_token)?;
+    let pool_info = swap.query_pool(
+        deps,
+        &AssetInfo::Token {
+            contract_addr: deps.api.human_address(&config.asset_token)?,
+        },
+        &AssetInfo::NativeToken {
+            denom: "uusd".to_string(),
+        },
+    )?;
+    let pool_ust = pool_info.short_depth;
+    let pool_token_supply = pool_info.share_supply;
     let total_debt_amount = red_bank.query_debt(&deps, &strategy)?;
     let total_bond_amount = staking.query_bond_amount(&deps, &strategy)?;
 

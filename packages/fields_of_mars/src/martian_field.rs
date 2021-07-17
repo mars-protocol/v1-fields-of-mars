@@ -4,7 +4,7 @@ use cosmwasm_std::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{red_bank::RedBank, staking::Staking};
+use crate::{red_bank::RedBank, staking::Staking, swap::Swap};
 
 //----------------------------------------------------------------------------------------
 // Message Types
@@ -22,10 +22,8 @@ pub struct InitMsg {
     pub asset_token: HumanAddr,
     /// Address of the token that is to be harvested as rewards (MIR, ANC)
     pub reward_token: HumanAddr,
-    /// Address of the TerraSwap pair
-    pub pool: HumanAddr,
-    /// Address of the TerraSwap LP token
-    pub pool_token: HumanAddr,
+    /// The TerraSwap/Astroport pair of long/short assets
+    pub swap: Swap,
     /// Mars liquidity pool aka Red Bank
     pub red_bank: RedBank,
     /// Staking contract where LP tokens can be bonded to earn rewards

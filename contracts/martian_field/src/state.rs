@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use fields_of_mars::{
     martian_field::PositionSnapshotResponse, red_bank::RedBankRaw, staking::StakingRaw,
+    swap::SwapRaw,
 };
 
 pub static KEY_CONFIG: &[u8] = b"config";
@@ -28,10 +29,8 @@ pub struct Config {
     pub asset_token: CanonicalAddr,
     /// Address of the token that is to be harvested as rewards (MIR, ANC)
     pub reward_token: CanonicalAddr,
-    /// Address of the TerraSwap pair
-    pub pool: CanonicalAddr,
-    /// Address of the TerraSwap LP token
-    pub pool_token: CanonicalAddr,
+    /// The TerraSwap/Astroport pair of long/short assets
+    pub swap: SwapRaw,
     /// Address of Mars liquidity pool aka Red Bank
     pub red_bank: RedBankRaw,
     /// Staking contract where LP tokens can be bonded to earn rewards
