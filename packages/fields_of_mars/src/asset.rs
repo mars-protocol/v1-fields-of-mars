@@ -54,6 +54,38 @@ impl AssetInfo {
         }
     }
 
+    /// @notice Compare if two `AssetInfo` objects are the same
+    pub fn equals(&self, info: &AssetInfo) -> bool {
+        match &self {
+            AssetInfo::Token {
+                contract_addr,
+            } => {
+                let self_addr = contract_addr;
+                match info {
+                    AssetInfo::Token {
+                        contract_addr,
+                    } => self_addr == contract_addr,
+                    AssetInfo::NativeToken {
+                        ..
+                    } => false,
+                }
+            }
+            AssetInfo::NativeToken {
+                denom,
+            } => {
+                let self_denom = denom;
+                match info {
+                    AssetInfo::NativeToken {
+                        denom,
+                    } => self_denom == denom,
+                    AssetInfo::Token {
+                        ..
+                    } => false,
+                }
+            }
+        }
+    }
+
     /// @notice Query the denomination of the asset
     /// @dev If the asset is a CW20, query `TokenInfo` and returm `symbol`
     pub fn query_denom<S: Storage, A: Api, Q: Querier>(
