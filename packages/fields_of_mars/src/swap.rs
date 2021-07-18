@@ -243,6 +243,10 @@ impl PoolResponseParsed {
     }
 }
 
+//----------------------------------------------------------------------------------------
+// Raw Type
+//----------------------------------------------------------------------------------------
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SwapRaw {
     /// Address of the TerraSwap pair contract
@@ -261,54 +265,5 @@ impl SwapRaw {
             pair: deps.api.human_address(&self.pair)?,
             share_token: deps.api.human_address(&self.share_token)?,
         })
-    }
-}
-
-//----------------------------------------------------------------------------------------
-// Unit Tests
-//----------------------------------------------------------------------------------------
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_pool_response() {
-        let response = PoolResponse {
-            assets: [
-                Asset {
-                    info: AssetInfo::Token {
-                        contract_addr: HumanAddr("addr1234".to_string()),
-                    },
-                    amount: Uint128::from(123456u128),
-                },
-                Asset {
-                    info: AssetInfo::NativeToken {
-                        denom: "uusd".to_string(),
-                    },
-                    amount: Uint128::from(69420u128),
-                },
-            ],
-            total_share: Uint128::from(88888u128),
-        };
-
-        let parsed = PoolResponseParsed::parse(
-            &response,
-            &AssetInfo::Token {
-                contract_addr: HumanAddr("addr1234".to_string()),
-            },
-            &AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-        );
-
-        assert_eq!(
-            parsed,
-            PoolResponseParsed {
-                long_depth: Uint128::from(123456u128),
-                short_depth: Uint128::from(69420u128),
-                share_supply: Uint128::from(88888u128)
-            }
-        );
     }
 }

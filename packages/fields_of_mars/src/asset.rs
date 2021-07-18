@@ -6,7 +6,7 @@ use cosmwasm_std::{
 use cw20::{Cw20HandleMsg, Cw20QueryMsg, TokenInfoResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::ops;
+use std::{cmp::Ordering, ops};
 
 static DECIMAL_FRACTION: Uint128 = Uint128(1_000_000_000_000_000_000u128);
 
@@ -14,7 +14,7 @@ static DECIMAL_FRACTION: Uint128 = Uint128(1_000_000_000_000_000_000u128);
 // Asset
 //----------------------------------------------------------------------------------------
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Asset {
     pub info: AssetInfo,
     pub amount: Uint128,
@@ -26,33 +26,46 @@ impl Into<Uint128> for Asset {
     }
 }
 
+impl Ord for Asset {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.assert_matched_info(&other);
+        self.amount.cmp(&other.amount)
+    }
+}
+
+impl PartialOrd for Asset {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
 impl ops::Add for Asset {
     type Output = Self;
 
-    fn add(self, other: Self) -> Self {
+    fn add<T: Into<Uint128>>(self, other: T) -> Self {
         self.assert_matched_info(&other);
         Asset {
             info: self.info,
-            amount: self.amount + other.amount,
+            amount: self.amount + other.into(),
         }
     }
 }
 
 impl ops::AddAssign for Asset {
-    fn add_assign(&mut self, other: Self) {
+    fn add_assign<T: Into<Uint128>>(&mut self, other: T) {
         self.assert_matched_info(&other);
-        self.amount += other.amount;
+        self.amount += other.into();
     }
 }
 
 impl ops::Sub for Asset {
     type Output = StdResult<Self>;
 
-    fn sub(self, other: Self) -> StdResult<Self> {
+    fn sub<T: Into<Uint128>>(self, other: T) -> StdResult<Self> {
         self.assert_matched_info(&other);
         Ok(Asset {
             info: self.info,
-            amount: (self.amount - other.amount)?,
+            amount: (self.amount - other.into())?,
         })
     }
 }
@@ -62,13 +75,18 @@ impl Asset {
     /// @dev `nom` and `denom` can be assets of different `info`
     pub fn multiply_ratio<A: Into<Uint128>, B: Into<Uint128>>(
         &self,
-        nom: A,
-        denom: B,
+        nom: &A,
+        denom: &B,
     ) -> Self {
         Asset {
             info: self.info.clone(),
             amount: self.amount.multiply_ratio(nom.into(), denom.into()),
         }
+    }
+
+    /// @notice Check if the amount is zero
+    pub fn is_zero(&self) -> bool {
+        self.amount.is_zero()
     }
 
     /// @notice Convert `Asset` to `AssetRaw`
@@ -122,28 +140,32 @@ impl Asset {
         self.info.query_denom(deps)
     }
 
-    /// @notice Update the asset amount to reflect the deliverable amount if the asset is
-    /// to be transferred.
+    /// @notice Return an asset whose amount reflects the deliverable amount if the asset
+    /// is to be transferred.
     /// @dev For example, if the asset is 1000 UST, and the tax for sending 1000 UST is
     /// 1 UST, then update amount to 1000 - 1 = 999.
     pub fn deduct_tax<S: Storage, A: Api, Q: Querier>(
-        &mut self,
+        &self,
         deps: &Extern<S, A, Q>,
-    ) -> StdResult<()> {
-        self.amount = self.info.deduct_tax(deps, self.amount)?;
-        Ok(())
+    ) -> StdResult<Self> {
+        Ok(Asset {
+            info: self.info.clone(),
+            amount: self.info.deduct_tax(deps, self.amount)?,
+        })
     }
 
-    /// @notice Update the asset amount to reflect the total amount needed to deliver the
-    /// specified amount.
+    /// @notice Return an asset whose amount reflects the total amount needed to deliver
+    /// the specified amount.
     /// @dev For example, if the asset is 1000 UST, and and 1 UST of tax is to be charged
     /// to deliver 1000 UST, then updatethe amount to 1000 + 1 = 1001.
     pub fn add_tax<S: Storage, A: Api, Q: Querier>(
-        &mut self,
+        &self,
         deps: &Extern<S, A, Q>,
-    ) -> StdResult<()> {
-        self.amount = self.info.add_tax(deps, self.amount)?;
-        Ok(())
+    ) -> StdResult<Self> {
+        Ok(Asset {
+            info: self.info.clone(),
+            amount: self.info.add_tax(deps, self.amount)?,
+        })
     }
 }
 
@@ -151,7 +173,7 @@ impl Asset {
 // AssetInfo
 //----------------------------------------------------------------------------------------
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetInfo {
     Token {
@@ -177,12 +199,12 @@ impl AssetInfo {
         deps: &Extern<S, A, Q>,
     ) -> StdResult<AssetInfoRaw> {
         match &self {
-            AssetInfo::Token {
+            Self::Token {
                 contract_addr,
             } => Ok(AssetInfoRaw::Token {
                 contract_addr: deps.api.canonical_address(&contract_addr)?,
             }),
-            AssetInfo::NativeToken {
+            Self::NativeToken {
                 denom,
             } => Ok(AssetInfoRaw::NativeToken {
                 denom: String::from(denom),
@@ -219,7 +241,7 @@ impl AssetInfo {
     /// @notice Compare if two `AssetInfo` objects are the same
     pub fn equals(&self, info: &AssetInfo) -> bool {
         match &self {
-            AssetInfo::Token {
+            Self::Token {
                 contract_addr,
             } => {
                 let self_addr = contract_addr;
@@ -232,7 +254,7 @@ impl AssetInfo {
                     } => false,
                 }
             }
-            AssetInfo::NativeToken {
+            Self::NativeToken {
                 denom,
             } => {
                 let self_denom = denom;
@@ -257,7 +279,7 @@ impl AssetInfo {
         amount: Uint128,
     ) -> StdResult<CosmosMsg> {
         match &self {
-            AssetInfo::Token {
+            Self::Token {
                 contract_addr,
             } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: HumanAddr::from(contract_addr),
@@ -267,7 +289,7 @@ impl AssetInfo {
                     amount,
                 })?,
             })),
-            AssetInfo::NativeToken {
+            Self::NativeToken {
                 denom,
             } => Ok(CosmosMsg::Bank(BankMsg::Send {
                 from_address: HumanAddr::from(from),
@@ -290,7 +312,7 @@ impl AssetInfo {
         amount: Uint128,
     ) -> StdResult<CosmosMsg> {
         match &self {
-            AssetInfo::Token {
+            Self::Token {
                 contract_addr,
             } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: HumanAddr::from(contract_addr),
@@ -301,7 +323,7 @@ impl AssetInfo {
                     amount,
                 })?,
             })),
-            AssetInfo::NativeToken {
+            Self::NativeToken {
                 ..
             } => Err(StdError::generic_err(
                 "`TransferFrom` does not apply to native tokens",
@@ -315,8 +337,8 @@ impl AssetInfo {
         &self,
         deps: &Extern<S, A, Q>,
     ) -> StdResult<String> {
-        match self {
-            AssetInfo::Token {
+        match &self {
+            Self::Token {
                 contract_addr,
             } => {
                 let response: TokenInfoResponse =
@@ -326,7 +348,7 @@ impl AssetInfo {
                     }))?;
                 Ok(response.symbol)
             }
-            AssetInfo::NativeToken {
+            Self::NativeToken {
                 denom,
             } => Ok(String::from(denom)),
         }
@@ -344,10 +366,10 @@ impl AssetInfo {
         amount: Uint128,
     ) -> StdResult<Uint128> {
         match &self {
-            AssetInfo::Token {
+            Self::Token {
                 ..
             } => Ok(Uint128::zero()),
-            AssetInfo::NativeToken {
+            Self::NativeToken {
                 denom,
             } => {
                 let tax = if denom == "luna" {
@@ -355,7 +377,7 @@ impl AssetInfo {
                 } else {
                     let terra_querier = TerraQuerier::new(&deps.querier);
                     let tax_rate = terra_querier.query_tax_rate()?.rate;
-                    let tax_cap = terra_querier.query_tax_cap(denom.to_string())?.cap;
+                    let tax_cap = terra_querier.query_tax_cap(String::from(denom))?.cap;
                     std::cmp::min(
                         (amount
                             - amount.multiply_ratio(
@@ -380,10 +402,10 @@ impl AssetInfo {
         amount: Uint128,
     ) -> StdResult<Uint128> {
         match &self {
-            AssetInfo::Token {
+            Self::Token {
                 ..
             } => Ok(amount),
-            AssetInfo::NativeToken {
+            Self::NativeToken {
                 denom,
             } => {
                 let tax = if denom == "luna" {
@@ -391,7 +413,7 @@ impl AssetInfo {
                 } else {
                     let terra_querier = TerraQuerier::new(&deps.querier);
                     let tax_rate = terra_querier.query_tax_rate()?.rate;
-                    let tax_cap = terra_querier.query_tax_cap(denom.to_string())?.cap;
+                    let tax_cap = terra_querier.query_tax_cap(String::from(denom))?.cap;
                     std::cmp::min(amount * tax_rate, tax_cap)
                 };
                 Ok(amount + tax)
@@ -439,12 +461,12 @@ impl AssetInfoRaw {
         deps: &Extern<S, A, Q>,
     ) -> StdResult<AssetInfo> {
         match &self {
-            AssetInfoRaw::Token {
+            Self::Token {
                 contract_addr,
             } => Ok(AssetInfo::Token {
                 contract_addr: deps.api.human_address(&contract_addr)?,
             }),
-            AssetInfoRaw::NativeToken {
+            Self::NativeToken {
                 denom,
             } => Ok(AssetInfo::NativeToken {
                 denom: String::from(denom),

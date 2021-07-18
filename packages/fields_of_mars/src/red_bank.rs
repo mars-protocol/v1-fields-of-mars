@@ -7,7 +7,7 @@ use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::asset::{AssetInfo, AssetInfoRaw};
+use crate::asset::{Asset, AssetInfo, AssetInfoRaw};
 
 //----------------------------------------------------------------------------------------
 // Message Types
@@ -62,6 +62,12 @@ pub enum RedBankAsset {
     },
 }
 
+impl From<Asset> for RedBankAsset {
+    fn from(asset: Asset) -> Self {
+        RedBankAsset::from(asset.info)
+    }
+}
+
 impl From<AssetInfo> for RedBankAsset {
     fn from(asset_info: AssetInfo) -> Self {
         match &asset_info {
@@ -87,8 +93,6 @@ impl From<AssetInfo> for RedBankAsset {
 pub struct RedBank {
     /// Address of Mars liquidity pool
     pub contract_addr: HumanAddr,
-    /// The asset to borrow
-    pub borrow_asset: AssetInfo,
 }
 
 impl RedBank {
@@ -99,25 +103,24 @@ impl RedBank {
     ) -> StdResult<RedBankRaw> {
         Ok(RedBankRaw {
             contract_addr: deps.api.canonical_address(&self.contract_addr)?,
-            borrow_asset: self.borrow_asset.to_raw(deps)?,
         })
     }
 
     /// @notice Generate message for borrowing a specified amount of asset
-    pub fn borrow_message(&self, amount: Uint128) -> StdResult<CosmosMsg> {
+    pub fn borrow_message(&self, asset: Asset) -> StdResult<CosmosMsg> {
         Ok(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.contract_addr.clone(),
             send: vec![],
             msg: to_binary(&HandleMsg::Borrow {
-                asset: RedBankAsset::from(self.borrow_asset.clone()),
-                amount: Uint256::from(amount),
+                asset: RedBankAsset::from(asset),
+                amount: Uint256::from(asset.amount),
             })?,
         }))
     }
 
     /// @notice Generate message for repaying a specified amount of asset
-    pub fn repay_message(&self, amount: Uint128) -> StdResult<CosmosMsg> {
-        match &self.borrow_asset {
+    pub fn repay_message(&self, asset: Asset) -> StdResult<CosmosMsg> {
+        match &asset.info {
             AssetInfo::Token {
                 contract_addr,
             } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -125,7 +128,7 @@ impl RedBank {
                 send: vec![],
                 msg: to_binary(&Cw20HandleMsg::Send {
                     contract: self.contract_addr.clone(),
-                    amount,
+                    amount: asset.amount,
                     msg: Some(to_binary(&ReceiveMsg::RepayCw20 {})?),
                 })?,
             })),
@@ -135,7 +138,7 @@ impl RedBank {
                 contract_addr: self.contract_addr.clone(),
                 send: vec![Coin {
                     denom: String::from(denom),
-                    amount,
+                    amount: asset.amount,
                 }],
                 msg: to_binary(&HandleMsg::RepayNative {
                     denom: String::from(denom),
@@ -149,6 +152,7 @@ impl RedBank {
         &self,
         deps: &Extern<S, A, Q>,
         borrower: &HumanAddr,
+        info: &AssetInfo,
     ) -> StdResult<Uint128> {
         let response: DebtResponse =
             deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -161,7 +165,7 @@ impl RedBank {
         match response
             .debts
             .iter()
-            .find(|debt| debt.denom == self.borrow_asset.query_denom(deps).unwrap())
+            .find(|debt| debt.denom == info.query_denom(deps).unwrap())
         {
             Some(debt) => Ok(debt.amount.into()),
             None => Ok(Uint128::zero()),
@@ -169,12 +173,14 @@ impl RedBank {
     }
 }
 
+//----------------------------------------------------------------------------------------
+// Raw Type
+//----------------------------------------------------------------------------------------
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RedBankRaw {
     /// Address of Mars liquidity pool
     pub contract_addr: CanonicalAddr,
-    /// The asset to borrow
-    pub borrow_asset: AssetInfoRaw,
 }
 
 impl RedBankRaw {
@@ -185,7 +191,6 @@ impl RedBankRaw {
     ) -> StdResult<RedBank> {
         Ok(RedBank {
             contract_addr: deps.api.human_address(&self.contract_addr)?,
-            borrow_asset: self.borrow_asset.to_normal(deps)?,
         })
     }
 }

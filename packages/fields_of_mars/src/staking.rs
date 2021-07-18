@@ -185,19 +185,27 @@ pub enum Staking {
 }
 
 impl Staking {
+    /// @notice Extract the `StakingConfig` object
+    pub fn get_config(&self) -> StakingConfig {
+        match &self {
+            Self::Anchor(config) => config.clone(),
+            Self::Mirror(config) => config.clone(),
+        }
+    }
+
     /// @notice Convert `Staking` to `StakingRaw`
     pub fn to_raw<S: Storage, A: Api, Q: Querier>(
         &self,
         deps: &Extern<S, A, Q>,
     ) -> StdResult<StakingRaw> {
-        match self {
-            Staking::Anchor(config) => Ok(StakingRaw::Anchor(config.to_raw(deps)?)),
-            Staking::Mirror(config) => Ok(StakingRaw::Mirror(config.to_raw(deps)?)),
+        match &self {
+            Self::Anchor(config) => Ok(StakingRaw::Anchor(config.to_raw(deps)?)),
+            Self::Mirror(config) => Ok(StakingRaw::Mirror(config.to_raw(deps)?)),
         }
     }
 
     /// @notice Return the amount of LP tokens bonded to the staking contract
-    pub fn query_bond_amount<S: Storage, A: Api, Q: Querier>(
+    pub fn query_bond<S: Storage, A: Api, Q: Querier>(
         &self,
         deps: &Extern<S, A, Q>,
         staker: &HumanAddr,
@@ -210,7 +218,7 @@ impl Staking {
     }
 
     /// @notice Return the amount of claimable reward
-    pub fn query_reward_amount<S: Storage, A: Api, Q: Querier>(
+    pub fn query_reward<S: Storage, A: Api, Q: Querier>(
         &self,
         deps: &Extern<S, A, Q>,
         staker: &HumanAddr,
@@ -224,8 +232,8 @@ impl Staking {
 
     /// @notice Generate a message for bonding LP tokens
     pub fn bond_message(&self, amount: Uint128) -> StdResult<CosmosMsg> {
-        match self {
-            Staking::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        match &self {
+            Self::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.staking_token.clone(),
                 send: vec![],
                 msg: to_binary(&Cw20HandleMsg::Send {
@@ -234,7 +242,7 @@ impl Staking {
                     msg: Some(to_binary(&anchor_staking::Cw20HookMsg::Bond {})?),
                 })?,
             })),
-            Staking::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            Self::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.staking_token.clone(),
                 send: vec![],
                 msg: to_binary(&Cw20HandleMsg::Send {
@@ -250,15 +258,15 @@ impl Staking {
 
     /// @notice Generate a message for unbonding LP tokens
     pub fn unbond_message(&self, amount: Uint128) -> StdResult<CosmosMsg> {
-        match self {
-            Staking::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        match &self {
+            Self::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.contract_addr.clone(),
                 send: vec![],
                 msg: to_binary(&anchor_staking::HandleMsg::Unbond {
                     amount,
                 })?,
             })),
-            Staking::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            Self::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.contract_addr.clone(),
                 send: vec![],
                 msg: to_binary(&mirror_staking::HandleMsg::Unbond {
@@ -271,13 +279,13 @@ impl Staking {
 
     /// @notice Generate a message for claiming staking rewards
     pub fn withdraw_message(&self) -> StdResult<CosmosMsg> {
-        match self {
-            Staking::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        match &self {
+            Self::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.contract_addr.clone(),
                 send: vec![],
                 msg: to_binary(&anchor_staking::HandleMsg::Withdraw {})?,
             })),
-            Staking::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            Self::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.contract_addr.clone(),
                 send: vec![],
                 msg: to_binary(&mirror_staking::HandleMsg::Withdraw {
@@ -293,8 +301,8 @@ impl Staking {
         deps: &Extern<S, A, Q>,
         staker: &HumanAddr,
     ) -> StdResult<RewardInfoParsed> {
-        match self {
-            Staking::Anchor(config) => {
+        match &self {
+            Self::Anchor(config) => {
                 let response: anchor_staking::StakerInfoResponse =
                     deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                         contract_addr: config.contract_addr.clone(),
@@ -308,7 +316,7 @@ impl Staking {
                     pending_reward: response.pending_reward,
                 })
             }
-            Staking::Mirror(config) => {
+            Self::Mirror(config) => {
                 let response: mirror_staking::RewardInfoResponse =
                     deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                         contract_addr: config.contract_addr.clone(),
@@ -330,6 +338,10 @@ impl Staking {
     }
 }
 
+//----------------------------------------------------------------------------------------
+// Raw Types
+//----------------------------------------------------------------------------------------
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum StakingRaw {
     /// Anchor staking contract
@@ -344,9 +356,9 @@ impl StakingRaw {
         &self,
         deps: &Extern<S, A, Q>,
     ) -> StdResult<Staking> {
-        match self {
-            StakingRaw::Anchor(config) => Ok(Staking::Anchor(config.to_normal(deps)?)),
-            StakingRaw::Mirror(config) => Ok(Staking::Mirror(config.to_normal(deps)?)),
+        match &self {
+            Self::Anchor(config) => Ok(Staking::Anchor(config.to_normal(deps)?)),
+            Self::Mirror(config) => Ok(Staking::Mirror(config.to_normal(deps)?)),
         }
     }
 }
@@ -360,7 +372,7 @@ pub struct RewardInfoParsed {
 
 impl RewardInfoParsed {
     pub const fn zero() -> Self {
-        RewardInfoParsed {
+        Self {
             bond_amount: Uint128::zero(),
             pending_reward: Uint128::zero(),
         }
