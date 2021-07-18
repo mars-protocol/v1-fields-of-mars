@@ -7,6 +7,7 @@ use cw20::{Cw20HandleMsg, Cw20QueryMsg, TokenInfoResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, ops};
+use terra_cosmwasm::TerraQuerier;
 
 static DECIMAL_FRACTION: Uint128 = Uint128(1_000_000_000_000_000_000u128);
 
@@ -14,7 +15,7 @@ static DECIMAL_FRACTION: Uint128 = Uint128(1_000_000_000_000_000_000u128);
 // Asset
 //----------------------------------------------------------------------------------------
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Asset {
     pub info: AssetInfo,
     pub amount: Uint128,
@@ -42,30 +43,30 @@ impl PartialOrd for Asset {
 impl ops::Add for Asset {
     type Output = Self;
 
-    fn add<T: Into<Uint128>>(self, other: T) -> Self {
+    fn add(self, other: Self) -> Self {
         self.assert_matched_info(&other);
         Asset {
             info: self.info,
-            amount: self.amount + other.into(),
+            amount: self.amount + other.amount,
         }
     }
 }
 
 impl ops::AddAssign for Asset {
-    fn add_assign<T: Into<Uint128>>(&mut self, other: T) {
+    fn add_assign(&mut self, other: Self) {
         self.assert_matched_info(&other);
-        self.amount += other.into();
+        self.amount += other.amount;
     }
 }
 
 impl ops::Sub for Asset {
     type Output = StdResult<Self>;
 
-    fn sub<T: Into<Uint128>>(self, other: T) -> StdResult<Self> {
+    fn sub(self, other: Self) -> StdResult<Self> {
         self.assert_matched_info(&other);
         Ok(Asset {
             info: self.info,
-            amount: (self.amount - other.into())?,
+            amount: (self.amount - other.amount)?,
         })
     }
 }
@@ -73,14 +74,10 @@ impl ops::Sub for Asset {
 impl Asset {
     /// @notice Arithmatic operation `multiply_into` (see `cosmwasm_std::Uint128` docs)
     /// @dev `nom` and `denom` can be assets of different `info`
-    pub fn multiply_ratio<A: Into<Uint128>, B: Into<Uint128>>(
-        &self,
-        nom: &A,
-        denom: &B,
-    ) -> Self {
+    pub fn multiply_ratio(&self, nom: Uint128, denom: Uint128) -> Self {
         Asset {
             info: self.info.clone(),
-            amount: self.amount.multiply_ratio(nom.into(), denom.into()),
+            amount: self.amount.multiply_ratio(nom, denom),
         }
     }
 
@@ -107,7 +104,7 @@ impl Asset {
 
     /// @notice Assert specified amount of fund is sent along with a message; panic if not
     pub fn assert_sent_fund(&self, message: &MessageInfo) {
-        self.info.assert_send_fund(&message, self.amount);
+        self.info.assert_sent_fund(&message, self.amount);
     }
 
     /// @notice Generate the message for transferring asset of a specific amount from one
@@ -186,9 +183,9 @@ pub enum AssetInfo {
 
 impl AssetInfo {
     /// @notice Convert `AssetInfo` to `Asset` by adding an amount
-    pub fn add_amount(self, amount: Uint128) -> Asset {
+    pub fn add_amount(&self, amount: Uint128) -> Asset {
         Asset {
-            info: self,
+            info: self.clone(),
             amount,
         }
     }
@@ -223,9 +220,9 @@ impl AssetInfo {
     pub fn assert_sent_fund(&self, message: &MessageInfo, amount: Uint128) {
         if let AssetInfo::NativeToken {
             denom,
-        } = &self.info
+        } = &self
         {
-            match message.sent_funds.iter().find(|fund| fund.denom == denom) {
+            match message.sent_funds.iter().find(|fund| &fund.denom == denom) {
                 Some(fund) => {
                     if fund.amount != amount {
                         panic!("sent fund mismatch!");
@@ -361,7 +358,7 @@ impl AssetInfo {
     /// @dev Modified from
     /// https://github.com/terraswap/terraswap/blob/master/packages/terraswap/src/asset.rs#L58
     pub fn deduct_tax<S: Storage, A: Api, Q: Querier>(
-        self,
+        &self,
         deps: &Extern<S, A, Q>,
         amount: Uint128,
     ) -> StdResult<Uint128> {
@@ -397,7 +394,7 @@ impl AssetInfo {
     /// @dev For example, if the asset is 1000 UST, and and 1 UST of tax is to be charged
     /// to deliver 1000 UST, then updatethe amount to 1000 + 1 = 1001.
     pub fn add_tax<S: Storage, A: Api, Q: Querier>(
-        self,
+        &self,
         deps: &Extern<S, A, Q>,
         amount: Uint128,
     ) -> StdResult<Uint128> {

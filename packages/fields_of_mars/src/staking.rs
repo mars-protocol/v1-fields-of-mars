@@ -147,30 +147,7 @@ impl StakingConfig {
             contract_addr: deps.api.canonical_address(&self.contract_addr)?,
             asset_token: deps.api.canonical_address(&self.asset_token)?,
             staking_token: deps.api.canonical_address(&self.staking_token)?,
-        })
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct StakingConfigRaw {
-    /// Address of the staking contract
-    pub contract_addr: CanonicalAddr,
-    /// Address of the asset token (MIR, mAsset, ANC)
-    pub asset_token: CanonicalAddr,
-    /// Address of the token that is to be bonded (typically, a TerraSwap LP token)
-    pub staking_token: CanonicalAddr,
-}
-
-impl StakingConfigRaw {
-    /// @notice Convert `StakingConfigRaw` to `StakingConfig`
-    pub fn to_normal<S: Storage, A: Api, Q: Querier>(
-        &self,
-        deps: &Extern<S, A, Q>,
-    ) -> StdResult<StakingConfig> {
-        Ok(StakingConfig {
-            contract_addr: deps.api.human_address(&self.contract_addr)?,
-            asset_token: deps.api.human_address(&self.asset_token)?,
-            staking_token: deps.api.human_address(&self.staking_token)?,
+            reward_token: deps.api.canonical_address(&self.reward_token)?,
         })
     }
 }
@@ -343,6 +320,33 @@ impl Staking {
 //----------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StakingConfigRaw {
+    /// Address of the staking contract
+    pub contract_addr: CanonicalAddr,
+    /// Address of the asset token (MIR, mAsset, ANC)
+    pub asset_token: CanonicalAddr,
+    /// Address of the token that is to be bonded (typically, a TerraSwap LP token)
+    pub staking_token: CanonicalAddr,
+    /// Address of the token to be claimed as staking reward
+    pub reward_token: CanonicalAddr,
+}
+
+impl StakingConfigRaw {
+    /// @notice Convert `StakingConfigRaw` to `StakingConfig`
+    pub fn to_normal<S: Storage, A: Api, Q: Querier>(
+        &self,
+        deps: &Extern<S, A, Q>,
+    ) -> StdResult<StakingConfig> {
+        Ok(StakingConfig {
+            contract_addr: deps.api.human_address(&self.contract_addr)?,
+            asset_token: deps.api.human_address(&self.asset_token)?,
+            staking_token: deps.api.human_address(&self.staking_token)?,
+            reward_token: deps.api.human_address(&self.reward_token)?,
+        })
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum StakingRaw {
     /// Anchor staking contract
     Anchor(StakingConfigRaw),
@@ -362,6 +366,10 @@ impl StakingRaw {
         }
     }
 }
+
+//----------------------------------------------------------------------------------------
+// Helper Types
+//----------------------------------------------------------------------------------------
 
 pub struct RewardInfoParsed {
     /// Amount of `staking_token` currently bonded in the staking contract

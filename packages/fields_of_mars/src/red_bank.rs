@@ -7,7 +7,7 @@ use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::asset::{Asset, AssetInfo, AssetInfoRaw};
+use crate::asset::{Asset, AssetInfo};
 
 //----------------------------------------------------------------------------------------
 // Message Types
@@ -64,21 +64,33 @@ pub enum RedBankAsset {
 
 impl From<Asset> for RedBankAsset {
     fn from(asset: Asset) -> Self {
-        RedBankAsset::from(asset.info)
+        Self::from(&asset)
+    }
+}
+
+impl From<&Asset> for RedBankAsset {
+    fn from(asset: &Asset) -> Self {
+        Self::from(&asset.info)
     }
 }
 
 impl From<AssetInfo> for RedBankAsset {
-    fn from(asset_info: AssetInfo) -> Self {
-        match &asset_info {
+    fn from(info: AssetInfo) -> Self {
+        Self::from(&info)
+    }
+}
+
+impl From<&AssetInfo> for RedBankAsset {
+    fn from(info: &AssetInfo) -> Self {
+        match &info {
             AssetInfo::Token {
                 contract_addr,
-            } => RedBankAsset::Cw20 {
+            } => Self::Cw20 {
                 contract_addr: HumanAddr::from(contract_addr),
             },
             AssetInfo::NativeToken {
                 denom,
-            } => RedBankAsset::Native {
+            } => Self::Native {
                 denom: String::from(denom),
             },
         }
@@ -112,7 +124,7 @@ impl RedBank {
             contract_addr: self.contract_addr.clone(),
             send: vec![],
             msg: to_binary(&HandleMsg::Borrow {
-                asset: RedBankAsset::from(asset),
+                asset: RedBankAsset::from(&asset),
                 amount: Uint256::from(asset.amount),
             })?,
         }))

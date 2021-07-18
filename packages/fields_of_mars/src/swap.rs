@@ -207,6 +207,35 @@ impl Swap {
     }
 }
 
+//----------------------------------------------------------------------------------------
+// Raw Type
+//----------------------------------------------------------------------------------------
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SwapRaw {
+    /// Address of the TerraSwap pair contract
+    pub pair: CanonicalAddr,
+    /// Address of the TerraSwap LP token
+    pub share_token: CanonicalAddr,
+}
+
+impl SwapRaw {
+    /// @notice Convert `SwapRaw` to `Swap`
+    pub fn to_normal<S: Storage, A: Api, Q: Querier>(
+        &self,
+        deps: &Extern<S, A, Q>,
+    ) -> StdResult<Swap> {
+        Ok(Swap {
+            pair: deps.api.human_address(&self.pair)?,
+            share_token: deps.api.human_address(&self.share_token)?,
+        })
+    }
+}
+
+//----------------------------------------------------------------------------------------
+// Helper Types
+//----------------------------------------------------------------------------------------
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolResponseParsed {
     /// Amount of long asset held by the pool
@@ -240,30 +269,5 @@ impl PoolResponseParsed {
             short_depth,
             share_supply: response.total_share,
         }
-    }
-}
-
-//----------------------------------------------------------------------------------------
-// Raw Type
-//----------------------------------------------------------------------------------------
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct SwapRaw {
-    /// Address of the TerraSwap pair contract
-    pub pair: CanonicalAddr,
-    /// Address of the TerraSwap LP token
-    pub share_token: CanonicalAddr,
-}
-
-impl SwapRaw {
-    /// @notice Convert `SwapRaw` to `Swap`
-    pub fn to_normal<S: Storage, A: Api, Q: Querier>(
-        &self,
-        deps: &Extern<S, A, Q>,
-    ) -> StdResult<Swap> {
-        Ok(Swap {
-            pair: deps.api.human_address(&self.pair)?,
-            share_token: deps.api.human_address(&self.share_token)?,
-        })
     }
 }

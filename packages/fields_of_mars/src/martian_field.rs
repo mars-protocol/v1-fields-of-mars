@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     asset::{Asset, AssetInfo},
-    health::HealthInfo,
     red_bank::RedBank,
     staking::Staking,
     swap::Swap,
@@ -209,7 +208,7 @@ pub struct SnapshotResponse {
     /// Block number at which the snapshot was taken
     pub height: u64,
     /// Snapshot of the position's health info
-    pub health: HealthInfo,
+    pub health: HealthResponse,
     /// Snapshot of the position
     pub position: PositionResponse,
 }
