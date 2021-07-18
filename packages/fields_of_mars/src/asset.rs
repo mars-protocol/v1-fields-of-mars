@@ -6,6 +6,7 @@ use cosmwasm_std::{
 use cw20::{Cw20HandleMsg, Cw20QueryMsg, TokenInfoResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::ops;
 
 static DECIMAL_FRACTION: Uint128 = Uint128(1_000_000_000_000_000_000u128);
 
@@ -19,7 +20,58 @@ pub struct Asset {
     pub amount: Uint128,
 }
 
+impl Into<Uint128> for Asset {
+    fn into(self) -> Uint128 {
+        self.amount
+    }
+}
+
+impl ops::Add for Asset {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        self.assert_matched_info(&other);
+        Asset {
+            info: self.info,
+            amount: self.amount + other.amount,
+        }
+    }
+}
+
+impl ops::AddAssign for Asset {
+    fn add_assign(&mut self, other: Self) {
+        self.assert_matched_info(&other);
+        self.amount += other.amount;
+    }
+}
+
+impl ops::Sub for Asset {
+    type Output = StdResult<Self>;
+
+    fn sub(self, other: Self) -> StdResult<Self> {
+        self.assert_matched_info(&other);
+        Ok(Asset {
+            info: self.info,
+            amount: (self.amount - other.amount)?,
+        })
+    }
+}
+
 impl Asset {
+    /// @notice Arithmatic operation `multiply_into` (see `cosmwasm_std::Uint128` docs)
+    /// @dev `nom` and `denom` can be assets of different `info`
+    pub fn multiply_ratio<A: Into<Uint128>, B: Into<Uint128>>(
+        &self,
+        nom: A,
+        denom: B,
+    ) -> Self {
+        Asset {
+            info: self.info.clone(),
+            amount: self.amount.multiply_ratio(nom.into(), denom.into()),
+        }
+    }
+
+    /// @notice Convert `Asset` to `AssetRaw`
     pub fn to_raw<S: Storage, A: Api, Q: Querier>(
         &self,
         deps: &Extern<S, A, Q>,
@@ -30,6 +82,18 @@ impl Asset {
         })
     }
 
+    /// @notice Assert two assets have the same `info`; panic if not
+    pub fn assert_matched_info(&self, other: &Self) {
+        self.info.assert_matched_info(&other.info);
+    }
+
+    /// @notice Assert specified amount of fund is sent along with a message; panic if not
+    pub fn assert_sent_fund(&self, message: &MessageInfo) {
+        self.info.assert_send_fund(&message, self.amount);
+    }
+
+    /// @notice Generate the message for transferring asset of a specific amount from one
+    /// account to another using the `Cw20HandleMsg::Transfer` message type
     pub fn transfer_message(
         &self,
         from: &HumanAddr,
@@ -38,6 +102,9 @@ impl Asset {
         self.info.transfer_message(from, to, self.amount)
     }
 
+    /// @notice Generate the message for transferring asset of a specific amount from one
+    /// account to another using the `Cw20HandleMsg::TransferFrom` message type
+    /// @dev Must have allowance
     pub fn transfer_from_message(
         &self,
         from: &HumanAddr,
@@ -46,28 +113,37 @@ impl Asset {
         self.info.transfer_message(from, to, self.amount)
     }
 
-    pub fn assert_sent_fund(&self, message: &MessageInfo) -> StdResult<()> {
-        self.info.assert_send_fund(message, self.amount)
+    /// @notice Query the denomination of the asset
+    /// @dev If the asset is a CW20, query `TokenInfo` and returm `symbol`
+    pub fn query_denom<S: Storage, A: Api, Q: Querier>(
+        &self,
+        deps: &Extern<S, A, Q>,
+    ) -> StdResult<String> {
+        self.info.query_denom(deps)
     }
 
+    /// @notice Update the asset amount to reflect the deliverable amount if the asset is
+    /// to be transferred.
+    /// @dev For example, if the asset is 1000 UST, and the tax for sending 1000 UST is
+    /// 1 UST, then update amount to 1000 - 1 = 999.
     pub fn deduct_tax<S: Storage, A: Api, Q: Querier>(
-        self,
+        &mut self,
         deps: &Extern<S, A, Q>,
-    ) -> StdResult<Self> {
-        Ok(Asset {
-            info: self.info,
-            amount: self.info.deduct_tax(deps, self.amount)?,
-        })
+    ) -> StdResult<()> {
+        self.amount = self.info.deduct_tax(deps, self.amount)?;
+        Ok(())
     }
 
+    /// @notice Update the asset amount to reflect the total amount needed to deliver the
+    /// specified amount.
+    /// @dev For example, if the asset is 1000 UST, and and 1 UST of tax is to be charged
+    /// to deliver 1000 UST, then updatethe amount to 1000 + 1 = 1001.
     pub fn add_tax<S: Storage, A: Api, Q: Querier>(
-        self,
+        &mut self,
         deps: &Extern<S, A, Q>,
-    ) -> StdResult<Self> {
-        Ok(Asset {
-            info: self.info,
-            amount: self.info.add_tax(deps, self.amount)?,
-        })
+    ) -> StdResult<()> {
+        self.amount = self.info.add_tax(deps, self.amount)?;
+        Ok(())
     }
 }
 
@@ -87,6 +163,7 @@ pub enum AssetInfo {
 }
 
 impl AssetInfo {
+    /// @notice Convert `AssetInfo` to `Asset` by adding an amount
     pub fn add_amount(self, amount: Uint128) -> Asset {
         Asset {
             info: self,
@@ -94,6 +171,7 @@ impl AssetInfo {
         }
     }
 
+    /// @notice Convert `AssetInfo` to `AssetInfoRaw`
     pub fn to_raw<S: Storage, A: Api, Q: Querier>(
         &self,
         deps: &Extern<S, A, Q>,
@@ -109,6 +187,32 @@ impl AssetInfo {
             } => Ok(AssetInfoRaw::NativeToken {
                 denom: String::from(denom),
             }),
+        }
+    }
+
+    /// @notice Assert two asset types are the same; panic if not
+    pub fn assert_matched_info(&self, other: &Self) {
+        if !&self.equals(&other) {
+            panic!("asset info mismatch!")
+        }
+    }
+
+    /// @notice Assert specified amount of fund is sent along with a message; panic if not
+    pub fn assert_sent_fund(&self, message: &MessageInfo, amount: Uint128) {
+        if let AssetInfo::NativeToken {
+            denom,
+        } = &self.info
+        {
+            match message.sent_funds.iter().find(|fund| fund.denom == denom) {
+                Some(fund) => {
+                    if fund.amount != amount {
+                        panic!("sent fund mismatch!");
+                    }
+                }
+                None => {
+                    panic!("sent fund mismatch!");
+                }
+            }
         }
     }
 
@@ -144,6 +248,8 @@ impl AssetInfo {
         }
     }
 
+    /// @notice Generate the message for transferring asset of a specific amount from one
+    /// account to another using the `Cw20HandleMsg::Transfer` message type
     pub fn transfer_message(
         &self,
         from: &HumanAddr,
@@ -174,6 +280,9 @@ impl AssetInfo {
         }
     }
 
+    /// @notice Generate the message for transferring asset of a specific amount from one
+    /// account to another using the `Cw20HandleMsg::TransferFrom` message type
+    /// @dev Must have allowance
     pub fn transfer_from_message(
         &self,
         from: &HumanAddr,
@@ -223,31 +332,11 @@ impl AssetInfo {
         }
     }
 
-    // @notice Verify whether specified amount of fund is sent along with a message
-    pub fn assert_sent_fund(
-        &self,
-        message: &MessageInfo,
-        amount: Uint128,
-    ) -> StdResult<()> {
-        if let AssetInfo::NativeToken {
-            denom,
-        } = &self.info {
-            match message.sent_funds.iter().find(|fund| fund.denom == denom) {
-                Some(fund) => {
-                    if fund.amount == asset.amount {
-                        Ok(())
-                    } else {
-                        Err(StdError::generic_err("sent fund mismatch"))
-                    }
-                }
-                None => Err(StdError::generic_err("sent fund mismatch")),
-            }
-        } else {
-            Ok(())
-        }
-    }
-
-    /// Modified from
+    /// @notice Update the asset amount to reflect the deliverable amount if the asset is
+    /// to be transferred.
+    /// @dev For example, if the asset is 1000 UST, and the tax for sending 1000 UST is
+    /// 1 UST, then update amount to 1000 - 1 = 999.
+    /// @dev Modified from
     /// https://github.com/terraswap/terraswap/blob/master/packages/terraswap/src/asset.rs#L58
     pub fn deduct_tax<S: Storage, A: Api, Q: Querier>(
         self,
@@ -281,6 +370,10 @@ impl AssetInfo {
         }
     }
 
+    /// @notice Update the asset amount to reflect the total amount needed to deliver the
+    /// specified amount.
+    /// @dev For example, if the asset is 1000 UST, and and 1 UST of tax is to be charged
+    /// to deliver 1000 UST, then updatethe amount to 1000 + 1 = 1001.
     pub fn add_tax<S: Storage, A: Api, Q: Querier>(
         self,
         deps: &Extern<S, A, Q>,
