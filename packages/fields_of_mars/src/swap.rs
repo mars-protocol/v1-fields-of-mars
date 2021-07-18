@@ -258,13 +258,15 @@ impl PoolResponseParsed {
             .find(|asset| asset.info.equals(&long_info))
             .unwrap()
             .amount;
+
         let short_depth = response
             .assets
             .iter()
             .find(|asset| asset.info.equals(&short_info))
             .unwrap()
             .amount;
-        PoolResponseParsed {
+
+        Self {
             long_depth,
             short_depth,
             share_supply: response.total_share,
