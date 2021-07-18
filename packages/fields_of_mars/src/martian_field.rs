@@ -187,7 +187,7 @@ pub struct PositionResponse {
     pub bond_units: Uint128,
     /// Amount of debt units representing user's share of the debt
     pub debt_units: Uint128,
-    /// Amount of assets not locked in TerrsSwap pool; pending refund or liquidation
+    /// Amount of assets not locked in TerraSwap pool; pending refund or liquidation
     pub unlocked_assets: [Asset; 2],
 }
 
