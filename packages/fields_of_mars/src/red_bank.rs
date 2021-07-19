@@ -119,19 +119,20 @@ impl RedBank {
     }
 
     /// @notice Generate message for borrowing a specified amount of asset
-    pub fn borrow_message(&self, asset: Asset) -> StdResult<CosmosMsg> {
+    pub fn borrow_message(&self, asset: &Asset) -> StdResult<CosmosMsg> {
         Ok(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.contract_addr.clone(),
             send: vec![],
             msg: to_binary(&HandleMsg::Borrow {
-                asset: RedBankAsset::from(&asset),
+                asset: RedBankAsset::from(asset),
                 amount: Uint256::from(asset.amount),
             })?,
         }))
     }
 
     /// @notice Generate message for repaying a specified amount of asset
-    pub fn repay_message(&self, asset: Asset) -> StdResult<CosmosMsg> {
+    /// @dev Note: we do not deduct tax here
+    pub fn repay_message(&self, asset: &Asset) -> StdResult<CosmosMsg> {
         match &asset.info {
             AssetInfo::Token {
                 contract_addr,

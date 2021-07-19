@@ -133,8 +133,6 @@ pub struct StakingConfig {
     pub asset_token: HumanAddr,
     /// Address of the token that is to be bonded (typically, a TerraSwap LP token)
     pub staking_token: HumanAddr,
-    /// Address of the token to be claimed as staking reward
-    pub reward_token: HumanAddr,
 }
 
 impl StakingConfig {
@@ -147,7 +145,6 @@ impl StakingConfig {
             contract_addr: deps.api.canonical_address(&self.contract_addr)?,
             asset_token: deps.api.canonical_address(&self.asset_token)?,
             staking_token: deps.api.canonical_address(&self.staking_token)?,
-            reward_token: deps.api.canonical_address(&self.reward_token)?,
         })
     }
 }
@@ -162,14 +159,6 @@ pub enum Staking {
 }
 
 impl Staking {
-    /// @notice Extract the `StakingConfig` object
-    pub fn get_config(&self) -> StakingConfig {
-        match &self {
-            Self::Anchor(config) => config.clone(),
-            Self::Mirror(config) => config.clone(),
-        }
-    }
-
     /// @notice Convert `Staking` to `StakingRaw`
     pub fn to_raw<S: Storage, A: Api, Q: Querier>(
         &self,
@@ -327,8 +316,6 @@ pub struct StakingConfigRaw {
     pub asset_token: CanonicalAddr,
     /// Address of the token that is to be bonded (typically, a TerraSwap LP token)
     pub staking_token: CanonicalAddr,
-    /// Address of the token to be claimed as staking reward
-    pub reward_token: CanonicalAddr,
 }
 
 impl StakingConfigRaw {
@@ -341,7 +328,6 @@ impl StakingConfigRaw {
             contract_addr: deps.api.human_address(&self.contract_addr)?,
             asset_token: deps.api.human_address(&self.asset_token)?,
             staking_token: deps.api.human_address(&self.staking_token)?,
-            reward_token: deps.api.human_address(&self.reward_token)?,
         })
     }
 }

@@ -1,32 +1,24 @@
 use cosmwasm_std::{
-    log, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Decimal, Env, Extern,
-    HandleResponse, HumanAddr, InitResponse, MigrateResponse, Querier, StdError,
-    StdResult, Storage, Uint128, WasmMsg,
+    log, to_binary, Api, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse,
+    HumanAddr, InitResponse, MigrateResponse, Querier, StdError, StdResult, Storage,
+    Uint128,
 };
-use cw20::Cw20HandleMsg;
-use terraswap::querier::query_token_balance;
 
 use fields_of_mars::{
     asset::{Asset, AssetInfo},
     martian_field::{
-        CallbackMsg, ConfigResponse, HandleMsg, InitMsg, MigrateMsg, PositionResponse,
-        PositionSnapshotResponse, QueryMsg, StateResponse,
+        CallbackMsg, ConfigResponse, HandleMsg, HealthResponse, InitMsg, MigrateMsg,
+        PositionResponse, QueryMsg, SnapshotResponse, StateResponse,
     },
 };
 
 use crate::{
-    helpers::{
-        add_tax, compute_ltv, compute_swap_return_amount, deduct_tax, parse_ust_received,
-    },
-    state::{
-        delete_position, delete_position_snapshot, read_config, read_position,
-        read_position_snapshot, read_state, write_config, write_position,
-        write_position_snapshot, write_state, Config, Position, PositionSnapshot, State,
-    },
+    health::{compute_position_health, compute_state_health},
+    state::{Config, Position, Snapshot, State},
 };
 
 //----------------------------------------------------------------------------------------
-// ENTRY POINTS
+// Entry Points
 //----------------------------------------------------------------------------------------
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -34,17 +26,10 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    write_state(
-        &mut deps.storage,
-        &State::new(deps.api.canonical_address(&env.contract.address)?),
-    )?;
-    Ok(InitResponse {
-        messages: vec![CallbackMsg::UpdateConfig {
-            new_config: msg,
-        }
-        .into_cosmos_msg(&env.contract.address)?],
-        log: vec![],
-    })
+    let contract_addr = deps.api.canonical_address(&env.contract.address)?;
+    Config::from_init_msg(&deps, &msg)?.write(&mut deps.storage)?;
+    State::new(&contract_addr).write(&mut deps.storage)?;
+    Ok(InitResponse::default())
 }
 
 pub fn handle<S: Storage, A: Api, Q: Querier>(
@@ -54,40 +39,45 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     match msg {
         HandleMsg::IncreasePosition {
-            asset_amount,
-        } => increase_position(deps, env, asset_amount),
+            deposits,
+        } => increase_position(deps, env, deposits),
         HandleMsg::ReducePosition {
             bond_units,
-        } => reduce_position(deps, env, bond_units),
+            remove,
+            repay,
+        } => reduce_position(deps, env, bond_units, remove, repay),
+        HandleMsg::ClosePosition {
+            user,
+        } => close_position(deps, env, user),
         HandleMsg::PayDebt {
             user,
-        } => pay_debt(deps, env, user),
+            deposit,
+        } => pay_debt(deps, env, user, deposit),
         HandleMsg::Liquidate {
             user,
-        } => liquidate(deps, env, user),
+            deposit,
+        } => liquidate(deps, env, user, deposit),
         HandleMsg::Harvest {} => harvest(deps, env),
         HandleMsg::UpdateConfig {
             new_config,
         } => update_config(deps, env, new_config),
-        HandleMsg::Callback(callback_msg) => _handle_callback(deps, env, callback_msg),
+        HandleMsg::Callback(msg) => _handle_callback(deps, env, msg),
     }
 }
 
-pub fn _handle_callback<S: Storage, A: Api, Q: Querier>(
+fn _handle_callback<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    callback_msg: CallbackMsg,
+    msg: CallbackMsg,
 ) -> StdResult<HandleResponse> {
     // Callback functions can only be called this contract itself
     if env.message.sender != env.contract.address {
         return Err(StdError::unauthorized());
     }
-    match callback_msg {
+    match msg {
         CallbackMsg::ProvideLiquidity {
-            asset_amount,
-            ust_amount,
             user,
-        } => _provide_liquidity(deps, env, asset_amount, ust_amount, user),
+        } => _provide_liquidity(deps, env, user),
         CallbackMsg::RemoveLiquidity {
             user,
         } => _remove_liquidity(deps, env, user),
@@ -100,29 +90,25 @@ pub fn _handle_callback<S: Storage, A: Api, Q: Querier>(
         } => _unbond(deps, env, user, bond_units),
         CallbackMsg::Borrow {
             user,
-            borrow_amount,
-        } => _borrow(deps, env, user, borrow_amount),
+            amount,
+        } => _borrow(deps, env, user, amount),
         CallbackMsg::Repay {
             user,
-            repay_amount,
-        } => _repay(deps, env, user, repay_amount),
-        CallbackMsg::SwapReward {
-            reward_amount,
-        } => _swap_reward(deps, env, reward_amount),
+        } => _repay(deps, env, user),
+        CallbackMsg::Swap {
+            amount,
+        } => _swap(deps, env, amount),
         CallbackMsg::Refund {
             user,
-        } => _refund(deps, env, user),
-        CallbackMsg::ClaimCollateral {
+            recipient,
+            percentage,
+        } => _refund(deps, env, user, recipient, percentage),
+        CallbackMsg::Snapshot {
             user,
-            liquidator,
-            repay_amount,
-        } => _claim_collateral(deps, env, user, liquidator, repay_amount),
-        CallbackMsg::UpdateConfig {
-            new_config,
-        } => _update_config(deps, env, new_config),
-        CallbackMsg::UpdatePositionSnapshot {
+        } => _snapshot(deps, env, user),
+        CallbackMsg::AssertHealth {
             user,
-        } => _update_position_snapshot(deps, env, user),
+        } => _assert_health(deps, env, user),
     }
 }
 
@@ -136,9 +122,12 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         QueryMsg::Position {
             user,
         } => to_binary(&query_position(deps, user)?),
-        QueryMsg::PositionSnapshot {
+        QueryMsg::Health {
             user,
-        } => to_binary(&query_initial_position(deps, user)?),
+        } => to_binary(&query_health(deps, user)?),
+        QueryMsg::Snapshot {
+            user,
+        } => to_binary(&query_snapshot(deps, user)?),
     }
 }
 
@@ -151,7 +140,7 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
 }
 
 //----------------------------------------------------------------------------------------
-// HANDLE FUNCTIONS
+// Handle Functions
 //----------------------------------------------------------------------------------------
 
 /**
@@ -169,87 +158,100 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
  * borrowed, or if it has enough credit line for borrowing uncollateralized loans. The
  * frontend should perform these checks.
  */
-pub fn increase_position<S: Storage, A: Api, Q: Querier>(
+fn increase_position<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    asset_to_draw: Uint128,
+    deposits: [Asset; 2],
 ) -> StdResult<HandleResponse> {
-    let config = read_config(&deps.storage)?;
-    let asset_token = deps.api.human_address(&config.asset_token)?;
-    let swap = config.swap.to_normal(deps)?;
+    let user = env.message.sender.clone();
+    let user_raw = deps.api.canonical_address(&user)?;
 
-    // Query UST and asset balances of the Terraswap pool
-    let pool_info = swap.query_pool(
-        deps,
-        &AssetInfo::Token {
-            contract_addr: deps.api.human_address(&config.asset_token)?,
-        },
-        &AssetInfo::NativeToken {
-            denom: "uusd".to_string(),
-        },
-    )?;
-    let pool_ust = pool_info.short_depth;
-    let pool_asset = pool_info.long_depth;
+    let config = Config::read_normal(deps)?;
+    let mut position = Position::read_or_new(&deps.storage, &user_raw)?;
 
-    // Calculate how much UST is need for liquidity provision
-    // We don't check whether `pool_asset` is zero here because we know it's not
-    let ust_received = parse_ust_received(&env.message);
-    let ust_needed = pool_ust.multiply_ratio(asset_to_draw, pool_asset);
+    // Find how much long and short assets where received, respectively
+    let long_deposited = deposits
+        .iter()
+        .find(|deposit| &deposit.info == &config.long_asset)
+        .unwrap()
+        .amount;
+    let short_deposited = deposits
+        .iter()
+        .find(|deposit| &deposit.info == &config.short_asset)
+        .unwrap()
+        .amount;
 
-    // Calculate how much UST to borrow from Mars
-    let ust_to_borrow = if ust_needed > ust_received {
-        (ust_needed - ust_received)?
-    } else {
-        Uint128::zero()
-    };
+    // Query asset depths of the AMM pool
+    let pool_info =
+        config.swap.query_pool(deps, &config.long_asset, &config.short_asset)?;
 
-    // Calculate how much UST to provide to Terraswap.
-    // Note: If borrowing from Mars, the actual received amount is smaller than the borrow
-    // amount, dut to tax. This amount must be deducted
-    let ust_to_provide = if ust_to_borrow.is_zero() {
-        ust_received
-    } else {
-        ust_received + deduct_tax(deps, ust_to_borrow, "uusd")?
-    };
+    // Calculate how much short asset is need for liquidity provision
+    // Note: We don't check whether `pool_info.long_depth` is zero here because in practice
+    // it should always be greater than zero
+    let short_needed =
+        long_deposited.multiply_ratio(pool_info.short_depth, pool_info.long_depth);
 
-    let mut messages = if !ust_to_borrow.is_zero() {
-        vec![CallbackMsg::Borrow {
-            user: env.message.sender.clone(),
-            borrow_amount: ust_to_borrow,
+    // Calculate how much short asset to borrow from Mars
+    let short_to_borrow = (short_needed - short_deposited).unwrap_or(Uint128::zero());
+
+    // Increment the user's unlocked asset amounts
+    position.unlocked_assets[0].amount += long_deposited;
+    position.unlocked_assets[1].amount += short_deposited;
+    position.write(&mut deps.storage, &user_raw)?;
+
+    // Prepare messages
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    // For each deposit,
+    // If it's a CW20, we transfer it from the user's wallet (must have allowance)
+    // If it's a native token, we assert the amount was transferred with the message
+    for deposit in deposits.iter() {
+        match &deposit.info {
+            AssetInfo::Token {
+                ..
+            } => {
+                messages
+                    .push(deposit.transfer_from_message(&user, &env.contract.address)?);
+            }
+            AssetInfo::NativeToken {
+                ..
+            } => {
+                deposit.assert_sent_fund(&env.message);
+            }
         }
-        .into_cosmos_msg(&env.contract.address)?]
-    } else {
-        vec![]
-    };
+    }
 
-    messages.extend(vec![
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: asset_token,
-            send: vec![],
-            msg: to_binary(&Cw20HandleMsg::TransferFrom {
-                owner: env.message.sender.clone(),
-                recipient: env.contract.address.clone(),
-                amount: asset_to_draw,
-            })?,
-        }),
+    // Note: callback messages need to be converted to CosmosMsg type
+    let callbacks = [
+        CallbackMsg::Borrow {
+            user: user.clone(),
+            amount: short_to_borrow,
+        },
         CallbackMsg::ProvideLiquidity {
-            asset_amount: asset_to_draw,
-            ust_amount: ust_to_provide,
-            user: Some(env.message.sender.clone()),
-        }
-        .into_cosmos_msg(&env.contract.address)?,
-        CallbackMsg::UpdatePositionSnapshot {
-            user: env.message.sender,
-        }
-        .into_cosmos_msg(&env.contract.address)?,
-    ]);
+            user: user.clone(),
+        },
+        CallbackMsg::Bond {
+            user: user.clone(),
+        },
+        CallbackMsg::AssertHealth {
+            user: user.clone(),
+        },
+        CallbackMsg::Snapshot {
+            user: user.clone(),
+        },
+    ];
+
+    messages.extend(
+        callbacks.iter().map(|msg| msg.into_cosmos_msg(&env.contract.address).unwrap()),
+    );
 
     Ok(HandleResponse {
         messages,
         log: vec![
-            log("action", "fields_of_mars::HandleMsg::IncreasePosition"),
-            log("asset_received", asset_to_draw),
-            log("ust_received", ust_received),
+            log("action", "martian_field::HandleMsg::IncreasePosition"),
+            log("user", user),
+            log("long_deposited", long_deposited),
+            log("short_deposited", short_deposited),
         ],
         data: None,
     })
@@ -263,47 +265,115 @@ pub fn increase_position<S: Storage, A: Api, Q: Querier>(
  *
  * @dev Callable only by the user himself.
  */
-pub fn reduce_position<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn reduce_position<S: Storage, A: Api, Q: Querier>(
+    _deps: &mut Extern<S, A, Q>,
     env: Env,
     bond_units: Option<Uint128>,
+    remove: bool,
+    repay: bool,
 ) -> StdResult<HandleResponse> {
-    let user_raw = deps.api.canonical_address(&env.message.sender)?;
-    let position = read_position(&deps.storage, &user_raw)?;
+    let user = env.message.sender.clone();
 
-    // If parameter `bond_units` is not provided, then remove all
-    let bond_units_to_reduce = if let Some(bond_units) = bond_units {
-        bond_units
-    } else {
-        position.bond_units
-    };
+    let mut callbacks = vec![CallbackMsg::Unbond {
+        user: user.clone(),
+        bond_units,
+    }];
 
-    let mut messages: Vec<CosmosMsg> = vec![
-        CallbackMsg::Unbond {
-            user: env.message.sender.clone(),
-            bond_units: bond_units_to_reduce,
-        }
-        .into_cosmos_msg(&env.contract.address)?,
+    if remove {
+        callbacks.push(CallbackMsg::RemoveLiquidity {
+            user: user.clone(),
+        });
+    }
+
+    if repay {
+        callbacks.push(CallbackMsg::Repay {
+            user: user.clone(),
+        });
+    }
+
+    callbacks.extend(vec![
+        CallbackMsg::AssertHealth {
+            user: user.clone(),
+        },
         CallbackMsg::Refund {
-            user: env.message.sender.clone(),
-        }
-        .into_cosmos_msg(&env.contract.address)?,
-    ];
+            user: user.clone(),
+            recipient: user.clone(),
+            percentage: Decimal::one(),
+        },
+        CallbackMsg::Snapshot {
+            user: user.clone(),
+        },
+    ]);
 
-    if bond_units_to_reduce < position.bond_units {
-        messages.push(
-            CallbackMsg::UpdatePositionSnapshot {
-                user: env.message.sender,
-            }
-            .into_cosmos_msg(&env.contract.address)?,
-        );
-    };
+    let messages = callbacks
+        .iter()
+        .map(|msg| msg.into_cosmos_msg(&env.contract.address).unwrap())
+        .collect();
 
     Ok(HandleResponse {
         messages,
         log: vec![
-            log("action", "fields_of_mars::HandleMsg::ReducePosition"),
-            log("bond_units_reduced", bond_units_to_reduce),
+            log("action", "martian_field::HandleMsg::ReducePosition"),
+            log("user", user),
+        ],
+        data: None,
+    })
+}
+
+/**
+ * @notice Close a position whose LTV is greater than the liquidation threshold; typically
+ * to be followed by a `HandleMsg::Liquidate` call.
+ *
+ * @dev Note: This function is for liquidating unhealthy positions. To close healthy
+ * positions, use `HandleMsg::ReducePosition`.
+ */
+fn close_position<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    user: HumanAddr,
+) -> StdResult<HandleResponse> {
+    let user_raw = deps.api.canonical_address(&user)?;
+    let config_raw = Config::read(&deps.storage)?;
+    let position = Position::read(&deps.storage, &user_raw)?;
+
+    let health_info = compute_position_health(deps, &user_raw)?;
+    let ltv = health_info.ltv.unwrap();
+
+    // The position must be open
+    if !position.is_active() {
+        return Err(StdError::generic_err("position is already closed"));
+    }
+
+    // The position must have an LTV greater than the liquidation threshold
+    if ltv <= config_raw.max_ltv {
+        return Err(StdError::generic_err("cannot close a healthy position"));
+    }
+
+    let callbacks = [
+        CallbackMsg::Unbond {
+            user: user.clone(),
+            bond_units: None,
+        },
+        CallbackMsg::RemoveLiquidity {
+            user: user.clone(),
+        },
+        CallbackMsg::Repay {
+            user: user.clone(),
+        },
+    ];
+
+    let messages = callbacks
+        .iter()
+        .map(|msg| msg.into_cosmos_msg(&env.contract.address).unwrap())
+        .collect();
+
+    Ok(HandleResponse {
+        messages,
+        log: vec![
+            log("action", "martian_field::HandleMsg::ClosePosition"),
+            log("user", user),
+            log("ltv", ltv),
+            log("liquidator", env.message.sender),
         ],
         data: None,
     })
@@ -326,33 +396,63 @@ pub fn reduce_position<S: Storage, A: Api, Q: Querier>(
  * 100 UST will be delivered to Mars, and a total of 100.2 UST (plus gas fee) will be
  * deducted from his account.
  */
-pub fn pay_debt<S: Storage, A: Api, Q: Querier>(
-    _deps: &mut Extern<S, A, Q>,
+fn pay_debt<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
     env: Env,
     user: Option<HumanAddr>,
+    deposit: Asset,
 ) -> StdResult<HandleResponse> {
-    let ust_received = parse_ust_received(&env.message);
+    let user = user.unwrap_or(env.message.sender.clone());
+    let user_raw = deps.api.canonical_address(&user)?;
 
-    // If `user` parameter is not provided, then pay down the message sender's debt
-    let user = if let Some(user) = user {
-        user
-    } else {
-        env.message.sender.clone()
-    };
+    let config = Config::read_normal(deps)?;
+    let mut position = Position::read(&deps.storage, &user_raw)?;
+
+    // Make sure the asset deposited is the short asset
+    if deposit.info != config.short_asset {
+        return Err(StdError::generic_err("invalid deposit"));
+    }
+
+    // Increment the user's unlocked short asset amount
+    position.unlocked_assets[1].amount += deposit.amount;
+    position.write(&mut deps.storage, &user_raw)?;
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    // Receive the deposit
+    match &deposit.info {
+        AssetInfo::Token {
+            ..
+        } => {
+            messages.push(deposit.transfer_from_message(&user, &env.contract.address)?);
+        }
+        AssetInfo::NativeToken {
+            ..
+        } => {
+            deposit.assert_sent_fund(&env.message);
+        }
+    }
+
+    let callbacks = [
+        CallbackMsg::Repay {
+            user: user.clone(),
+        },
+        CallbackMsg::Snapshot {
+            user: user.clone(),
+        },
+    ];
+
+    messages.extend(
+        callbacks.iter().map(|msg| msg.into_cosmos_msg(&env.contract.address).unwrap()),
+    );
 
     Ok(HandleResponse {
-        messages: vec![
-            CallbackMsg::Repay {
-                user,
-                repay_amount: ust_received,
-            }
-            .into_cosmos_msg(&env.contract.address)?,
-            CallbackMsg::UpdatePositionSnapshot {
-                user: env.message.sender,
-            }
-            .into_cosmos_msg(&env.contract.address)?,
+        messages,
+        log: vec![
+            log("action", "martian_field::HandleMsg::PayDebt"),
+            log("user", user),
+            log("short_deposited", deposit.amount),
         ],
-        log: vec![log("action", "fields_of_mars::HandleMsg::PayDebt")],
         data: None,
     })
 }
@@ -363,34 +463,42 @@ pub fn pay_debt<S: Storage, A: Api, Q: Querier>(
  * @dev For now, only the owner is allowed to call this function. Later, once the strategy
  * is proven to be stable, we will consider making this function callable by anyone.
  */
-pub fn harvest<S: Storage, A: Api, Q: Querier>(
+fn harvest<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<HandleResponse> {
-    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
-    let config = read_config(&deps.storage)?;
-    let staking = config.staking.to_normal(deps)?;
+    let config = Config::read_normal(deps)?;
 
-    // Only owner and whitelisted operators can call harvest
-    if sender_raw != config.owner
-        && config.operators.iter().all(|operator| sender_raw != operator.clone())
-    {
+    // Only keepers can harvest
+    if config.keepers.iter().all(|keeper| keeper != &env.message.sender) {
         return Err(StdError::unauthorized());
     }
 
-    // Query the amount of MIR reward to expect to receive
-    let reward_amount = staking.query_reward_amount(deps, &env.contract.address)?;
+    // Query the amount of reward to expect to receive
+    let reward_amount = config.staking.query_reward(deps, &env.contract.address)?;
+
+    let mut messages = vec![config.staking.withdraw_message()?];
+
+    let callbacks = [
+        CallbackMsg::Swap {
+            amount: reward_amount,
+        },
+        CallbackMsg::ProvideLiquidity {
+            user: env.contract.address.clone(),
+        },
+        CallbackMsg::Bond {
+            user: env.contract.address.clone(),
+        },
+    ];
+
+    messages.extend(
+        callbacks.iter().map(|msg| msg.into_cosmos_msg(&env.contract.address).unwrap()),
+    );
 
     Ok(HandleResponse {
-        messages: vec![
-            staking.withdraw_message()?,
-            CallbackMsg::SwapReward {
-                reward_amount,
-            }
-            .into_cosmos_msg(&env.contract.address)?,
-        ],
+        messages,
         log: vec![
-            log("action", "fields_of_mars::HandleMsg::Harvest"),
+            log("action", "martian_field::HandleMsg::Harvest"),
             log("reward_amount", reward_amount),
         ],
         data: None,
@@ -409,51 +517,76 @@ pub fn harvest<S: Storage, A: Api, Q: Querier>(
  * MIR proceedings pending liquidation. At this time, anyone can send along UST to pay off
  * a portion of the remaining debt, and being awarded a portion of the withheld MIR.
  */
-pub fn liquidate<S: Storage, A: Api, Q: Querier>(
+fn liquidate<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     user: HumanAddr,
+    deposit: Asset,
 ) -> StdResult<HandleResponse> {
-    let ust_received = parse_ust_received(&env.message);
     let user_raw = deps.api.canonical_address(&user)?;
-    let config = read_config(&deps.storage)?;
-    let position = read_position(&deps.storage, &user_raw)?;
+    let config = Config::read_normal(deps)?;
+    let state = State::read(&deps.storage)?;
+    let mut position = Position::read(&deps.storage, &user_raw)?;
 
-    // The position must be closed, or has a debt ratio above the liquidation threshold
-    // Note: If the position is closed, `compute_debt_ratio` should return `None` for
-    // `debt_ratio`. Therefore we only need to verify when `debt_ratio` is not None.
-    let (.., ltv) = compute_ltv(deps, Some(user.clone()))?;
-    if let Some(ltv) = ltv {
-        if ltv <= config.max_ltv {
-            return Err(StdError::generic_err("cannot liquidate a healthy position"));
+    // The position must have been closed
+    if position.is_active() {
+        return Err(StdError::generic_err("cannot liquidate an active position"));
+    }
+
+    // Make sure the asset deposited is the short asset
+    if deposit.info != config.short_asset {
+        return Err(StdError::generic_err("invalid deposit"));
+    }
+
+    // Increment the user's unlocked short asset amount
+    position.unlocked_assets[1].amount += deposit.amount;
+    position.write(&mut deps.storage, &user_raw)?;
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    // Receive the deposit
+    match &deposit.info {
+        AssetInfo::Token {
+            ..
+        } => {
+            messages.push(deposit.transfer_from_message(&user, &env.contract.address)?);
+        }
+        AssetInfo::NativeToken {
+            ..
+        } => {
+            deposit.assert_sent_fund(&env.message);
         }
     }
 
-    // If the position is open, we close it first, and use the proceeding to pay back debt
-    let mut messages = if position.is_active() {
-        vec![CallbackMsg::Unbond {
-            user: user.clone(),
-            bond_units: position.bond_units,
-        }
-        .into_cosmos_msg(&env.contract.address)?]
-    } else {
-        vec![]
-    };
+    // Calculate percentage of unlocked asset that should be accredited to the liquidator
+    let total_debt =
+        config.red_bank.query_debt(deps, &env.contract.address, &config.short_asset)?;
+    let debt_amount =
+        total_debt.multiply_ratio(position.debt_units, state.total_debt_units);
 
-    messages.push(
-        CallbackMsg::ClaimCollateral {
-            user,
-            liquidator: env.message.sender,
-            repay_amount: ust_received,
-        }
-        .into_cosmos_msg(&env.contract.address)?,
+    let repay_amount_after_tax = config.short_asset.deduct_tax(deps, deposit.amount)?;
+    let percentage = Decimal::from_ratio(repay_amount_after_tax, debt_amount);
+
+    let callbacks = [
+        CallbackMsg::Repay {
+            user: user.clone(),
+        },
+        CallbackMsg::Refund {
+            user: user.clone(),
+            recipient: env.message.sender.clone(),
+            percentage,
+        },
+    ];
+
+    messages.extend(
+        callbacks.iter().map(|msg| msg.into_cosmos_msg(&env.contract.address).unwrap()),
     );
 
     Ok(HandleResponse {
         messages,
         log: vec![
-            log("action", "fields_of_mars::HandleMsg::Liquidate"),
-            log("ust_received", ust_received),
+            log("action", "martian_field::HandleMsg::Liquidate"),
+            log("short_deposited", deposit.amount),
         ],
         data: None,
     })
@@ -462,77 +595,62 @@ pub fn liquidate<S: Storage, A: Api, Q: Querier>(
 /**
  * @notice Update data stored in config.
  */
-pub fn update_config<S: Storage, A: Api, Q: Querier>(
+fn update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     new_config: InitMsg,
 ) -> StdResult<HandleResponse> {
-    // Only contract owner can call this message
-    let config = read_config(&deps.storage)?;
-    if env.message.sender != deps.api.human_address(&config.owner)? {
-        return Err(StdError::unauthorized());
-    }
+    let config = Config::read(&deps.storage)?;
+    let governance = deps.api.human_address(&config.governance)?;
 
-    Ok(HandleResponse {
-        messages: vec![CallbackMsg::UpdateConfig {
-            new_config,
-        }
-        .into_cosmos_msg(&env.contract.address)?],
-        log: vec![log("action", "fields_of_mars::HandleMsg::UpdateConfig")],
-        data: None,
-    })
+    if env.message.sender == governance {
+        Config::from_init_msg(&deps, &new_config)?.write(&mut deps.storage)?;
+        Ok(HandleResponse::default())
+    } else {
+        Err(StdError::unauthorized())
+    }
 }
 
 //----------------------------------------------------------------------------------------
-// CALLBACK FUNCTIONS
+// Callback Functions
 //----------------------------------------------------------------------------------------
 
 /**
  * @notice Provide specified amounts of MIR and UST to the Terraswap pool, receive LP tokens.
  */
-pub fn _provide_liquidity<S: Storage, A: Api, Q: Querier>(
+fn _provide_liquidity<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    env: Env,
-    asset_amount: Uint128,
-    ust_amount: Uint128,
-    user: Option<HumanAddr>,
+    _env: Env,
+    user: HumanAddr,
 ) -> StdResult<HandleResponse> {
-    let config = read_config(&deps.storage)?;
-    let swap = config.swap.to_normal(deps)?;
+    let user_raw = deps.api.canonical_address(&user)?;
+    let config = Config::read_normal(deps)?;
+    let mut position = Position::read(&deps.storage, &user_raw)?;
 
-    // Sending native tokens such as UST involves a tax (stability fee), therefore the
-    // amount can't be delivered in full. Calculate how much tax will be charged, and
-    // the actual deliverable amount.
-    let ust_amount_after_tax = deduct_tax(deps, ust_amount, "uusd")?;
+    // Assets to be provided to the AMM
+    // Note: must deduct tax!
+    let deposits = [
+        position.unlocked_assets[0].to_normal(deps)?.deduct_tax(deps)?, // long asset
+        position.unlocked_assets[1].to_normal(deps)?.deduct_tax(deps)?, // short asset
+    ];
 
-    let mut messages = swap.provide_messages([
-        Asset {
-            info: AssetInfo::Token {
-                contract_addr: deps.api.human_address(&config.asset_token)?,
-            },
-            amount: asset_amount,
-        },
-        Asset {
-            info: AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            amount: ust_amount_after_tax,
-        },
-    ])?;
+    // The amount of shares to expect to receive
+    let new_shares = config.swap.simulate_provide(deps, &deposits)?;
 
-    messages.push(
-        CallbackMsg::Bond {
-            user,
-        }
-        .into_cosmos_msg(&env.contract.address)?,
-    );
+    // Update unlocked asset amounts
+    position.unlocked_assets[0].amount = Uint128::zero(); // long asset
+    position.unlocked_assets[1].amount = Uint128::zero(); // short asset
+    position.unlocked_assets[2].amount += new_shares; // share tokens
+    position.write(&mut deps.storage, &user_raw)?;
 
     Ok(HandleResponse {
-        messages,
+        messages: config.swap.provide_messages(&deposits)?,
         log: vec![
-            log("action", "fields_of_mars::CallbackMsg::ProvideLiquidity"),
-            log("asset_provided", asset_amount),
-            log("ust_provided", ust_amount_after_tax),
+            log("action", "martian_field::CallbackMsg::ProvideLiquidity"),
+            log("user", user),
+            log("long_provided", deposits[0].amount),
+            log("short_provided", deposits[1].amount),
+            log("new_shares", new_shares),
         ],
         data: None,
     })
@@ -541,86 +659,38 @@ pub fn _provide_liquidity<S: Storage, A: Api, Q: Querier>(
 /**
  * @notice Burn LP tokens, remove the liquidity from Terraswap, receive MIR and UST.
  */
-pub fn _remove_liquidity<S: Storage, A: Api, Q: Querier>(
+fn _remove_liquidity<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    env: Env,
+    _env: Env,
     user: HumanAddr,
 ) -> StdResult<HandleResponse> {
     let user_raw = deps.api.canonical_address(&user)?;
-    let config = read_config(&deps.storage)?;
-    let state = read_state(&deps.storage)?;
-    let mut position = read_position(&deps.storage, &user_raw)?;
-    let swap = config.swap.to_normal(deps)?;
-    let red_bank = config.red_bank.to_normal(deps)?;
+    let config = Config::read_normal(deps)?;
+    let mut position = Position::read(&deps.storage, &user_raw)?;
 
-    // Find the amount of LP tokens the contract has received from unstaking
-    let pool_tokens_to_burn =
-        query_token_balance(deps, &swap.share_token, &env.contract.address)?;
+    // Amount of shares to burn
+    let shares = position.unlocked_assets[2].amount;
 
-    // Query info related to the Terraswap pair
-    let pool_info = swap.query_pool(
+    // Calculate the return amount of assets
+    // Note: must deduct tax! (`simulate_remove` function does this)
+    let return_amounts = config.swap.simulate_remove(
         deps,
-        &AssetInfo::Token {
-            contract_addr: deps.api.human_address(&config.asset_token)?,
-        },
-        &AssetInfo::NativeToken {
-            denom: "uusd".to_string(),
-        },
+        shares,
+        &config.long_asset,
+        &config.short_asset,
     )?;
-    let pool_ust = pool_info.short_depth;
-    let pool_asset = pool_info.long_depth;
-    let pool_token_supply = pool_info.share_supply;
 
-    // Calculate how much asset will be released. Logic is copied from:
-    // terraswap/terraswap/contracts/pool/src/contract.rs#L294
-    let ust_to_be_released =
-        pool_ust * Decimal::from_ratio(pool_tokens_to_burn, pool_token_supply);
-    let asset_to_be_released =
-        pool_asset * Decimal::from_ratio(pool_tokens_to_burn, pool_token_supply);
-
-    // Due to tax, the receivable UST amount from liquidity removal is slightly less
-    let ust_to_receive = deduct_tax(&deps, ust_to_be_released, "uusd")?;
-
-    // Calculate the amount of UST the user owes to Mars
-    // Note: Must handle division of zero!
-    let total_ust_owed = red_bank.query_debt(&deps, &env.contract.address)?;
-    let ust_owed = if state.total_debt_units.is_zero() {
-        Uint128::zero()
-    } else {
-        total_ust_owed.multiply_ratio(position.debt_units, state.total_debt_units)
-    };
-
-    // Find out how much UST to be used to pay debt, and how much to be refunded to user.
-    // Note: The actual UST amount needed to fully pay down debt is the debt amount + tax
-    let ust_to_repay = std::cmp::min(ust_to_receive, add_tax(&deps, ust_owed, "uusd")?);
-    let ust_to_refund = if ust_to_repay < ust_to_receive {
-        (ust_to_receive - ust_to_repay)?
-    } else {
-        Uint128::zero()
-    };
-
-    // Increment the user's unstaked token, UST amounts
-    position.unbonded_asset_amount += asset_to_be_released;
-    position.unbonded_ust_amount += ust_to_refund;
-    write_position(&mut deps.storage, &user_raw, &position)?;
-
-    let mut messages = vec![swap.withdraw_message(pool_tokens_to_burn)?];
-
-    if !ust_to_repay.is_zero() {
-        messages.push(
-            CallbackMsg::Repay {
-                user: user.clone(),
-                repay_amount: ust_to_repay,
-            }
-            .into_cosmos_msg(&env.contract.address)?,
-        );
-    }
+    // Update unlocked asset amounts
+    position.unlocked_assets[0].amount += return_amounts[0];
+    position.unlocked_assets[1].amount += return_amounts[1];
+    position.unlocked_assets[2].amount = Uint128::zero();
+    position.write(&mut deps.storage, &user_raw)?;
 
     Ok(HandleResponse {
-        messages,
+        messages: vec![config.swap.withdraw_message(shares)?],
         log: vec![
-            log("action", "fields_of_mars::CallbackMsg::RemoveLiquidity"),
-            log("pool_tokens_burned", pool_tokens_to_burn),
+            log("action", "field_of_mars::CallbackMsg::RemoveLiquidity"),
+            log("shares_burned", shares),
         ],
         data: None,
     })
@@ -629,55 +699,45 @@ pub fn _remove_liquidity<S: Storage, A: Api, Q: Querier>(
 /**
  * Bond LP tokens to Mirror Staking contract.
  */
-pub fn _bond<S: Storage, A: Api, Q: Querier>(
+fn _bond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    user: Option<HumanAddr>,
+    user: HumanAddr,
 ) -> StdResult<HandleResponse> {
-    let config = read_config(&deps.storage)?;
-    let mut state = read_state(&deps.storage)?;
-    let staking = config.staking.to_normal(deps)?;
-    let swap = config.swap.to_normal(deps)?;
+    let user_raw = deps.api.canonical_address(&user)?;
+    let config = Config::read_normal(deps)?;
+    let mut state = State::read(&deps.storage)?;
+    let mut position = Position::read(&deps.storage, &user_raw)?;
 
-    // Find the amount of LP tokens already bonded to the staking contract
-    let total_bond_amount = staking.query_bond_amount(deps, &env.contract.address)?;
+    // Amount of shares to bond
+    let bond_amount = position.unlocked_assets[2].amount;
 
-    // Find the amount of LP tokens the contract has received from liquidity provision
-    let amount_to_bond =
-        query_token_balance(deps, &swap.share_token, &env.contract.address)?;
+    // Total amount of bonded shares the contract currently has
+    let total_bond = config.staking.query_bond(deps, &env.contract.address)?;
 
-    // If a user account is provided, then increment the asset units
-    // Initial asset unit = 100,000 units per LP token staked
-    let bond_units_to_add = if !user.is_none() {
-        if total_bond_amount.is_zero() {
-            amount_to_bond.multiply_ratio(1_000_000u128, 1u128)
-        } else {
-            state.total_bond_units.multiply_ratio(amount_to_bond, total_bond_amount)
-        }
+    // Calculate how many bond units the user should be accredited
+    // We define the initial bond unit = 100,000 units per share bonded
+    let bond_units_to_add = if total_bond.is_zero() {
+        bond_amount.multiply_ratio(1_000_000u128, 1u128)
     } else {
-        Uint128::zero()
+        state.total_bond_units.multiply_ratio(bond_amount, total_bond)
     };
 
-    // Update storage
-    // If the user doesn't have a position yet, we initialize a new one
-    if !bond_units_to_add.is_zero() {
-        let user_raw = deps.api.canonical_address(&user.unwrap())?;
-        let mut position = match read_position(&deps.storage, &user_raw) {
-            Ok(position) => position,
-            Err(_) => Position::default(),
-        };
-        state.total_bond_units += bond_units_to_add;
-        write_state(&mut deps.storage, &state)?;
+    // Update state
+    state.total_bond_units += bond_units_to_add;
+    state.write(&mut deps.storage)?;
 
-        position.bond_units += bond_units_to_add;
-        write_position(&mut deps.storage, &user_raw, &position)?;
-    }
+    // Update position
+    position.bond_units += bond_units_to_add;
+    position.unlocked_assets[2].amount = Uint128::zero();
+    position.write(&mut deps.storage, &user_raw)?;
 
     Ok(HandleResponse {
-        messages: vec![staking.bond_message(amount_to_bond)?],
+        messages: vec![config.staking.bond_message(bond_amount)?],
         log: vec![
-            log("action", "fields_of_mars::CallbackMsg::Bond"),
-            log("amount_bonded", amount_to_bond),
+            log("action", "martian_field::CallbackMsg::Bond"),
+            log("user", user),
+            log("bond_amount", bond_amount),
             log("bond_units_added", bond_units_to_add),
         ],
         data: None,
@@ -687,41 +747,41 @@ pub fn _bond<S: Storage, A: Api, Q: Querier>(
 /**
  * @notice Unbond LP tokens from Mirror Staking contract.
  */
-pub fn _unbond<S: Storage, A: Api, Q: Querier>(
+fn _unbond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     user: HumanAddr,
-    bond_units: Uint128,
+    bond_units: Option<Uint128>,
 ) -> StdResult<HandleResponse> {
     let user_raw = deps.api.canonical_address(&user)?;
-    let config = read_config(&deps.storage)?;
-    let mut state = read_state(&deps.storage)?;
-    let mut position = read_position(&deps.storage, &user_raw)?;
-    let staking = config.staking.to_normal(deps)?;
+    let config = Config::read_normal(deps)?;
+    let mut state = State::read(&deps.storage)?;
+    let mut position = Position::read(&deps.storage, &user_raw)?;
 
-    // Calculate how many LP tokens should be unbonded
-    let total_bond_amount = staking.query_bond_amount(deps, &env.contract.address)?;
-    let amount_to_unbond =
-        total_bond_amount.multiply_ratio(bond_units, state.total_bond_units);
+    // Unbond all if `bond_units` is not provided
+    let bond_units_to_reduce = bond_units.unwrap_or(position.bond_units);
 
-    // Reduce the asset units
-    state.total_bond_units = (state.total_bond_units - bond_units)?;
-    write_state(&mut deps.storage, &state)?;
+    // Calculate how amount of stakine token to unbond
+    let total_bond = config.staking.query_bond(deps, &env.contract.address)?;
+    let unbond_amount =
+        total_bond.multiply_ratio(bond_units_to_reduce, state.total_bond_units);
 
-    position.bond_units = (position.bond_units - bond_units)?;
-    write_position(&mut deps.storage, &user_raw, &position)?;
+    // Update state
+    state.total_bond_units = (state.total_bond_units - bond_units_to_reduce)?;
+    state.write(&mut deps.storage)?;
+
+    // Update position
+    position.bond_units = (position.bond_units - bond_units_to_reduce)?;
+    position.unlocked_assets[2].amount += unbond_amount;
+    position.write(&mut deps.storage, &user_raw)?;
 
     Ok(HandleResponse {
-        messages: vec![
-            staking.unbond_message(amount_to_unbond)?,
-            CallbackMsg::RemoveLiquidity {
-                user,
-            }
-            .into_cosmos_msg(&env.contract.address)?,
-        ],
+        messages: vec![config.staking.unbond_message(unbond_amount)?],
         log: vec![
-            log("action", "fields_of_mars::CallbackMsg::Unbond"),
-            log("amount_unbonded", amount_to_unbond),
+            log("action", "martian_field::CallbackMsg::Unbond"),
+            log("user", user),
+            log("unbond_amount", unbond_amount),
+            log("bond_units_reduced", bond_units_to_reduce),
         ],
         data: None,
     })
@@ -730,197 +790,216 @@ pub fn _unbond<S: Storage, A: Api, Q: Querier>(
 /**
  * @notice Borrow UST as uncollateralized loan from Mars.
  */
-pub fn _borrow<S: Storage, A: Api, Q: Querier>(
+fn _borrow<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     user: HumanAddr,
-    borrow_amount: Uint128,
+    amount: Uint128,
 ) -> StdResult<HandleResponse> {
-    if borrow_amount.is_zero() {
-        return Err(StdError::generic_err("borrow amount must be greater than zero"));
-    }
-
     let user_raw = deps.api.canonical_address(&user)?;
-    let config = read_config(&deps.storage)?;
-    let mut state = read_state(&deps.storage)?;
-    let red_bank = config.red_bank.to_normal(deps)?;
+    let config = Config::read_normal(deps)?;
+    let mut state = State::read(&deps.storage)?;
+    let mut position = Position::read_or_new(&deps.storage, &user_raw)?;
 
-    // If the user doesn't have a position yet, we initialize a new one
-    let mut position = match read_position(&deps.storage, &user_raw) {
-        Ok(position) => position,
-        Err(_) => Position::default(),
-    };
+    let response = if !amount.is_zero() {
+        // Total amount of short asset owed by the contract to Mars
+        let total_debt = config.red_bank.query_debt(
+            deps,
+            &env.contract.address,
+            &config.short_asset,
+        )?;
 
-    let total_debt_amount = red_bank.query_debt(&deps, &env.contract.address)?;
+        // Calculate how many debt units the user should be accredited
+        // We define the initial debt unit = 100,000 units per short asset borrowed
+        let debt_units_to_add = if total_debt.is_zero() {
+            amount.multiply_ratio(1_000_000u128, 1u128)
+        } else {
+            state.total_debt_units.multiply_ratio(amount, total_debt)
+        };
 
-    // Calculate how many debt units the user should be accredited
-    // We define the initial debt unit = 100,000 units per UST borrowed
-    let debt_units_to_add = if total_debt_amount.is_zero() {
-        borrow_amount.multiply_ratio(1_000_000u128, 1u128)
+        // The receivable amount after tax
+        let amount_after_tax = config.short_asset.deduct_tax(deps, amount)?;
+
+        // Update storage
+        state.total_debt_units += debt_units_to_add;
+        state.write(&mut deps.storage)?;
+
+        // Update position
+        position.debt_units += debt_units_to_add;
+        position.unlocked_assets[1].amount += amount_after_tax;
+        position.write(&mut deps.storage, &user_raw)?;
+
+        // Generate message
+        let borrow_message = config.red_bank.borrow_message(&Asset {
+            info: config.short_asset.clone(),
+            amount,
+        })?;
+
+        HandleResponse {
+            messages: vec![borrow_message],
+            log: vec![
+                log("action", "martial_field::CallbackMsg::Borrow"),
+                log("user", user),
+                log("amount", amount),
+                log("amount_after_tax", amount_after_tax),
+                log("debt_units_added", debt_units_to_add),
+            ],
+            data: None,
+        }
     } else {
-        state.total_debt_units.multiply_ratio(borrow_amount, total_debt_amount)
+        HandleResponse {
+            messages: vec![],
+            log: vec![
+                log("action", "martian_field::CallbackMsg::Borrow"),
+                log("warning", "SKIPPED: borrow amount is zero!"),
+            ],
+            data: None,
+        }
     };
 
-    // Update storage
-    state.total_debt_units += debt_units_to_add;
-    write_state(&mut deps.storage, &state)?;
-
-    position.debt_units += debt_units_to_add;
-    write_position(&mut deps.storage, &user_raw, &position)?;
-
-    Ok(HandleResponse {
-        messages: vec![red_bank.borrow_message(borrow_amount)?],
-        log: vec![
-            log("action", "fields_of_mars::CallbackMsg::Borrow"),
-            log("amount_borrowed", borrow_amount),
-            log("debt_units_added", debt_units_to_add),
-        ],
-        data: None,
-    })
+    Ok(response)
 }
 
 /**
  * @notice Pay specified amount of UST to Mars.
  */
-pub fn _repay<S: Storage, A: Api, Q: Querier>(
+fn _repay<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     user: HumanAddr,
-    repay_amount: Uint128,
 ) -> StdResult<HandleResponse> {
-    if repay_amount.is_zero() {
-        return Err(StdError::generic_err("repay amount must be greater than zero"));
-    }
-
     let user_raw = deps.api.canonical_address(&user)?;
-    let config = &read_config(&deps.storage)?;
-    let mut state = read_state(&deps.storage)?;
-    let mut position = read_position(&deps.storage, &user_raw)?;
-    let red_bank = config.red_bank.to_normal(deps)?;
+    let config = Config::read_normal(deps)?;
+    let mut state = State::read(&deps.storage)?;
+    let mut position = Position::read(&deps.storage, &user_raw)?;
 
-    if position.debt_units.is_zero() {
-        return Err(StdError::generic_err("no debt to repay"));
-    }
+    // Amount of short asset to repay
+    let amount = position.unlocked_assets[1].amount;
 
-    let total_debt_amount = red_bank.query_debt(&deps, &env.contract.address)?;
+    let response = if !amount.is_zero() {
+        // Total amount of short asset owed by the contract to Mars
+        let total_debt = config.red_bank.query_debt(
+            deps,
+            &env.contract.address,
+            &config.short_asset,
+        )?;
 
-    // The amount of UST owed by the user
-    let ust_owed =
-        total_debt_amount.multiply_ratio(position.debt_units, state.total_debt_units);
+        // Amount of debt assigned to the user
+        let debt_amount =
+            total_debt.multiply_ratio(position.debt_units, state.total_debt_units);
 
-    // Due to tax, the amount of UST received cannot be fully delivered to Mars. Here we
-    // calculate the maximum deliverable amount.
-    let ust_to_repay = deduct_tax(deps, repay_amount, "uusd")?;
+        // Due to tax, the amount of `repay_asset` received may not be fully delivered to
+        // Mars. Calculate the maximum deliverable amount.
+        let amount_after_tax = config.short_asset.deduct_tax(deps, amount)?;
 
-    // If the user pays more than what he owes, we reduce his debt units to zero.
-    // Otherwise, we reduce his debt units proportionately.
-    let debt_units_to_reduce = if ust_to_repay > total_debt_amount {
-        position.debt_units
+        // If the user pays more than what he owes, we reduce his debt units to zero.
+        // Otherwise, we reduce his debt units proportionately.
+        let debt_units_to_reduce = std::cmp::min(
+            position.debt_units,
+            position.debt_units.multiply_ratio(amount_after_tax, debt_amount),
+        );
+
+        // Update state
+        state.total_debt_units = (state.total_debt_units - debt_units_to_reduce)?;
+        state.write(&mut deps.storage)?;
+
+        // Update position
+        position.debt_units = (position.debt_units - debt_units_to_reduce)?;
+        position.unlocked_assets[1].amount = Uint128::zero();
+        position.write(&mut deps.storage, &user_raw)?;
+
+        // Generate message
+        let repay_message = config.red_bank.repay_message(&Asset {
+            info: config.short_asset.clone(),
+            amount: amount_after_tax,
+        })?;
+
+        HandleResponse {
+            messages: vec![repay_message],
+            log: vec![
+                log("action", "martian_field::CallbackMsg::Repay"),
+                log("user", user),
+                log("amount", amount),
+                log("amount_after_tax", amount_after_tax),
+                log("debt_units_reduced", debt_units_to_reduce),
+            ],
+            data: None,
+        }
     } else {
-        position.debt_units.multiply_ratio(ust_to_repay, ust_owed)
+        HandleResponse {
+            messages: vec![],
+            log: vec![
+                log("action", "martian_field::CallbackMsg::Repay"),
+                log("warning", "SKIPPED: repay amount is zero!"),
+            ],
+            data: None,
+        }
     };
 
-    // Update state
-    state.total_debt_units = (state.total_debt_units - debt_units_to_reduce)?;
-    write_state(&mut deps.storage, &state)?;
-
-    // Update position. Delete if empty
-    position.debt_units = (position.debt_units - debt_units_to_reduce)?;
-    if !position.is_empty() {
-        write_position(&mut deps.storage, &user_raw, &position)?;
-    } else {
-        delete_position(&mut deps.storage, &user_raw);
-        delete_position_snapshot(&mut deps.storage, &user_raw);
-    };
-
-    Ok(HandleResponse {
-        messages: vec![red_bank.repay_message(ust_to_repay)?],
-        log: vec![
-            log("action", "fields_of_mars::CallbackMsg::Repay"),
-            log("ust_received", repay_amount),
-            log("ust_repaid", ust_to_repay),
-            log("debt_units_reduced", debt_units_to_reduce),
-            log("position_deleted", position.is_empty()),
-        ],
-        data: None,
-    })
+    Ok(response)
 }
 
 /**
  * @notice Collect a portion of rewards as performance fee, swap half of the rest for UST.
  */
-pub fn _swap_reward<S: Storage, A: Api, Q: Querier>(
+fn _swap<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    reward_amount: Uint128,
+    amount: Uint128,
 ) -> StdResult<HandleResponse> {
-    let config = read_config(&deps.storage)?;
-    let treasury = deps.api.human_address(&config.treasury)?;
-    let asset_token = deps.api.human_address(&config.asset_token)?;
-    let reward_token = deps.api.human_address(&config.reward_token)?;
-    let swap = config.swap.to_normal(deps)?;
+    let contract_addr_raw = deps.api.canonical_address(&env.contract.address)?;
+    let config = Config::read_normal(deps)?;
+    let mut position = Position::read_or_new(&deps.storage, &contract_addr_raw)?;
 
     // Calculate how much performance fee should be charged
-    let fee_amount = reward_amount * config.performance_fee_rate;
-    let reward_amount_after_fee = (reward_amount - fee_amount)?;
+    let fee = amount * config.fee_rate;
+    let amount_after_fee = (amount - fee)?;
 
-    let mut messages = vec![CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: asset_token.clone(),
-        send: vec![],
-        msg: to_binary(&Cw20HandleMsg::Transfer {
-            recipient: treasury,
-            amount: fee_amount,
-        })?,
-    })];
+    // Amount of reward (long asset) to retain (not to be swapped)
+    let retain_amount = (amount_after_fee - fee)?;
 
-    if asset_token == reward_token {
-        // Half of the after-fee reward to be swapped for UST, the other half to be
-        // provided to Terraswap pool
-        let reward_to_swap = reward_amount_after_fee * Decimal::from_ratio(1u128, 2u128);
-        let asset_to_provide = (reward_amount_after_fee - reward_to_swap)?;
+    // Calculate the amount of reward to be swapped
+    // Note: here we assume `long_token` == `reward_token`. This is the case for popular
+    // farms e.g. ANC, MIR, MINE, but not for mAsset farms.
+    // MAsset support may be added in a future version
+    let offer_amount = amount_after_fee * Decimal::from_ratio(1u128, 2u128);
+    let offer_amount_after_tax = config.long_asset.deduct_tax(deps, offer_amount)?;
 
-        // Calculate how many UST can to expect from the swap
-        let pool_info = swap.query_pool(
-            deps,
-            &AssetInfo::Token {
-                contract_addr: deps.api.human_address(&config.asset_token)?,
-            },
-            &AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-        )?;
-        let pool_ust = pool_info.short_depth;
-        let pool_asset = pool_info.long_depth;
-        let ust_to_provide =
-            compute_swap_return_amount(deps, reward_to_swap, pool_asset, pool_ust)?;
-
-        messages.extend(vec![
-            swap.swap_message(Asset {
-                info: AssetInfo::Token {
-                    contract_addr: deps.api.human_address(&config.asset_token)?,
-                },
-                amount: reward_to_swap,
-            })?,
-            CallbackMsg::ProvideLiquidity {
-                asset_amount: asset_to_provide,
-                ust_amount: ust_to_provide,
-                user: None,
-            }
-            .into_cosmos_msg(&env.contract.address)?,
-        ])
-    } else {
-        // We currently only support case where asset_token and reward_token are the same
-        return Err(StdError::generic_err(
-            "unimplemented: asset_token and reward_token must be the same",
-        ));
+    // Note: must deduct tax here
+    let offer_asset = Asset {
+        info: config.long_asset.clone(),
+        amount: offer_amount_after_tax,
     };
 
+    // Calculate the return amount of the swap
+    // Note: must deduct_tax here
+    let return_amount = config.swap.simulate_swap(deps, &offer_asset)?;
+    let return_amount_after_tax = config.short_asset.deduct_tax(deps, return_amount)?;
+
+    // Update position
+    position.unlocked_assets[0].amount += retain_amount;
+    position.unlocked_assets[1].amount += return_amount_after_tax;
+    position.write(&mut deps.storage, &contract_addr_raw)?;
+
     Ok(HandleResponse {
-        messages,
+        messages: vec![
+            config.long_asset.transfer_message(
+                deps,
+                &env.contract.address,
+                &config.treasury,
+                fee,
+            )?,
+            config.swap.swap_message(&offer_asset)?,
+        ],
         log: vec![
             log("action", "fields_of_mars::CallbackMsg::SwapReward"),
-            log("fee_amount", fee_amount),
-            log("reward_amount_after_fee", reward_amount_after_fee),
+            log("amount", amount),
+            log("fee_amount", fee),
+            log("retain_amount", retain_amount),
+            log("offer_amount", offer_amount),
+            log("offer_amount_after_tax", offer_amount_after_tax),
+            log("return_amount", return_amount),
+            log("return_amount_after_tax", return_amount_after_tax),
         ],
         data: None,
     })
@@ -929,169 +1008,52 @@ pub fn _swap_reward<S: Storage, A: Api, Q: Querier>(
 /**
  * @notice Verify the user's debt ratio, then refund unstaked MIR and UST to the user.
  */
-pub fn _refund<S: Storage, A: Api, Q: Querier>(
+fn _refund<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    env: Env,
+    _env: Env,
     user: HumanAddr,
+    recipient: HumanAddr,
+    percentage: Decimal,
 ) -> StdResult<HandleResponse> {
     let user_raw = deps.api.canonical_address(&user)?;
-    let config = read_config(&deps.storage)?;
-    let mut position = read_position(&deps.storage, &user_raw)?;
+    let mut position = Position::read(&deps.storage, &user_raw)?;
 
-    // Calculate debt ratio, make sure it's below the liquidation threshold
-    let (.., debt_value, ltv) = compute_ltv(deps, Some(user.clone()))?;
-    if !debt_value.is_zero() && ltv.unwrap() > config.max_ltv {
-        return Err(StdError::generic_err("LTV above liquidation threshold"));
+    // Apply percentage
+    let assets: Vec<Asset> = position
+        .unlocked_assets
+        .to_vec()
+        .iter()
+        .map(|asset| Asset {
+            info: asset.info.to_normal(deps).unwrap(),
+            amount: asset.amount * percentage,
+        })
+        .collect();
+
+    // Update position
+    for i in 0..2 {
+        position.unlocked_assets[i].amount =
+            (position.unlocked_assets[i].amount - assets[i].amount)?;
     }
+    position.write(&mut deps.storage, &user_raw)?;
 
-    // Calculate the amount of UST and asset to refund
-    let ust_to_refund = deduct_tax(&deps, position.unbonded_ust_amount, "uusd")?;
-    let asset_to_refund = position.unbonded_asset_amount;
-
-    position.unbonded_ust_amount = Uint128::zero();
-    position.unbonded_asset_amount = Uint128::zero();
-
-    // Delete the user's position if there is no asset and debt left
-    if !position.is_empty() {
-        write_position(&mut deps.storage, &user_raw, &position)?;
-    } else {
-        delete_position(&mut deps.storage, &user_raw);
-        delete_position_snapshot(&mut deps.storage, &user_raw);
-    };
-
-    let mut messages: Vec<CosmosMsg> = vec![];
-
-    if !ust_to_refund.is_zero() {
-        messages.push(CosmosMsg::Bank(BankMsg::Send {
-            from_address: env.contract.address,
-            to_address: user.clone(),
-            amount: vec![Coin {
-                denom: "uusd".to_string(),
-                amount: ust_to_refund,
-            }],
-        }));
-    }
-
-    if !asset_to_refund.is_zero() {
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&config.asset_token)?,
-            send: vec![],
-            msg: to_binary(&Cw20HandleMsg::Transfer {
-                recipient: user,
-                amount: asset_to_refund,
-            })?,
-        }));
-    }
+    // Generate messages for the transfers
+    // Note: `asset.transfer_message` does tax deduction so no need to do it here
+    let messages = assets
+        .iter()
+        .map(|asset| asset.transfer_message(deps, &user, &recipient).unwrap())
+        .collect();
 
     Ok(HandleResponse {
         messages,
         log: vec![
-            log("action", "fields_of_mars::CallbackMsg::Refund"),
-            log("asset_refunded", asset_to_refund),
-            log("ust_refunded", ust_to_refund),
-            log("ltv", ltv.unwrap_or_default()),
-            log("position_deleted", position.is_empty()),
+            log("action", "martian_field::CallbackMsg::Refund"),
+            log("user", user),
+            log("recipient", recipient),
+            log("percentage", percentage),
+            log("long_refunded", assets[0].amount),
+            log("short_refunded", assets[1].amount),
+            log("shares_refunded", assets[2].amount),
         ],
-        data: None,
-    })
-}
-
-/**
- * @notice Receive UST, pay back debt, and credit the liquidator a share of the collateral.
- */
-pub fn _claim_collateral<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    user: HumanAddr,
-    liquidator: HumanAddr,
-    repay_amount: Uint128,
-) -> StdResult<HandleResponse> {
-    let user_raw = deps.api.canonical_address(&user)?;
-    let config = read_config(&deps.storage)?;
-    let state = read_state(&deps.storage)?;
-    let mut position = read_position(&deps.storage, &user_raw)?;
-    let asset_token = deps.api.human_address(&config.asset_token)?;
-    let red_bank = config.red_bank.to_normal(deps)?;
-
-    // Due to tax, the amount of UST received cannot be fully delivered to Mars
-    let repay_amount_after_tax = deduct_tax(deps, repay_amount, "uusd")?;
-
-    // Calculate how much tax the user owes
-    // Note: we don't need to check for division by zero, as we intend this to fail if
-    // there is no debt to pay.
-    let total_debt_amount = red_bank.query_debt(&deps, &env.contract.address)?;
-    let debt_amount =
-        total_debt_amount.multiply_ratio(position.debt_units, state.total_debt_units);
-
-    // Calculate how much unstaked asset should be accredited to the liquidator
-    let asset_to_release = if repay_amount_after_tax > debt_amount {
-        position.unbonded_asset_amount
-    } else {
-        position.unbonded_asset_amount.multiply_ratio(repay_amount_after_tax, debt_amount)
-    };
-
-    // Update storage
-    position.unbonded_asset_amount = (position.unbonded_asset_amount - asset_to_release)?;
-    write_position(&mut deps.storage, &user_raw, &position)?;
-
-    Ok(HandleResponse {
-        messages: vec![
-            WasmMsg::Execute {
-                contract_addr: asset_token,
-                send: vec![],
-                msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: liquidator,
-                    amount: asset_to_release,
-                })?,
-            }
-            .into(),
-            CallbackMsg::Repay {
-                user,
-                repay_amount,
-            }
-            .into_cosmos_msg(&env.contract.address)?,
-        ],
-        log: vec![
-            log("action", "fields_of_mars::CallbackMsg::ClaimCollateral"),
-            log("asset_released", asset_to_release),
-        ],
-        data: None,
-    })
-}
-
-/**
- * @notice Update data stored in config.
- */
-pub fn _update_config<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    _env: Env,
-    config: InitMsg,
-) -> StdResult<HandleResponse> {
-    let operators_raw = config
-        .operators
-        .iter()
-        .map(|operator| deps.api.canonical_address(&operator).unwrap())
-        .collect();
-
-    let config = Config {
-        owner: deps.api.canonical_address(&config.owner)?,
-        operators: operators_raw,
-        treasury: deps.api.canonical_address(&config.treasury)?,
-        asset_token: deps.api.canonical_address(&config.asset_token)?,
-        reward_token: deps.api.canonical_address(&config.reward_token)?,
-        swap: config.swap.to_raw(deps)?,
-        red_bank: config.red_bank.to_raw(deps)?,
-        staking: config.staking.to_raw(deps)?,
-        max_ltv: config.max_ltv,
-        performance_fee_rate: config.performance_fee_rate,
-        liquidation_fee_rate: config.liquidation_fee_rate,
-    };
-
-    write_config(&mut deps.storage, &config)?;
-
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![log("action", "fields_of_mars::CallbackMsg::UpdateConfig")],
         data: None,
     })
 }
@@ -1100,126 +1062,119 @@ pub fn _update_config<S: Storage, A: Api, Q: Querier>(
  * @notice Save a snapshot of a user's position everytime the position is increased,
  * decreased, or the debt is paid. Useful for the frontend to calculate PnL.
  */
-pub fn _update_position_snapshot<S: Storage, A: Api, Q: Querier>(
+fn _snapshot<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     user: HumanAddr,
 ) -> StdResult<HandleResponse> {
     let user_raw = deps.api.canonical_address(&user)?;
-    let position = read_position(&deps.storage, &user_raw)?;
-    let (bond_value, debt_value, ltv) = compute_ltv(deps, Some(user.clone()))?;
+    let position = Position::read(&deps.storage, &user_raw)?;
 
-    write_position_snapshot(
-        &mut deps.storage,
-        &user_raw,
-        &PositionSnapshot {
+    let response = if position.is_empty() {
+        Position::delete(&mut deps.storage, &user_raw);
+        Snapshot::delete(&mut deps.storage, &user_raw);
+
+        HandleResponse {
+            messages: vec![],
+            log: vec![
+                log("action", "martian_field::CallbackMsg::Snapshot"),
+                log("user", user),
+                log("warning", "SKIPPED: deleted empty position"),
+            ],
+            data: None,
+        }
+    } else {
+        let snapshot = Snapshot {
             time: env.block.time,
             height: env.block.height,
-            snapshot: PositionResponse {
-                is_active: position.is_active(),
-                bond_value,
-                bond_units: position.bond_units,
-                debt_value,
-                debt_units: position.debt_units,
-                ltv,
-                unbonded_ust_amount: position.unbonded_ust_amount,
-                unbonded_asset_amount: position.unbonded_asset_amount,
-            },
-        },
-    )?;
+            health: compute_position_health(&deps, &deps.api.canonical_address(&user)?)?,
+            position,
+        };
+        snapshot.write(&mut deps.storage, &user_raw)?;
 
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![
-            log("action", "fields_of_mars::CallbackMsg::UpdatePositionSnapshot"),
-            log("user", user),
-            log("bond_value", bond_value),
-            log("debt_value", debt_value),
-            log("ltv", ltv.unwrap_or_default()),
-        ],
-        data: None,
-    })
+        HandleResponse {
+            messages: vec![],
+            log: vec![
+                log("action", "martian_field::CallbackMsg::Snapshot"),
+                log("user", user),
+            ],
+            data: None,
+        }
+    };
+
+    Ok(response)
+}
+
+/**
+ * @notice Check if a user's LTV is below liquidation threshold; throw an error if not.
+ */
+fn _assert_health<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    _env: Env,
+    user: HumanAddr,
+) -> StdResult<HandleResponse> {
+    let user_raw = deps.api.canonical_address(&user)?;
+    let config_raw = Config::read(&deps.storage)?;
+    let health_info = compute_position_health(deps, &user_raw)?;
+
+    // LTV should only be `None` if `bond_valeue` is zero, i.e. position is closed
+    // Therefore we can safely unwrap here
+    let ltv = health_info.ltv.unwrap();
+
+    if ltv > config_raw.max_ltv {
+        Err(StdError::generic_err("LTV is greater than liquidation threshold!"))
+    } else {
+        Ok(HandleResponse {
+            messages: vec![],
+            log: vec![
+                log("action", "martian_field::CallbackMsg::AssertHealth"),
+                log("user", user),
+                log("ltv", ltv),
+            ],
+            data: None,
+        })
+    }
 }
 
 //----------------------------------------------------------------------------------------
-// QUERY FUNCTIONS
+// Query Functions
 //----------------------------------------------------------------------------------------
 
-/**
- * @notice Return strategy configurations.
- */
-pub fn query_config<S: Storage, A: Api, Q: Querier>(
+fn query_config<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
 ) -> StdResult<ConfigResponse> {
-    let config = read_config(&deps.storage)?;
-    let operators = config
-        .operators
-        .iter()
-        .map(|operator_raw| deps.api.human_address(&operator_raw).unwrap())
-        .collect();
-
-    Ok(ConfigResponse {
-        owner: deps.api.human_address(&config.owner)?,
-        operators,
-        treasury: deps.api.human_address(&config.treasury)?,
-        asset_token: deps.api.human_address(&config.asset_token)?,
-        reward_token: deps.api.human_address(&config.reward_token)?,
-        swap: config.swap.to_normal(deps)?,
-        red_bank: config.red_bank.to_normal(deps)?,
-        staking: config.staking.to_normal(deps)?,
-        max_ltv: config.max_ltv,
-        performance_fee_rate: config.performance_fee_rate,
-        liquidation_fee_rate: config.liquidation_fee_rate,
-    })
+    Config::read(&deps.storage)?.to_response(&deps)
 }
 
-/**
- * @notice Return the global state of the strategy.
- */
-pub fn query_state<S: Storage, A: Api, Q: Querier>(
+fn query_state<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
 ) -> StdResult<StateResponse> {
-    let state = read_state(&deps.storage)?;
-    let (bond_value, debt_value, ltv) = compute_ltv(deps, None)?;
-
-    Ok(StateResponse {
-        total_bond_value: bond_value,
-        total_bond_units: state.total_bond_units,
-        total_debt_value: debt_value,
-        total_debt_units: state.total_debt_units,
-        ltv,
-    })
+    State::read(&deps.storage)?.to_response()
 }
 
-/**
- * @notice Return data on an individual user's position.
- */
-pub fn query_position<S: Storage, A: Api, Q: Querier>(
+fn query_position<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     user: HumanAddr,
 ) -> StdResult<PositionResponse> {
-    let position = read_position(&deps.storage, &deps.api.canonical_address(&user)?)?;
-    let (bond_value, debt_value, ltv) = compute_ltv(deps, Some(user))?;
-
-    Ok(PositionResponse {
-        is_active: position.is_active(),
-        bond_value,
-        bond_units: position.bond_units,
-        debt_value,
-        debt_units: position.debt_units,
-        ltv,
-        unbonded_ust_amount: position.unbonded_ust_amount,
-        unbonded_asset_amount: position.unbonded_asset_amount,
-    })
+    let user_raw = deps.api.canonical_address(&user)?;
+    Position::read(&deps.storage, &user_raw)?.to_response(&deps)
 }
 
-/**
- * @notice Return the snapshot taken of a user's position. Used by the frontend to
- * calculate PnL.
- */
-pub fn query_initial_position<S: Storage, A: Api, Q: Querier>(
+fn query_snapshot<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     user: HumanAddr,
-) -> StdResult<PositionSnapshotResponse> {
-    Ok(read_position_snapshot(&deps.storage, &deps.api.canonical_address(&user)?)?)
+) -> StdResult<SnapshotResponse> {
+    let user_raw = deps.api.canonical_address(&user)?;
+    Snapshot::read(&deps.storage, &user_raw)?.to_response(&deps)
+}
+
+fn query_health<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    user: Option<HumanAddr>,
+) -> StdResult<HealthResponse> {
+    if let Some(user) = user {
+        compute_position_health(&deps, &deps.api.canonical_address(&user)?)
+    } else {
+        compute_state_health(&deps)
+    }
 }

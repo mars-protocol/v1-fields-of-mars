@@ -83,17 +83,12 @@ async function setupTest() {
         denom: "uusd",
       },
     },
+    red_bank: {
+      contract_addr: redBank,
+    },
     swap: {
       pair: terraswapPair,
       share_token: terraswapLpToken,
-    },
-    red_bank: {
-      contract_addr: redBank,
-      borrow_asset: {
-        native_token: {
-          denom: "uusd",
-        },
-      },
     },
     staking: {
       anchor: {
@@ -103,9 +98,9 @@ async function setupTest() {
         reward_token: anchorToken,
       },
     },
-    owner: deployer.key.accAddress,
+    keepers: [user1.key.accAddress],
     treasury: treasury.key.accAddress,
-    operators: [user1.key.accAddress],
+    governance: deployer.key.accAddress,
     max_ltv: "0.67", // 67% debt ratio, i.e. 150% collateralization ratio
     performance_fee_rate: "0.20", // 20%
     liquidation_fee_rate: "0.05", // 5%
@@ -115,7 +110,7 @@ async function setupTest() {
     terra,
     deployer,
     "../artifacts/martian_field.wasm",
-    initMsg
+    config
   );
 
   process.stdout.write("Creating verifier object... ");

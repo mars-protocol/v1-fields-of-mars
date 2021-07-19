@@ -1,9 +1,12 @@
 use cosmwasm_std::{
-    to_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, Extern, HumanAddr,
-    MessageInfo, Querier, QueryRequest, StdError, StdResult, Storage, Uint128, WasmMsg,
-    WasmQuery,
+    to_binary, Api, BalanceResponse, BankMsg, BankQuery, CanonicalAddr, Coin, CosmosMsg,
+    Extern, HumanAddr, MessageInfo, Querier, QueryRequest, StdError, StdResult, Storage,
+    Uint128, WasmMsg, WasmQuery,
 };
-use cw20::{Cw20HandleMsg, Cw20QueryMsg, TokenInfoResponse};
+use cw20::{
+    BalanceResponse as Cw20BalanceResponse, Cw20HandleMsg, Cw20QueryMsg,
+    TokenInfoResponse,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, ops};
@@ -81,11 +84,6 @@ impl Asset {
         }
     }
 
-    /// @notice Check if the amount is zero
-    pub fn is_zero(&self) -> bool {
-        self.amount.is_zero()
-    }
-
     /// @notice Convert `Asset` to `AssetRaw`
     pub fn to_raw<S: Storage, A: Api, Q: Querier>(
         &self,
@@ -109,12 +107,13 @@ impl Asset {
 
     /// @notice Generate the message for transferring asset of a specific amount from one
     /// account to another using the `Cw20HandleMsg::Transfer` message type
-    pub fn transfer_message(
+    pub fn transfer_message<S: Storage, A: Api, Q: Querier>(
         &self,
+        deps: &Extern<S, A, Q>,
         from: &HumanAddr,
         to: &HumanAddr,
     ) -> StdResult<CosmosMsg> {
-        self.info.transfer_message(from, to, self.amount)
+        self.info.transfer_message(deps, from, to, self.amount)
     }
 
     /// @notice Generate the message for transferring asset of a specific amount from one
@@ -125,7 +124,7 @@ impl Asset {
         from: &HumanAddr,
         to: &HumanAddr,
     ) -> StdResult<CosmosMsg> {
-        self.info.transfer_message(from, to, self.amount)
+        self.info.transfer_from_message(from, to, self.amount)
     }
 
     /// @notice Query the denomination of the asset
@@ -182,14 +181,6 @@ pub enum AssetInfo {
 }
 
 impl AssetInfo {
-    /// @notice Convert `AssetInfo` to `Asset` by adding an amount
-    pub fn add_amount(&self, amount: Uint128) -> Asset {
-        Asset {
-            info: self.clone(),
-            amount,
-        }
-    }
-
     /// @notice Convert `AssetInfo` to `AssetInfoRaw`
     pub fn to_raw<S: Storage, A: Api, Q: Querier>(
         &self,
@@ -211,7 +202,7 @@ impl AssetInfo {
 
     /// @notice Assert two asset types are the same; panic if not
     pub fn assert_matched_info(&self, other: &Self) {
-        if !&self.equals(&other) {
+        if &self != &other {
             panic!("asset info mismatch!")
         }
     }
@@ -235,42 +226,12 @@ impl AssetInfo {
         }
     }
 
-    /// @notice Compare if two `AssetInfo` objects are the same
-    pub fn equals(&self, info: &AssetInfo) -> bool {
-        match &self {
-            Self::Token {
-                contract_addr,
-            } => {
-                let self_addr = contract_addr;
-                match info {
-                    AssetInfo::Token {
-                        contract_addr,
-                    } => self_addr == contract_addr,
-                    AssetInfo::NativeToken {
-                        ..
-                    } => false,
-                }
-            }
-            Self::NativeToken {
-                denom,
-            } => {
-                let self_denom = denom;
-                match info {
-                    AssetInfo::NativeToken {
-                        denom,
-                    } => self_denom == denom,
-                    AssetInfo::Token {
-                        ..
-                    } => false,
-                }
-            }
-        }
-    }
-
     /// @notice Generate the message for transferring asset of a specific amount from one
     /// account to another using the `Cw20HandleMsg::Transfer` message type
-    pub fn transfer_message(
+    /// @dev Note: we deduct tax here
+    pub fn transfer_message<S: Storage, A: Api, Q: Querier>(
         &self,
+        deps: &Extern<S, A, Q>,
         from: &HumanAddr,
         to: &HumanAddr,
         amount: Uint128,
@@ -283,7 +244,7 @@ impl AssetInfo {
                 send: vec![],
                 msg: to_binary(&Cw20HandleMsg::Transfer {
                     recipient: HumanAddr::from(to),
-                    amount,
+                    amount, // no tax for transferring CW20's
                 })?,
             })),
             Self::NativeToken {
@@ -293,7 +254,7 @@ impl AssetInfo {
                 to_address: HumanAddr::from(to),
                 amount: vec![Coin {
                     denom: String::from(denom),
-                    amount,
+                    amount: self.deduct_tax(deps, amount)?,
                 }],
             })),
         }
@@ -348,6 +309,38 @@ impl AssetInfo {
             Self::NativeToken {
                 denom,
             } => Ok(String::from(denom)),
+        }
+    }
+
+    /// @notice Query an account's balance of the specified asset
+    pub fn query_balance<S: Storage, A: Api, Q: Querier>(
+        &self,
+        deps: &Extern<S, A, Q>,
+        account: &HumanAddr,
+    ) -> StdResult<Uint128> {
+        match self {
+            Self::Token {
+                contract_addr,
+            } => {
+                let response: Cw20BalanceResponse =
+                    deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                        contract_addr: HumanAddr::from(contract_addr),
+                        msg: to_binary(&Cw20QueryMsg::Balance {
+                            address: HumanAddr::from(account),
+                        })?,
+                    }))?;
+                Ok(response.balance)
+            }
+            Self::NativeToken {
+                denom,
+            } => {
+                let response: BalanceResponse =
+                    deps.querier.query(&QueryRequest::Bank(BankQuery::Balance {
+                        address: HumanAddr::from(account),
+                        denom: String::from(denom),
+                    }))?;
+                Ok(response.amount.amount)
+            }
         }
     }
 
