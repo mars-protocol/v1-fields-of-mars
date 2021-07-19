@@ -18,7 +18,3 @@ cw20 = "0.2"
 fields-of-mars = { path = "../../packages/fields_of_mars" }
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-snafu = "0.6.3"
-terra-cosmwasm = "1.2"
-terraswap = "1.2.0"
-thiserror = "1.0"
