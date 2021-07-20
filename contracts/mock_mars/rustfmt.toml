@@ -5,5 +5,5 @@ max_width = 90
 newline_style = "unix"
 overflow_delimited_expr = true
 tab_spaces = 4
-use_small_heuristics = "Off"
+use_small_heuristics = "off"
 wrap_comments = false

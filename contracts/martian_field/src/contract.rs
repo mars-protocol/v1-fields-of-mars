@@ -145,21 +145,6 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
 // Handle Functions
 //----------------------------------------------------------------------------------------
 
-/**
- * @notice Open a new position or add to an existing position.
- *
- * @dev The user must have approved the strategy to draw MIR tokens from his wallet.
- * Typically, `Cw20HandleMsg::Approve` and this message are sent along in the same
- * transaction.
- *
- * @dev Any amount of UST may be sent along with the message. The strategy calculates how
- * much UST is needed for liquidity provision; if the amount send by the user is not
- * sufficient, borrows uncollateralized loan from Mars to make up the difference.
- *
- * @dev The strategy does not check if there is enough UST liquidity at Mars to be  
- * borrowed, or if it has enough credit line for borrowing uncollateralized loans. The
- * frontend should perform these checks.
- */
 fn increase_position<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -259,14 +244,6 @@ fn increase_position<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/**
- * @notice Reduce a position, or close it completely.
- *
- * @dev The resulting debt ratio must be less or equal than the liquidation threshold, or
- * the transaction reverts.
- *
- * @dev Callable only by the user himself.
- */
 fn reduce_position<S: Storage, A: Api, Q: Querier>(
     _deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -325,13 +302,6 @@ fn reduce_position<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/**
- * @notice Close a position whose LTV is greater than the liquidation threshold; typically
- * to be followed by a `HandleMsg::Liquidate` call.
- *
- * @dev Note: This function is for liquidating unhealthy positions. To close healthy
- * positions, use `HandleMsg::ReducePosition`.
- */
 fn close_position<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -384,23 +354,6 @@ fn close_position<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/**
- * @notice Pay down debt owed to Mars, reduce debt units.
- *
- * @dev Stability fee (also known as "tax") is charged twice during this function's
- * execution:
- *
- * 1) during the transfer of UST from the user's wallet to the strategy,
- * 2) from the strategy to Mars.
- *
- * Among these, 1) is directly deducted from the user's wallet balance, while 2) is
- * deducted the the strategy's balance. The frontend should handle this.
- *
- * @dev For example, if a user wishes to pay down 100 UST debt, and the tax for a 100 UST
- * transfer is 0.1 UST, he needs to actually send 100.1 UST to the contract, of which only
- * 100 UST will be delivered to Mars, and a total of 100.2 UST (plus gas fee) will be
- * deducted from his account.
- */
 fn pay_debt<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -462,12 +415,6 @@ fn pay_debt<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/**
- * @notice Claim staking reward and reinvest.
- *
- * @dev For now, only the owner is allowed to call this function. Later, once the strategy
- * is proven to be stable, we will consider making this function callable by anyone.
- */
 fn harvest<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -510,18 +457,6 @@ fn harvest<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/**
- * @notice Close an underfunded position, pay down remaining debt and claim the collateral.
- *
- * @dev Callable by anyone, but only if the position's debt ratio is above the liquidation
- * threshold.
- *
- * @dev If the position is active (defined by `bond_units` > 0), the position will first
- * be closed. This involves unbonding the LP tokens from Mirror Staking contract, remove
- * liquidity from TerraSwap, use the UST proceedings to pay off the debt, and withhold the
- * MIR proceedings pending liquidation. At this time, anyone can send along UST to pay off
- * a portion of the remaining debt, and being awarded a portion of the withheld MIR.
- */
 fn liquidate<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -600,9 +535,6 @@ fn liquidate<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/**
- * @notice Update data stored in config.
- */
 fn update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -623,9 +555,6 @@ fn update_config<S: Storage, A: Api, Q: Querier>(
 // Callback Functions
 //----------------------------------------------------------------------------------------
 
-/**
- * @notice Provide specified amounts of MIR and UST to the Terraswap pool, receive LP tokens.
- */
 fn _provide_liquidity<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
@@ -664,9 +593,6 @@ fn _provide_liquidity<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/**
- * @notice Burn LP tokens, remove the liquidity from Terraswap, receive MIR and UST.
- */
 fn _remove_liquidity<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
@@ -706,9 +632,6 @@ fn _remove_liquidity<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/**
- * Bond LP tokens to Mirror Staking contract.
- */
 fn _bond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -760,9 +683,6 @@ fn _bond<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/**
- * @notice Unbond LP tokens from Mirror Staking contract.
- */
 fn _unbond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -803,9 +723,6 @@ fn _unbond<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/**
- * @notice Borrow UST as uncollateralized loan from Mars.
- */
 fn _borrow<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -876,9 +793,6 @@ fn _borrow<S: Storage, A: Api, Q: Querier>(
     Ok(response)
 }
 
-/**
- * @notice Pay specified amount of UST to Mars.
- */
 fn _repay<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -955,9 +869,6 @@ fn _repay<S: Storage, A: Api, Q: Querier>(
     Ok(response)
 }
 
-/**
- * @notice Collect a portion of rewards as performance fee, swap half of the rest for UST.
- */
 fn _swap<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -1021,9 +932,6 @@ fn _swap<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/**
- * @notice Verify the user's debt ratio, then refund unstaked MIR and UST to the user.
- */
 fn _refund<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
@@ -1077,10 +985,6 @@ fn _refund<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/**
- * @notice Save a snapshot of a user's position everytime the position is increased,
- * decreased, or the debt is paid. Useful for the frontend to calculate PnL.
- */
 fn _snapshot<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -1108,9 +1012,6 @@ fn _snapshot<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/**
- * @notice Delete data of a position if it is empty (completely withdrawn or liquidated)
- */
 fn _purge<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
@@ -1135,9 +1036,6 @@ fn _purge<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/**
- * @notice Check if a user's LTV is below liquidation threshold; throw an error if not.
- */
 fn _assert_health<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
