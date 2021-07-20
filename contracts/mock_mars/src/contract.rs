@@ -102,7 +102,7 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
 // Handle Functions
 //----------------------------------------------------------------------------------------
 
-pub fn borrow<S: Storage, A: Api, Q: Querier>(
+fn borrow<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     denom: &str,
@@ -133,7 +133,7 @@ pub fn borrow<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-pub fn repay<S: Storage, A: Api, Q: Querier>(
+fn repay<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     denom: &str,
@@ -192,7 +192,7 @@ fn query_debt<S: Storage, A: Api, Q: Querier>(
 // Helper Functions
 //----------------------------------------------------------------------------------------
 
-pub fn get_denom_amount_from_coins(coins: &[Coin], denom: &str) -> Uint256 {
+fn get_denom_amount_from_coins(coins: &[Coin], denom: &str) -> Uint256 {
     coins
         .iter()
         .find(|c| c.denom == denom)
@@ -200,7 +200,7 @@ pub fn get_denom_amount_from_coins(coins: &[Coin], denom: &str) -> Uint256 {
         .unwrap_or_else(Uint256::zero)
 }
 
-pub fn deduct_tax<S: Storage, A: Api, Q: Querier>(
+fn deduct_tax<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     amount: Uint128,
     denom: &str,

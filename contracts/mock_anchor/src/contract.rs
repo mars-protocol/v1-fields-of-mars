@@ -83,7 +83,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 // Handle Functions
 //----------------------------------------------------------------------------------------
 
-pub fn bond<S: Storage, A: Api, Q: Querier>(
+fn bond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
     staker: HumanAddr,
@@ -98,7 +98,7 @@ pub fn bond<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse::default())
 }
 
-pub fn unbond<S: Storage, A: Api, Q: Querier>(
+fn unbond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     amount: Uint128,
@@ -124,7 +124,7 @@ pub fn unbond<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-pub fn withdraw<S: Storage, A: Api, Q: Querier>(
+fn withdraw<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<HandleResponse> {
@@ -147,7 +147,7 @@ pub fn withdraw<S: Storage, A: Api, Q: Querier>(
 // Query Functions
 //----------------------------------------------------------------------------------------
 
-pub fn query_staker_info<S: Storage, A: Api, Q: Querier>(
+fn query_staker_info<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     staker: HumanAddr,
 ) -> StdResult<StakerInfoResponse> {
