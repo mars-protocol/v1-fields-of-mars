@@ -18,7 +18,7 @@ The strategy also tracks each user's loan-to-value ratio (LTV). If a user's LTV 
 
 ## Contract Design
 
-## Handle Messages
+### Handle Messages
 
 | Message                       | Description                                                                                         |
 | ----------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -30,7 +30,7 @@ The strategy also tracks each user's loan-to-value ratio (LTV). If a user's LTV 
 | `HandleMsg::Liquidate`        | Pay down the remaining debt of a closed position and be rewarded by part of its unlocked collateral |
 | `HandleMsg::UpdateConfig`     | Update data stored in config (owner only)                                                           |
 
-## Query Messages
+### Query Messages
 
 | Message              | Description                                                                        |
 | -------------------- | ---------------------------------------------------------------------------------- |
@@ -40,7 +40,7 @@ The strategy also tracks each user's loan-to-value ratio (LTV). If a user's LTV 
 | `QueryMsg::Health`   | Returns health factor of an individual position                                    |
 | `QueryMsg::Snapshot` | Returns a historical snapshot of a position, used by the frontend to calculate PnL |
 
-## Callback Messages
+### Callback Messages
 
 Martian Field makes extensive use of [CosmWasm's callback pattern](https://github.com/CosmWasm/cosmwasm-plus/blob/main/PATTERNS.md#callbacks). Each callback is a portable building block that can be combined to in the execution of complex tasks, illustrated as follows:
 
@@ -180,7 +180,7 @@ ts-node deploy.ts --network {columbus|tequila} --strategy {anchor|mirror} [--cod
 | TerraSwap MIR-UST LP Token | [`terra17gjf2zehfvnyjtdgua9p9ygquk6gukxe7ucgwh`](https://finder.terra.money/columbus-4/address/terra17gjf2zehfvnyjtdgua9p9ygquk6gukxe7ucgwh) |
 | Red Bank                   | TBD                                                                                                                                          |
 | Martian Field: ANC-UST LP  | TBD                                                                                                                                          |
-| Martian Field: MIR-UST-LP  | TBD                                                                                                                                          |
+| Martian Field: MIR-UST LP  | TBD                                                                                                                                          |
 
 ### Tequila-0004
 
@@ -196,7 +196,7 @@ ts-node deploy.ts --network {columbus|tequila} --strategy {anchor|mirror} [--cod
 | TerraSwap MIR-UST LP Token | [`terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j`](https://finder.terra.money/tequila-0004/address/terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j) |
 | Red Bank                   | [`terra1knxh6cd43jswu3ahyx2cd9mzchynmpcqzpa65x`](https://finder.terra.money/tequila-0004/address/terra1knxh6cd43jswu3ahyx2cd9mzchynmpcqzpa65x) |
 | Martian Field: ANC-UST LP  | TBD                                                                                                                                            |
-| Martian Field: MIR-UST-LP  | TBD                                                                                                                                            |
+| Martian Field: MIR-UST LP  | TBD                                                                                                                                            |
 
 ## License
 
