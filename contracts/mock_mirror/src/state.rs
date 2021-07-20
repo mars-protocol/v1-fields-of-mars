@@ -7,7 +7,7 @@ static KEY_CONFIG: &[u8] = b"config";
 static PREFIX_REWARD_INFO: &[u8] = b"reward_info";
 
 //----------------------------------------------------------------------------------------
-// STORAGE TYPES
+// Storage Types
 //----------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -23,7 +23,7 @@ pub struct RewardInfo {
 }
 
 //----------------------------------------------------------------------------------------
-// READ/WRITE FUNCTIONS
+// Read/Write Functions
 //----------------------------------------------------------------------------------------
 
 pub fn read_config<S: Storage>(storage: &S) -> StdResult<Config> {

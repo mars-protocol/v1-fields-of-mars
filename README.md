@@ -1,4 +1,4 @@
-# Fields of Mars
+# Martian Field
 
 **Martian Field** is a leveraged yield farming strategy utilizing liquidity from [Mars Protocol](https://twitter.com/mars_protocol).
 

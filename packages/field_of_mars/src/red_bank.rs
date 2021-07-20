@@ -1,4 +1,4 @@
-use cosmwasm_bignumber::Uint256;
+use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
     to_binary, Api, CanonicalAddr, Coin, CosmosMsg, Extern, HumanAddr, Querier,
     QueryRequest, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
@@ -12,6 +12,14 @@ use crate::asset::{Asset, AssetInfo};
 //----------------------------------------------------------------------------------------
 // Message Types
 //----------------------------------------------------------------------------------------
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MockInitMsg {
+    // User's debt = deposit_amount * mock_interest_rate
+    pub mock_interest_rate: Option<Decimal256>,
+}
+
+pub type MockMigrateMsg = MockInitMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

@@ -8,7 +8,7 @@ pub static KEY_CONFIG: &[u8] = b"config";
 pub static PREFIX_POSITION: &[u8] = b"users";
 
 //----------------------------------------------------------------------------------------
-// STORAGE TYPES
+// Storage Types
 //----------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -30,7 +30,7 @@ impl Default for Position {
 }
 
 //----------------------------------------------------------------------------------------
-// READ/WRITE FUNCTIONS
+// Read/Write Functions
 //----------------------------------------------------------------------------------------
 
 pub fn read_config<S: Storage>(storage: &S) -> StdResult<Config> {

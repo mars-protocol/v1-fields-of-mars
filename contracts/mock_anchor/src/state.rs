@@ -7,7 +7,7 @@ static KEY_CONFIG: &[u8] = b"config";
 static PREFIX_STAKER_INFO: &[u8] = b"staker_info";
 
 //----------------------------------------------------------------------------------------
-// Types
+// Storage Types
 //----------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

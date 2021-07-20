@@ -1,6 +1,6 @@
 [package]
 name = "martian-field"
-version = "0.1.0"
+version = "0.3.0"
 authors = ["larry_0x <larry@delphidigital.io>"]
 edition = "2018"
 exclude = ["contract.wasm", "hash.txt"]
@@ -15,6 +15,6 @@ backtraces = ["cosmwasm-std/backtraces"]
 cosmwasm-std = { version = "0.10.1", features = ["iterator"] }
 cosmwasm-storage = { version = "0.10.1", features = ["iterator"] }
 cw20 = "0.2"
-fields-of-mars = { path = "../../packages/fields_of_mars" }
+field-of-mars = { path = "../../packages/field_of_mars" }
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }

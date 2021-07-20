@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 
-use fields_of_mars::staking::anchor_staking::{
+use field_of_mars::staking::anchor_staking::{
     Cw20HookMsg, HandleMsg, MockInitMsg, QueryMsg, StakerInfoResponse,
 };
 
@@ -13,7 +13,7 @@ use crate::state::{
 };
 
 //----------------------------------------------------------------------------------------
-// ENTRY POINTS
+// Entry Points
 //----------------------------------------------------------------------------------------
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -80,7 +80,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 }
 
 //----------------------------------------------------------------------------------------
-// HANDLE FUNCTIONS
+// Handle Functions
 //----------------------------------------------------------------------------------------
 
 pub fn bond<S: Storage, A: Api, Q: Querier>(
@@ -144,7 +144,7 @@ pub fn withdraw<S: Storage, A: Api, Q: Querier>(
 }
 
 //----------------------------------------------------------------------------------------
-// QUERY FUNCTIONS
+// Query Functions
 //----------------------------------------------------------------------------------------
 
 pub fn query_staker_info<S: Storage, A: Api, Q: Querier>(

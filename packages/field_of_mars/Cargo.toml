@@ -1,6 +1,6 @@
 [package]
-name = "fields-of-mars"
-version = "0.1.0"
+name = "field-of-mars"
+version = "0.3.0"
 authors = ["larry_0x <larry@delphidigital.io>"]
 edition = "2018"
 

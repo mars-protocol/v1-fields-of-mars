@@ -4,7 +4,7 @@ use cosmwasm_std::{
     Uint128,
 };
 
-use fields_of_mars::{
+use field_of_mars::{
     asset::{Asset, AssetInfo},
     martian_field::{
         CallbackMsg, ConfigResponse, HandleMsg, HealthResponse, InitMsg, MigrateMsg,
@@ -214,12 +214,12 @@ fn increase_position<S: Storage, A: Api, Q: Querier>(
             } => {
                 messages
                     .push(deposit.transfer_from_message(&user, &env.contract.address)?);
-            },
+            }
             AssetInfo::NativeToken {
                 ..
             } => {
                 deposit.assert_sent_fund(&env.message);
-            },
+            }
         }
     }
 
@@ -430,12 +430,12 @@ fn pay_debt<S: Storage, A: Api, Q: Querier>(
             ..
         } => {
             messages.push(deposit.transfer_from_message(&user, &env.contract.address)?);
-        },
+        }
         AssetInfo::NativeToken {
             ..
         } => {
             deposit.assert_sent_fund(&env.message);
-        },
+        }
     }
 
     let callbacks = [
@@ -555,12 +555,12 @@ fn liquidate<S: Storage, A: Api, Q: Querier>(
             ..
         } => {
             messages.push(deposit.transfer_from_message(&user, &env.contract.address)?);
-        },
+        }
         AssetInfo::NativeToken {
             ..
         } => {
             deposit.assert_sent_fund(&env.message);
-        },
+        }
     }
 
     // Calculate percentage of unlocked asset that should be accredited to the liquidator
@@ -1155,14 +1155,14 @@ fn _assert_health<S: Storage, A: Api, Q: Querier>(
             } else {
                 false
             }
-        },
+        }
         None => {
             if health_info.debt_value.is_zero() {
                 true
             } else {
                 false
             }
-        },
+        }
     };
 
     // Convert `ltv` to String so that it can be recorded in logs

@@ -13,7 +13,7 @@
       "path": "contracts/mock_mars"
     },
     {
-      "path": "packages/fields_of_mars"
+      "path": "packages/field_of_mars"
     },
     {
       "path": "artifacts"

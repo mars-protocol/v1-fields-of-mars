@@ -5,7 +5,7 @@ use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use fields_of_mars::{
+use field_of_mars::{
     asset::{AssetInfoRaw, AssetRaw},
     martian_field::{
         ConfigResponse, HealthResponse, InitMsg, PositionResponse, SnapshotResponse,
