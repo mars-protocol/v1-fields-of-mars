@@ -8,6 +8,7 @@ import {
   MsgExecuteContract,
   MsgMigrateContract,
   MsgSend,
+  Wallet,
 } from "@terra-money/terra.js";
 import {
   deployMartianField,
@@ -24,7 +25,6 @@ import {
   storeCode,
   toEncodedBinary,
 } from "./helpers";
-import { Verifier } from "./verifier";
 
 chai.use(chaiAsPromised);
 const { expect } = chai;
@@ -42,11 +42,9 @@ let anchorStaking: string;
 let terraswapPair: string;
 let terraswapLpToken: string;
 let redBank: string;
-let strategy: string;
+let field: string;
 
 let config: object;
-
-let verifier: Verifier;
 
 //----------------------------------------------------------------------------------------
 // SETUP
@@ -95,34 +93,21 @@ async function setupTest() {
         contract_addr: anchorStaking,
         asset_token: anchorToken,
         staking_token: terraswapLpToken,
-        reward_token: anchorToken,
       },
     },
     keepers: [user1.key.accAddress],
     treasury: treasury.key.accAddress,
     governance: deployer.key.accAddress,
     max_ltv: "0.67", // 67% debt ratio, i.e. 150% collateralization ratio
-    performance_fee_rate: "0.20", // 20%
-    liquidation_fee_rate: "0.05", // 5%
+    fee_rate: "0.2", // 20%
   };
 
-  strategy = await deployMartianField(
+  field = await deployMartianField(
     terra,
     deployer,
     "../artifacts/martian_field.wasm",
     config
   );
-
-  process.stdout.write("Creating verifier object... ");
-
-  verifier = new Verifier(terra, {
-    strategy,
-    redBank,
-    assetToken: anchorToken,
-    staking: anchorStaking,
-  });
-
-  console.log(chalk.green("Done!"));
 
   process.stdout.write("Fund deployer with ANC... ");
 
@@ -230,19 +215,19 @@ async function setupTest() {
 }
 
 //----------------------------------------------------------------------------------------
-// TEST CONFIG
+// Test: Config
 //----------------------------------------------------------------------------------------
 
 async function testConfig() {
   process.stdout.write("Should store correct config info... ");
 
-  await verifier.verifyConfig(config);
+  await verifyConfig(config);
 
   console.log(chalk.green("Passed!"));
 }
 
 //----------------------------------------------------------------------------------------
-// TEST OPEN POSITION 1
+// Test: Open Position, Pt. 1
 //----------------------------------------------------------------------------------------
 
 async function testOpenPosition1() {
@@ -252,10 +237,10 @@ async function testOpenPosition1() {
     new MsgExecuteContract(user1.key.accAddress, anchorToken, {
       increase_allowance: {
         amount: "69000000",
-        spender: strategy,
+        spender: field,
       },
     }),
-    new MsgExecuteContract(user1.key.accAddress, strategy, {
+    new MsgExecuteContract(user1.key.accAddress, field, {
       increase_position: {
         asset_amount: "69000000",
       },
@@ -294,7 +279,7 @@ async function testOpenPosition1() {
   // User's debt ratio is:
   // 420000000 / 838322513 = 0.501000502177853357
   //
-  await verifier.verifyState({
+  await verifyState({
     total_bond_value: "838322513",
     total_bond_units: "169895170000000",
     total_debt_value: "420000000",
@@ -312,17 +297,17 @@ async function testOpenPosition1() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   };
-  await verifier.verifyPosition(user1, expectedPosition);
-  await verifier.verifyPositionSnapshot(user1, expectedPosition);
+  await verifyPosition(user1, expectedPosition);
+  await verifyPositionSnapshot(user1, expectedPosition);
 
-  await verifier.verifyDebt("uusd", "420000000");
-  await verifier.verifyBondInfo("anchor", "169895170");
+  await verifyDebt("420000000");
+  await verifyBond("169895170");
 
   console.log(chalk.green("Passed!"));
 }
 
 //----------------------------------------------------------------------------------------
-// TEST HARVEST
+// Test: Harvest
 //----------------------------------------------------------------------------------------
 
 async function testHarvest() {
@@ -331,7 +316,7 @@ async function testHarvest() {
   // Should fail as user2 is not a whitelisted operator
   await expect(
     sendTransaction(terra, user2, [
-      new MsgExecuteContract(user2.key.accAddress, strategy, {
+      new MsgExecuteContract(user2.key.accAddress, field, {
         harvest: {},
       }),
     ])
@@ -339,7 +324,7 @@ async function testHarvest() {
 
   // User1 is a whitelisted operator; this should work
   await sendTransaction(terra, user1, [
-    new MsgExecuteContract(user1.key.accAddress, strategy, {
+    new MsgExecuteContract(user1.key.accAddress, field, {
       harvest: {},
     }),
   ]);
@@ -402,14 +387,14 @@ async function testHarvest() {
   //
   // Debt ratio = 420000000 / 840733314 = 0.499563883703121720 (last digit 0 is dropped)
   //
-  await verifier.verifyState({
+  await verifyState({
     total_bond_value: "840733315",
     total_bond_units: "169895170000000",
     total_debt_value: "420000000",
     total_debt_units: "420000000000000",
     ltv: "0.49956388370312172",
   });
-  await verifier.verifyPosition(user1, {
+  await verifyPosition(user1, {
     is_active: true,
     bond_value: "840733315",
     bond_units: "169895170000000",
@@ -419,11 +404,11 @@ async function testHarvest() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyDebt("uusd", "420000000");
-  await verifier.verifyBondInfo("anchor", "170876125");
+  await verifyDebt("420000000");
+  await verifyBond("170876125");
 
   // Although the position is changed, the snapshot should have not changed
-  await verifier.verifyPositionSnapshot(user1, {
+  await verifyPositionSnapshot(user1, {
     is_active: true,
     bond_value: "838322513",
     bond_units: "169895170000000",
@@ -456,12 +441,12 @@ async function testOpenPosition2() {
     new MsgExecuteContract(user2.key.accAddress, anchorToken, {
       increase_allowance: {
         amount: "34500000",
-        spender: strategy,
+        spender: field,
       },
     }),
     new MsgExecuteContract(
       user2.key.accAddress,
-      strategy,
+      field,
       {
         increase_position: {
           asset_amount: "34500000",
@@ -529,14 +514,14 @@ async function testOpenPosition2() {
   // Debt value = 0
   // Debt ratio = 0
   //
-  await verifier.verifyState({
+  await verifyState({
     total_bond_value: "1257476465",
     total_bond_units: "254110517355205",
     total_debt_value: "420000000",
     total_debt_units: "420000000000000",
     ltv: "0.334002274945161697",
   });
-  await verifier.verifyPosition(user1, {
+  await verifyPosition(user1, {
     is_active: true,
     bond_value: "840733316",
     bond_units: "169895170000000",
@@ -546,7 +531,7 @@ async function testOpenPosition2() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyPosition(user2, {
+  await verifyPosition(user2, {
     is_active: true,
     bond_value: "416743144",
     bond_units: "84215347355205",
@@ -556,8 +541,8 @@ async function testOpenPosition2() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyDebt("uusd", "420000000");
-  await verifier.verifyBondInfo("anchor", "255577722");
+  await verifyDebt("420000000");
+  await verifyBond("255577722");
 
   console.log(chalk.green("Passed!"));
 }
@@ -572,7 +557,7 @@ async function testPayDebt() {
   await sendTransaction(terra, user1, [
     new MsgExecuteContract(
       user1.key.accAddress,
-      strategy,
+      field,
       {
         pay_debt: {
           user: user1.key.accAddress,
@@ -603,14 +588,14 @@ async function testPayDebt() {
   // Debt value = 320099901 uusd (unchanged)
   // Debt ratio = 320099901 / 840733316 = 0.380738927443669902
   //
-  await verifier.verifyState({
+  await verifyState({
     total_bond_value: "1257476465",
     total_bond_units: "254110517355205",
     total_debt_value: "320099901",
     total_debt_units: "320099901000000",
     ltv: "0.254557369389811999",
   });
-  await verifier.verifyPosition(user1, {
+  await verifyPosition(user1, {
     is_active: true,
     bond_value: "840733316",
     bond_units: "169895170000000",
@@ -620,7 +605,7 @@ async function testPayDebt() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyPosition(user2, {
+  await verifyPosition(user2, {
     is_active: true,
     bond_value: "416743144",
     bond_units: "84215347355205",
@@ -630,8 +615,8 @@ async function testPayDebt() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyDebt("uusd", "320099901");
-  await verifier.verifyBondInfo("anchor", "255577722");
+  await verifyDebt("320099901");
+  await verifyBond("255577722");
 
   console.log(chalk.green("Passed!"));
 }
@@ -644,7 +629,7 @@ async function testReducePosition() {
   process.stdout.write("Should reduce position... ");
 
   await sendTransaction(terra, user1, [
-    new MsgExecuteContract(user1.key.accAddress, strategy, {
+    new MsgExecuteContract(user1.key.accAddress, field, {
       reduce_position: {
         bond_units: "69895170000000",
       },
@@ -715,14 +700,14 @@ async function testReducePosition() {
   // LP tokens staked = 185278986 * 84215347355205 / 184215347355205 = 84701597 uLP
   // Asset value = 84701597 * 4.920133317800148003 = 416743150 uusd
   //
-  await verifier.verifyState({
+  await verifyState({
     total_bond_value: "911597314",
     total_bond_units: "184215347355205",
     total_debt_value: "147505687",
     total_debt_units: "147505687000000",
     ltv: "0.161810137803894406",
   });
-  await verifier.verifyPosition(user1, {
+  await verifyPosition(user1, {
     is_active: true,
     bond_value: "494854158",
     bond_units: "100000000000000",
@@ -732,7 +717,7 @@ async function testReducePosition() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyPosition(user2, {
+  await verifyPosition(user2, {
     is_active: true,
     bond_value: "416743150",
     bond_units: "84215347355205",
@@ -742,8 +727,8 @@ async function testReducePosition() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyBondInfo("anchor", "185278986");
-  await verifier.verifyDebt("uusd", "147505687");
+  await verifyBond("185278986");
+  await verifyDebt("147505687");
 
   // User 1 should have received 28610622 uANC
   const user1AncBalance = await queryTokenBalance(
@@ -822,14 +807,14 @@ async function testLiquidation1() {
   // LP tokens staked = 84701597 uLP (unchanged)
   // Asset value = 84701597 * 1.115686491853149111 = 94500427 uusd
   //
-  await verifier.verifyState({
+  await verifyState({
     total_bond_value: "206713261",
     total_bond_units: "184215347355205",
     total_debt_value: "147505687",
     total_debt_units: "147505687000000",
     ltv: "0.713576314777405596",
   });
-  await verifier.verifyPosition(user1, {
+  await verifyPosition(user1, {
     is_active: true,
     bond_value: "112212833",
     bond_units: "100000000000000",
@@ -839,7 +824,7 @@ async function testLiquidation1() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyPosition(user2, {
+  await verifyPosition(user2, {
     is_active: true,
     bond_value: "94500427",
     bond_units: "84215347355205",
@@ -849,13 +834,13 @@ async function testLiquidation1() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyBondInfo("anchor", "185278986");
-  await verifier.verifyDebt("uusd", "147505687");
+  await verifyBond("185278986");
+  await verifyDebt("147505687");
 
   await sendTransaction(terra, liquidator1, [
     new MsgExecuteContract(
       liquidator1.key.accAddress,
-      strategy,
+      field,
       {
         liquidate: {
           user: user1.key.accAddress,
@@ -944,14 +929,14 @@ async function testLiquidation1() {
   // bond_value = 94500429 (same as strategy)
   // bond_units = 84215347355205 (unchanged)
   //
-  await verifier.verifyState({
+  await verifyState({
     total_bond_value: "94500429",
     total_bond_units: "84215347355205",
     total_debt_value: "41561268",
     total_debt_units: "41561268000000",
     ltv: "0.439799781226389988",
   });
-  await verifier.verifyPosition(user1, {
+  await verifyPosition(user1, {
     is_active: false,
     bond_value: "0",
     bond_units: "0",
@@ -961,7 +946,7 @@ async function testLiquidation1() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "82833879",
   });
-  await verifier.verifyPosition(user2, {
+  await verifyPosition(user2, {
     is_active: true,
     bond_value: "94500429",
     bond_units: "84215347355205",
@@ -971,8 +956,8 @@ async function testLiquidation1() {
     unbonded_ust_amount: "0",
     unbonded_asset_amount: "0",
   });
-  await verifier.verifyBondInfo("anchor", "84701598");
-  await verifier.verifyDebt("uusd", "41561268");
+  await verifyBond("84701598");
+  await verifyDebt("41561268");
 
   // Liquidator should have receive correct amount of ANC token
   const liquidatorAncBalance = await queryTokenBalance(
@@ -997,7 +982,7 @@ async function testLiquidation2() {
   await sendTransaction(terra, liquidator2, [
     new MsgExecuteContract(
       liquidator2.key.accAddress,
-      strategy,
+      field,
       {
         liquidate: {
           user: user1.key.accAddress,
@@ -1009,23 +994,21 @@ async function testLiquidation2() {
     ),
   ]);
 
-  await verifier.verifyState({
+  await verifyState({
     total_bond_value: "94500429",
     total_bond_units: "84215347355205",
     total_debt_value: "0",
     total_debt_units: "0",
     ltv: "0",
   });
-  await verifier.verifyDebt("uusd", "0");
+  await verifyDebt("0");
 
   // User 1 is fully liquidated, so his position data should have been purged from storage
   // Querying it should fail with statue code 500
-  await expect(verifier.verifyPosition(user1, {})).to.be.rejectedWith("status code 500");
+  await expect(verifyPosition(user1, {})).to.be.rejectedWith("status code 500");
 
   // Same with the position snapshot
-  await expect(verifier.verifyPositionSnapshot(user1, {})).to.be.rejectedWith(
-    "status code 500"
-  );
+  await expect(verifyPositionSnapshot(user1, {})).to.be.rejectedWith("status code 500");
 
   // Liquidator should have received all of user 1's unstaked ANC, which is 82833879
   const liquidatorAncBalance = await queryTokenBalance(
@@ -1054,13 +1037,13 @@ async function testClosePosition() {
   // User 2 closes position completely and withdraw all assets by not providing optional
   // `bond_units` argument
   await sendTransaction(terra, user2, [
-    new MsgExecuteContract(user2.key.accAddress, strategy, {
+    new MsgExecuteContract(user2.key.accAddress, field, {
       reduce_position: {},
     }),
   ]);
 
   // All assets and debts should have been removed
-  await verifier.verifyState({
+  await verifyState({
     total_bond_value: "0",
     total_bond_units: "0",
     total_debt_value: "0",
@@ -1069,10 +1052,8 @@ async function testClosePosition() {
   });
 
   // User's position as well as the snaphot should have been deleted
-  await expect(verifier.verifyPosition(user2, {})).to.be.rejectedWith("status code 500");
-  await expect(verifier.verifyPositionSnapshot(user2, {})).to.be.rejectedWith(
-    "status code 500"
-  );
+  await expect(verifyPosition(user2, {})).to.be.rejectedWith("status code 500");
+  await expect(verifyPositionSnapshot(user2, {})).to.be.rejectedWith("status code 500");
 
   // User should have receive correct amount of UST and ANC
   // Prior to withdrawal, strategy has 84701598 uLP staked, which all belong to user 2
@@ -1164,22 +1145,22 @@ async function testUpdateConfig() {
   // Try updating config with a non-owner user; should fail
   await expect(
     sendTransaction(terra, user1, [
-      new MsgExecuteContract(user1.key.accAddress, strategy, executeMsg),
+      new MsgExecuteContract(user1.key.accAddress, field, executeMsg),
     ])
   ).to.be.rejectedWith("unauthorized");
 
   // Try updating with owner account; should succeed
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, strategy, executeMsg),
+    new MsgExecuteContract(deployer.key.accAddress, field, executeMsg),
   ]);
 
-  await verifier.verifyConfig(newConfig);
+  await verifyConfig(newConfig);
 
   console.log(chalk.green("Passed!"));
 }
 
 //----------------------------------------------------------------------------------------
-// TEST MIGRATION
+// Test: migration
 //----------------------------------------------------------------------------------------
 
 async function testMigrate() {
@@ -1197,7 +1178,7 @@ async function testMigrate() {
   // Try migrate with a non-owner user; should fail
   await expect(
     sendTransaction(terra, user1, [
-      new MsgMigrateContract(user1.key.accAddress, strategy, newCodeId, {}),
+      new MsgMigrateContract(user1.key.accAddress, field, newCodeId, {}),
     ])
   ).to.be.rejectedWith("unauthorized");
 
@@ -1206,7 +1187,7 @@ async function testMigrate() {
   // different; however, in this test, they are both set to `deployer`
   await expect(
     sendTransaction(terra, deployer, [
-      new MsgMigrateContract(deployer.key.accAddress, strategy, newCodeId, {}),
+      new MsgMigrateContract(deployer.key.accAddress, field, newCodeId, {}),
     ])
   ).to.be.rejectedWith("unimplemented");
 
@@ -1214,7 +1195,7 @@ async function testMigrate() {
 }
 
 //----------------------------------------------------------------------------------------
-// MAIN
+// Main
 //----------------------------------------------------------------------------------------
 
 (async () => {
@@ -1245,3 +1226,81 @@ async function testMigrate() {
 
   console.log("");
 })();
+
+//----------------------------------------------------------------------------------------
+// Helper Functions
+//----------------------------------------------------------------------------------------
+
+async function verifyConfig(expectedResponse: object) {
+  const response = await terra.wasm.contractQuery(field, {
+    config: {},
+  });
+  expect(response).to.deep.equal(expectedResponse);
+}
+
+async function verifyState(expectedResponse: object) {
+  const response = await terra.wasm.contractQuery(field, {
+    state: {},
+  });
+  expect(response).to.deep.equal(expectedResponse);
+}
+
+async function verifyPosition(user: Wallet, expectResponse: object) {
+  const response = await terra.wasm.contractQuery(field, {
+    position: {
+      user: user.key.accAddress,
+    },
+  });
+  expect(response).to.deep.equal(expectResponse);
+}
+
+async function verifyHealth(user: Wallet | null, expectedResponse: object) {
+  const response = await terra.wasm.contractQuery(field, {
+    position: {
+      user: user ? user.key.accAddress : null,
+    },
+  });
+  expect(response).to.deep.equal(expectedResponse);
+}
+
+async function verifyPositionSnapshot(user: Wallet, expectResponse: object) {
+  const response = (await terra.wasm.contractQuery(field, {
+    position_snapshot: {
+      user: user.key.accAddress,
+    },
+  })) as {
+    time: number;
+    height: number;
+    snapshot: object;
+  };
+  expect(response.snapshot).to.deep.equal(expectResponse);
+}
+
+async function verifyDebt(amount: string) {
+  const response = (await terra.wasm.contractQuery(redBank, {
+    debt: {
+      address: field,
+    },
+  })) as {
+    debts: { denom: string; amount: string }[];
+  };
+  const debt = response.debts.find((debt) => {
+    return debt.denom == "uusd";
+  });
+  expect(debt?.amount).to.equal(amount);
+}
+
+async function verifyBond(bondAmount: string) {
+  const response = await terra.wasm.contractQuery(anchorStaking, {
+    staker_info: {
+      staker: field,
+      block_height: null,
+    },
+  });
+  expect(response).to.deep.equal({
+    staker: field,
+    reward_index: "0",
+    bond_amount: bondAmount,
+    pending_reward: "1000000",
+  });
+}
