@@ -12,10 +12,7 @@ use fields_of_mars::{
     },
 };
 
-use crate::{
-    health::{compute_position_health, compute_state_health},
-    state::{Config, Position, Snapshot, State},
-};
+use crate::state::{Config, Position, Snapshot, State};
 
 //----------------------------------------------------------------------------------------
 // Entry Points
@@ -217,12 +214,12 @@ fn increase_position<S: Storage, A: Api, Q: Querier>(
             } => {
                 messages
                     .push(deposit.transfer_from_message(&user, &env.contract.address)?);
-            }
+            },
             AssetInfo::NativeToken {
                 ..
             } => {
                 deposit.assert_sent_fund(&env.message);
-            }
+            },
         }
     }
 
@@ -344,7 +341,7 @@ fn close_position<S: Storage, A: Api, Q: Querier>(
     let config_raw = Config::read(&deps.storage)?;
     let position = Position::read(&deps.storage, &user_raw)?;
 
-    let health_info = compute_position_health(deps, &user_raw)?;
+    let health_info = query_health(deps, Some(user.clone()))?;
     let ltv = health_info.ltv.unwrap();
 
     // The position must be open
@@ -433,12 +430,12 @@ fn pay_debt<S: Storage, A: Api, Q: Querier>(
             ..
         } => {
             messages.push(deposit.transfer_from_message(&user, &env.contract.address)?);
-        }
+        },
         AssetInfo::NativeToken {
             ..
         } => {
             deposit.assert_sent_fund(&env.message);
-        }
+        },
     }
 
     let callbacks = [
@@ -558,12 +555,12 @@ fn liquidate<S: Storage, A: Api, Q: Querier>(
             ..
         } => {
             messages.push(deposit.transfer_from_message(&user, &env.contract.address)?);
-        }
+        },
         AssetInfo::NativeToken {
             ..
         } => {
             deposit.assert_sent_fund(&env.message);
-        }
+        },
     }
 
     // Calculate percentage of unlocked asset that should be accredited to the liquidator
@@ -1095,7 +1092,7 @@ fn _snapshot<S: Storage, A: Api, Q: Querier>(
     let snapshot = Snapshot {
         time: env.block.time,
         height: env.block.height,
-        health: compute_position_health(&deps, &deps.api.canonical_address(&user)?)?,
+        health: query_health(&deps, Some(user.clone()))?,
         position,
     };
 
@@ -1146,9 +1143,8 @@ fn _assert_health<S: Storage, A: Api, Q: Querier>(
     _env: Env,
     user: HumanAddr,
 ) -> StdResult<HandleResponse> {
-    let user_raw = deps.api.canonical_address(&user)?;
     let config_raw = Config::read(&deps.storage)?;
-    let health_info = compute_position_health(deps, &user_raw)?;
+    let health_info = query_health(deps, Some(user.clone()))?;
 
     // If ltv is Some(ltv), we assert it is no larger than `config.max_ltv`
     // If it is None, meaning `bond_value` is zero, we assert debt is also zero
@@ -1159,14 +1155,14 @@ fn _assert_health<S: Storage, A: Api, Q: Querier>(
             } else {
                 false
             }
-        }
+        },
         None => {
             if health_info.debt_value.is_zero() {
                 true
             } else {
                 false
             }
-        }
+        },
     };
 
     // Convert `ltv` to String so that it can be recorded in logs
@@ -1227,9 +1223,68 @@ fn query_health<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     user: Option<HumanAddr>,
 ) -> StdResult<HealthResponse> {
-    if let Some(user) = user {
-        compute_position_health(&deps, &deps.api.canonical_address(&user)?)
+    let config = Config::read_normal(deps)?;
+    let state = State::read(&deps.storage)?;
+    let contract_addr = deps.api.human_address(&state.contract_addr)?;
+
+    let (bond_units, debt_units) = if let Some(user) = user {
+        let user_raw = deps.api.canonical_address(&user)?;
+        let position = Position::read(&deps.storage, &user_raw)?;
+        (position.bond_units, position.debt_units)
     } else {
-        compute_state_health(&deps)
-    }
+        (state.total_bond_units, state.total_debt_units)
+    };
+
+    // Info of the TerraSwap pool
+    let pool_info =
+        config.swap.query_pool(&deps, &config.long_asset, &config.short_asset)?;
+
+    // Total amount of debt owed to Mars
+    let total_debt =
+        config.red_bank.query_debt(&deps, &contract_addr, &config.short_asset)?;
+
+    // Total amount of share tokens bonded in the staking contract
+    let total_bond = config.staking.query_bond(&deps, &contract_addr)?;
+
+    // Value of each units of share, measured in the short asset
+    // Note: Here we don't check whether `pool_info.share_supply` is zero here because
+    // in practice it should never be zero
+    let share_value = Decimal::from_ratio(
+        pool_info.short_depth + pool_info.short_depth,
+        pool_info.share_supply,
+    );
+
+    // Amount of bonded shares assigned to the user
+    // Note: must handle division by zero!
+    let bond_amount = if state.total_bond_units.is_zero() {
+        Uint128::zero()
+    } else {
+        total_bond.multiply_ratio(bond_units, state.total_bond_units)
+    };
+
+    // Value of bonded shares assigned to the user
+    let bond_value = bond_amount * share_value;
+
+    // Value of debt assigned to the user
+    // Note: must handle division by zero!
+    let debt_value = if state.total_debt_units.is_zero() {
+        Uint128::zero()
+    } else {
+        total_debt.multiply_ratio(debt_units, state.total_debt_units)
+    };
+
+    // Loan-to-value ratio
+    // Note: must handle division by zero!
+    // `bond_units` can be zero if the position has been closed, pending liquidation
+    let ltv = if bond_value.is_zero() {
+        None
+    } else {
+        Some(Decimal::from_ratio(debt_value, bond_value))
+    };
+
+    Ok(HealthResponse {
+        bond_value,
+        debt_value,
+        ltv,
+    })
 }
