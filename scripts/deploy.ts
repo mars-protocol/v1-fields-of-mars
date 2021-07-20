@@ -6,7 +6,7 @@ import { LCDClient, MnemonicKey, Wallet } from "@terra-money/terra.js";
 import { storeCode, instantiateContract } from "./helpers";
 
 //----------------------------------------------------------------------------------------
-// CONTRACT ADDRESSES
+// Contract Addresses
 //----------------------------------------------------------------------------------------
 
 const COLUMBUS_CONTRACTS = {
@@ -46,7 +46,7 @@ const TEQUILA_CONTRACTS = {
 };
 
 //----------------------------------------------------------------------------------------
-// PARSE INPUT PARAMETERS
+// Parse Input Parameters
 //----------------------------------------------------------------------------------------
 
 // Parse .env
@@ -95,7 +95,20 @@ if (!["columbus", "tequila"].includes(argv.network)) {
 
   contracts = argv.network == "columbus" ? COLUMBUS_CONTRACTS : TEQUILA_CONTRACTS;
 
-  console.log(`Using network ${chalk.cyan(argv.network)}`);
+  console.log(`\nNetwork  : ${chalk.cyan(argv.network)}`);
+}
+
+if (!["anchor", "mirror"].includes(argv.strategy)) {
+  console.log(chalk.red("Error!"), "Invalid strategy: must be 'anchor' or 'mirror'");
+  process.exit(0);
+} else {
+  console.log(`Strategy : ${chalk.cyan(argv.strategy)}`);
+}
+
+if (argv["code-id"] == 0) {
+  console.log(`Code ID  : ${chalk.yellow("unspecified")}`);
+} else {
+  console.log(`Code     : ${chalk.cyan(argv["code-id"])}`);
 }
 
 if (!process.env.MNEMONIC) {
@@ -107,26 +120,11 @@ if (!process.env.MNEMONIC) {
       mnemonic: process.env.MNEMONIC,
     })
   );
-  console.log(`Using deployer ${chalk.cyan(deployer.key.accAddress)}`);
-}
-
-if (!["anchor", "mirror"].includes(argv.strategy)) {
-  console.log(chalk.red("Error!"), "Invalid strategy: must be 'anchor' or 'mirror'");
-  process.exit(0);
-} else {
-  console.log(`Using strategy ${chalk.cyan(argv.strategy)}`);
-}
-
-if (argv["code-id"] == 0) {
-  console.log(
-    chalk.yellow("Warning!", "Code ID not provided. Will upload contract code")
-  );
-} else {
-  console.log(`Using code ID ${chalk.cyan(argv["code-id"])}`);
+  console.log(`Deployer : ${chalk.cyan(deployer.key.accAddress)}\n`);
 }
 
 //----------------------------------------------------------------------------------------
-// DEPLOY CONTRACT
+// Deploy Martian Field
 //----------------------------------------------------------------------------------------
 
 (async () => {
@@ -137,7 +135,7 @@ if (argv["code-id"] == 0) {
     const codeId = await storeCode(
       terra,
       deployer,
-      path.resolve("../artifacts/strategy_anc_ust.wasm")
+      path.resolve("../artifacts/martian_field.wasm")
     );
 
     console.log("Done!", `${chalk.blue("codeId")}=${codeId}`);
@@ -147,40 +145,67 @@ if (argv["code-id"] == 0) {
   // Deploy the contract
   process.stdout.write("Instantiating contract... ");
 
+  const initMsg = {
+    long_asset: {
+      token: {
+        contract_addr:
+          argv.strategy == "anchor" ? contracts.anchor.token : contracts.mirror.token,
+      },
+    },
+    short_asset: {
+      native_token: {
+        denom: "uusd",
+      },
+    },
+    red_bank: {
+      contract_addr: contracts.mars.redBank,
+    },
+    swap:
+      argv.strategy == "anchor"
+        ? {
+            pair: contracts.anchor.terraswapPair,
+            share_token: contracts.anchor.terraswapLpToken,
+          }
+        : {
+            pair: contracts.mirror.terraswapPair,
+            share_token: contracts.mirror.terraswapLpToken,
+          },
+    staking:
+      argv.strategy == "anchor"
+        ? {
+            anchor: {
+              contract_addr: contracts.anchor.staking,
+              asset_token: contracts.anchor.token,
+              staking_token: contracts.anchor.terraswapLpToken,
+            },
+          }
+        : {
+            mirror: {
+              contract_addr: contracts.mirror.staking,
+              asset_token: contracts.mirror.token,
+              staking_token: contracts.mirror.terraswapLpToken,
+            },
+          },
+    keepers: [deployer.key.accAddress],
+    treasury: deployer.key.accAddress,
+    governance: deployer.key.accAddress,
+    max_ltv: "0.67",
+    fee_rate: "0.10",
+  };
+
   const result = await instantiateContract(
     terra,
     deployer,
     argv["code-id"],
-    {
-      owner: deployer.key.accAddress,
-      operators: [deployer.key.accAddress],
-      treasury: deployer.key.accAddress,
-      asset_token:
-        argv.strategy == "anchor" ? contracts.anchor.token : contracts.mirror.token,
-      reward_token:
-        argv.strategy == "anchor" ? contracts.anchor.token : contracts.mirror.token,
-      pool:
-        argv.strategy == "anchor"
-          ? contracts.anchor.terraswapPair
-          : contracts.mirror.terraswapPair,
-      pool_token:
-        argv.strategy == "anchor"
-          ? contracts.anchor.terraswapLpToken
-          : contracts.mirror.terraswapLpToken,
-      red_bank: contracts.mars.redBank,
-      staking_contract:
-        argv.strategy == "anchor" ? contracts.anchor.staking : contracts.mirror.staking,
-      staking_type: argv.strategy,
-      max_ltv: "0.67",
-      performance_fee_rate: "0.20",
-      liquidation_fee_rate: "0.05",
-    },
+    initMsg,
     undefined, // coins
     true // INPORTANT: migratable needs to be set to true
   );
 
   console.log(
     "Done!",
-    `${chalk.blue("contractAddress")}=${result.logs[0].events[2].attributes[2].value}`
+    `${chalk.blue("contractAddress")}=${result.logs[0].events[0].attributes[2].value}`
   );
+
+  console.log("\nInitMsg =", initMsg, "\n");
 })();
