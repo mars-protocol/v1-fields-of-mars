@@ -1,5 +1,4 @@
 import * as path from "path";
-import BN from "bn.js";
 import chalk from "chalk";
 import chai from "chai";
 import chaiAsPromised from "chai-as-promised";
@@ -18,8 +17,6 @@ import {
   deployTerraswapToken,
 } from "./fixture";
 import {
-  GAS_AMOUNT,
-  queryNativeTokenBalance,
   queryTokenBalance,
   sendTransaction,
   storeCode,
