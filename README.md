@@ -44,7 +44,7 @@ The strategy also tracks each user's loan-to-value ratio (LTV). If a user's LTV 
 
 Martian Field makes extensive use of [CosmWasm's callback pattern](https://github.com/CosmWasm/cosmwasm-plus/blob/main/PATTERNS.md#callbacks). Each callback is a portable building block that can be combined to in the execution of complex tasks, illustrated as follows:
 
-![](design.png)
+![](callbacks.png)
 
 ## Development
 
