@@ -230,7 +230,7 @@ export async function deployMartianField(
     true // IMPORTANT: migratable set to true
   );
 
-  const contractAddress = result.logs[0].events[1].attributes[2].value;
+  const contractAddress = result.logs[0].events[0].attributes[2].value;
 
   console.log(
     chalk.green("Done!"),

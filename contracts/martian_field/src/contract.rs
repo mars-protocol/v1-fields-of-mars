@@ -57,7 +57,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             user,
             deposit,
         } => liquidate(deps, env, user, deposit),
-        HandleMsg::Harvest {} => harvest(deps, env),
+        HandleMsg::Harvest {
+            ..
+        } => harvest(deps, env),
         HandleMsg::UpdateConfig {
             new_config,
         } => update_config(deps, env, new_config),
@@ -106,6 +108,9 @@ fn _handle_callback<S: Storage, A: Api, Q: Querier>(
         CallbackMsg::Snapshot {
             user,
         } => _snapshot(deps, env, user),
+        CallbackMsg::Purge {
+            user,
+        } => _purge(deps, env, user),
         CallbackMsg::AssertHealth {
             user,
         } => _assert_health(deps, env, user),
@@ -301,6 +306,9 @@ fn reduce_position<S: Storage, A: Api, Q: Querier>(
             percentage: Decimal::one(),
         },
         CallbackMsg::Snapshot {
+            user: user.clone(),
+        },
+        CallbackMsg::Purge {
             user: user.clone(),
         },
     ]);
@@ -576,6 +584,9 @@ fn liquidate<S: Storage, A: Api, Q: Querier>(
             recipient: env.message.sender.clone(),
             percentage,
         },
+        CallbackMsg::Purge {
+            user: user.clone(),
+        },
     ];
 
     messages.extend(
@@ -635,12 +646,12 @@ fn _provide_liquidity<S: Storage, A: Api, Q: Querier>(
     ];
 
     // The amount of shares to expect to receive
-    let new_shares = config.swap.simulate_provide(deps, &deposits)?;
+    let shares = config.swap.simulate_provide(deps, &deposits)?;
 
     // Update unlocked asset amounts
     position.unlocked_assets[0].amount = Uint128::zero(); // long asset
     position.unlocked_assets[1].amount = Uint128::zero(); // short asset
-    position.unlocked_assets[2].amount += new_shares; // share tokens
+    position.unlocked_assets[2].amount += shares; // share tokens
     position.write(&mut deps.storage, &user_raw)?;
 
     Ok(HandleResponse {
@@ -650,7 +661,7 @@ fn _provide_liquidity<S: Storage, A: Api, Q: Querier>(
             log("user", user),
             log("long_provided", deposits[0].amount),
             log("short_provided", deposits[1].amount),
-            log("new_shares", new_shares),
+            log("shares_received", shares),
         ],
         data: None,
     })
@@ -691,6 +702,8 @@ fn _remove_liquidity<S: Storage, A: Api, Q: Querier>(
         log: vec![
             log("action", "field_of_mars::CallbackMsg::RemoveLiquidity"),
             log("shares_burned", shares),
+            log("long_received", return_amounts[0]),
+            log("short_received", return_amounts[1]),
         ],
         data: None,
     })
@@ -717,11 +730,17 @@ fn _bond<S: Storage, A: Api, Q: Querier>(
 
     // Calculate how many bond units the user should be accredited
     // We define the initial bond unit = 100,000 units per share bonded
-    let bond_units_to_add = if total_bond.is_zero() {
+    let mut bond_units_to_add = if total_bond.is_zero() {
         bond_amount.multiply_ratio(1_000_000u128, 1u128)
     } else {
         state.total_bond_units.multiply_ratio(bond_amount, total_bond)
     };
+
+    // If user is the contract itself, which is the case during harvest, then we don't
+    // increment bond units
+    if user == env.contract.address {
+        bond_units_to_add = Uint128::zero();
+    }
 
     // Update state
     state.total_bond_units += bond_units_to_add;
@@ -851,7 +870,7 @@ fn _borrow<S: Storage, A: Api, Q: Querier>(
             messages: vec![],
             log: vec![
                 log("action", "martian_field::CallbackMsg::Borrow"),
-                log("warning", "SKIPPED: borrow amount is zero!"),
+                log("warning", "skipped: borrow amount is zero!"),
             ],
             data: None,
         }
@@ -930,7 +949,7 @@ fn _repay<S: Storage, A: Api, Q: Querier>(
             messages: vec![],
             log: vec![
                 log("action", "martian_field::CallbackMsg::Repay"),
-                log("warning", "SKIPPED: repay amount is zero!"),
+                log("warning", "skipped: repay amount is zero!"),
             ],
             data: None,
         }
@@ -955,14 +974,14 @@ fn _swap<S: Storage, A: Api, Q: Querier>(
     let fee = amount * config.fee_rate;
     let amount_after_fee = (amount - fee)?;
 
-    // Amount of reward (long asset) to retain (not to be swapped)
-    let retain_amount = (amount_after_fee - fee)?;
+    // Half of the reward is to be retained, not swapped
+    let retain_amount = amount_after_fee * Decimal::from_ratio(1u128, 2u128);
 
-    // Calculate the amount of reward to be swapped
+    // The amount of reward to be swapped
     // Note: here we assume `long_token` == `reward_token`. This is the case for popular
     // farms e.g. ANC, MIR, MINE, but not for mAsset farms.
     // MAsset support may be added in a future version
-    let offer_amount = amount_after_fee * Decimal::from_ratio(1u128, 2u128);
+    let offer_amount = (amount_after_fee - retain_amount)?;
     let offer_amount_after_tax = config.long_asset.deduct_tax(deps, offer_amount)?;
 
     // Note: must deduct tax here
@@ -992,14 +1011,14 @@ fn _swap<S: Storage, A: Api, Q: Querier>(
             config.swap.swap_message(&offer_asset)?,
         ],
         log: vec![
-            log("action", "fields_of_mars::CallbackMsg::SwapReward"),
+            log("action", "martian_field::CallbackMsg::Swap"),
             log("amount", amount),
             log("fee_amount", fee),
             log("retain_amount", retain_amount),
             log("offer_amount", offer_amount),
-            log("offer_amount_after_tax", offer_amount_after_tax),
+            log("offer_after_tax", offer_amount_after_tax),
             log("return_amount", return_amount),
-            log("return_amount_after_tax", return_amount_after_tax),
+            log("return_after_tax", return_amount_after_tax),
         ],
         data: None,
     })
@@ -1037,9 +1056,12 @@ fn _refund<S: Storage, A: Api, Q: Querier>(
     position.write(&mut deps.storage, &user_raw)?;
 
     // Generate messages for the transfers
-    // Note: `asset.transfer_message` does tax deduction so no need to do it here
+    // Notes:
+    // 1. Must filter off assets whose amounts are zero
+    // 2. `asset.transfer_message` does tax deduction so no need to do it here
     let messages = assets
         .iter()
+        .filter(|asset| !asset.amount.is_zero())
         .map(|asset| asset.transfer_message(deps, &user, &recipient).unwrap())
         .collect();
 
@@ -1070,39 +1092,50 @@ fn _snapshot<S: Storage, A: Api, Q: Querier>(
     let user_raw = deps.api.canonical_address(&user)?;
     let position = Position::read(&deps.storage, &user_raw)?;
 
-    let response = if position.is_empty() {
-        Position::delete(&mut deps.storage, &user_raw);
-        Snapshot::delete(&mut deps.storage, &user_raw);
-
-        HandleResponse {
-            messages: vec![],
-            log: vec![
-                log("action", "martian_field::CallbackMsg::Snapshot"),
-                log("user", user),
-                log("warning", "SKIPPED: deleted empty position"),
-            ],
-            data: None,
-        }
-    } else {
-        let snapshot = Snapshot {
-            time: env.block.time,
-            height: env.block.height,
-            health: compute_position_health(&deps, &deps.api.canonical_address(&user)?)?,
-            position,
-        };
-        snapshot.write(&mut deps.storage, &user_raw)?;
-
-        HandleResponse {
-            messages: vec![],
-            log: vec![
-                log("action", "martian_field::CallbackMsg::Snapshot"),
-                log("user", user),
-            ],
-            data: None,
-        }
+    let snapshot = Snapshot {
+        time: env.block.time,
+        height: env.block.height,
+        health: compute_position_health(&deps, &deps.api.canonical_address(&user)?)?,
+        position,
     };
 
-    Ok(response)
+    snapshot.write(&mut deps.storage, &user_raw)?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "martian_field::CallbackMsg::Snapshot"),
+            log("user", user),
+        ],
+        data: None,
+    })
+}
+
+/**
+ * @notice Delete data of a position if it is empty (completely withdrawn or liquidated)
+ */
+fn _purge<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    _env: Env,
+    user: HumanAddr,
+) -> StdResult<HandleResponse> {
+    let user_raw = deps.api.canonical_address(&user)?;
+    let position = Position::read(&deps.storage, &user_raw)?;
+
+    if position.is_empty() {
+        Position::delete(&mut deps.storage, &user_raw);
+        Snapshot::delete(&mut deps.storage, &user_raw);
+    }
+
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "martian_field::CallbackMsg::Purge"),
+            log("user", user),
+            log("purged", position.is_empty()),
+        ],
+        data: None,
+    })
 }
 
 /**
@@ -1117,22 +1150,44 @@ fn _assert_health<S: Storage, A: Api, Q: Querier>(
     let config_raw = Config::read(&deps.storage)?;
     let health_info = compute_position_health(deps, &user_raw)?;
 
-    // LTV should only be `None` if `bond_valeue` is zero, i.e. position is closed
-    // Therefore we can safely unwrap here
-    let ltv = health_info.ltv.unwrap();
+    // If ltv is Some(ltv), we assert it is no larger than `config.max_ltv`
+    // If it is None, meaning `bond_value` is zero, we assert debt is also zero
+    let healthy = match health_info.ltv {
+        Some(ltv) => {
+            if ltv <= config_raw.max_ltv {
+                true
+            } else {
+                false
+            }
+        }
+        None => {
+            if health_info.debt_value.is_zero() {
+                true
+            } else {
+                false
+            }
+        }
+    };
 
-    if ltv > config_raw.max_ltv {
-        Err(StdError::generic_err("LTV is greater than liquidation threshold!"))
+    // Convert `ltv` to String so that it can be recorded in logs
+    let ltv_str = if let Some(ltv) = health_info.ltv {
+        format!("{}", ltv)
     } else {
+        String::from("null")
+    };
+
+    if healthy {
         Ok(HandleResponse {
             messages: vec![],
             log: vec![
                 log("action", "martian_field::CallbackMsg::AssertHealth"),
                 log("user", user),
-                log("ltv", ltv),
+                log("ltv", ltv_str),
             ],
             data: None,
         })
+    } else {
+        Err(StdError::generic_err("LTV is greater than liquidation threshold!"))
     }
 }
 

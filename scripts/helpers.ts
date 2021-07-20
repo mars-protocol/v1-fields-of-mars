@@ -24,7 +24,8 @@ export const DECIMAL_FRACTION = new BN("1_000_000_000_000_000_000");
 export async function sendTransaction(
   terra: LocalTerra | LCDClient,
   sender: Wallet,
-  msgs: Msg[]
+  msgs: Msg[],
+  printLogInfo = false
 ) {
   const tx = await sender.createAndSignTx({
     msgs,
@@ -33,7 +34,18 @@ export async function sendTransaction(
       new Coin("uusd", GAS_AMOUNT),
     ]),
   });
+
   const result = await terra.tx.broadcast(tx);
+
+  // Print the log info
+  if (printLogInfo) {
+    try {
+      console.log(JSON.stringify(JSON.parse(result.raw_log), null, 2));
+    } catch {
+      console.log("Failed to parse log! Raw log:", result.raw_log);
+    }
+  }
+
   if (isTxError(result)) {
     throw new Error(
       chalk.red("Transaction failed!") +
@@ -42,6 +54,7 @@ export async function sendTransaction(
         `\n${chalk.yellow("raw_log")}: ${result.raw_log}`
     );
   }
+
   return result;
 }
 

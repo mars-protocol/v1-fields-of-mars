@@ -146,6 +146,10 @@ pub enum CallbackMsg {
     Snapshot {
         user: HumanAddr,
     },
+    /// Delete data of a position if it is empty (completely withdrawn or liquidated)
+    Purge {
+        user: HumanAddr,
+    },
     /// Check if a user's LTV is below liquidation threshold; throw an error if not
     AssertHealth {
         user: HumanAddr,

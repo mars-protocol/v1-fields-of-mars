@@ -220,7 +220,9 @@ impl AssetInfo {
                     }
                 }
                 None => {
-                    panic!("sent fund mismatch!");
+                    if !amount.is_zero() {
+                        panic!("sent fund mismatch!");
+                    }
                 }
             }
         }
@@ -355,14 +357,14 @@ impl AssetInfo {
         deps: &Extern<S, A, Q>,
         amount: Uint128,
     ) -> StdResult<Uint128> {
-        match &self {
+        let tax = match &self {
             Self::Token {
                 ..
-            } => Ok(Uint128::zero()),
+            } => Uint128::zero(),
             Self::NativeToken {
                 denom,
             } => {
-                let tax = if denom == "luna" {
+                if denom == "luna" {
                     Uint128::zero()
                 } else {
                     let terra_querier = TerraQuerier::new(&deps.querier);
@@ -376,10 +378,10 @@ impl AssetInfo {
                             ))?,
                         tax_cap,
                     )
-                };
-                amount - tax
+                }
             }
-        }
+        };
+        amount - tax
     }
 
     /// @notice Update the asset amount to reflect the total amount needed to deliver the
@@ -391,24 +393,24 @@ impl AssetInfo {
         deps: &Extern<S, A, Q>,
         amount: Uint128,
     ) -> StdResult<Uint128> {
-        match &self {
+        let tax = match &self {
             Self::Token {
                 ..
-            } => Ok(amount),
+            } => Uint128::zero(),
             Self::NativeToken {
                 denom,
             } => {
-                let tax = if denom == "luna" {
+                if denom == "luna" {
                     Uint128::zero()
                 } else {
                     let terra_querier = TerraQuerier::new(&deps.querier);
                     let tax_rate = terra_querier.query_tax_rate()?.rate;
                     let tax_cap = terra_querier.query_tax_cap(String::from(denom))?.cap;
                     std::cmp::min(amount * tax_rate, tax_cap)
-                };
-                Ok(amount + tax)
+                }
             }
-        }
+        };
+        Ok(amount + tax)
     }
 }
 
