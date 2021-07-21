@@ -1,46 +1,50 @@
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
-    log, to_binary, Api, BankMsg, Binary, Coin, Env, Extern, HandleResponse, HumanAddr,
-    InitResponse, MigrateResponse, Querier, StdError, StdResult, Storage, Uint128,
+    attr, to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response,
+    StdError, StdResult, SubMsg, Uint128,
 };
 use terra_cosmwasm::TerraQuerier;
 
 use field_of_mars::red_bank::{
-    DebtInfo, DebtResponse, HandleMsg, MockInitMsg, MockMigrateMsg, QueryMsg,
+    DebtInfo, DebtResponse, ExecuteMsg, MockInstantiateMsg, MockMigrateMsg, QueryMsg,
     RedBankAsset as Asset,
 };
 
-use crate::state::{read_config, read_position, write_config, write_position, Config};
+use crate::state::{Config, Position};
 
-static DECIMAL_FRACTION: Uint128 = Uint128(1_000_000_000_000_000_000u128);
+static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 
 //----------------------------------------------------------------------------------------
 // Entry Points
 //----------------------------------------------------------------------------------------
 
-pub fn init<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn instantiate(
+    deps: DepsMut,
     _env: Env,
-    msg: MockInitMsg,
-) -> StdResult<InitResponse> {
-    write_config(
-        &mut deps.storage,
-        &Config {
-            mock_interest_rate: msg
-                .mock_interest_rate
-                .unwrap_or_else(|| Decimal256::one()),
-        },
-    )?;
-    Ok(InitResponse::default())
+    _info: MessageInfo,
+    msg: MockInstantiateMsg,
+) -> StdResult<Response> {
+    let config = Config {
+        mock_interest_rate: msg.mock_interest_rate.unwrap_or(Decimal256::one()),
+    };
+    config.write(deps.storage)?;
+
+    Ok(Response {
+        messages: vec![],
+        attributes: vec![attr("mock_interest_rate", config.mock_interest_rate)],
+        events: vec![],
+        data: None,
+    })
 }
 
-pub fn handle<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute(
+    deps: DepsMut,
     env: Env,
-    msg: HandleMsg,
-) -> StdResult<HandleResponse> {
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> StdResult<Response> {
     match msg {
-        HandleMsg::Borrow {
+        ExecuteMsg::Borrow {
             asset,
             amount,
         } => match asset {
@@ -48,23 +52,19 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
                 denom,
             } => {
                 if denom == "uluna" || denom == "uusd" {
-                    borrow(deps, env, &denom[..], amount)
+                    borrow(deps, env, info, &denom[..], amount)
                 } else {
                     Err(StdError::generic_err("unimplemented"))
                 }
             }
             _ => Err(StdError::generic_err("unimplemented")),
         },
-        HandleMsg::RepayNative {
+        ExecuteMsg::RepayNative {
             denom,
         } => {
             if denom == "uluna" || denom == "uusd" {
-                repay(
-                    deps,
-                    env.clone(),
-                    &denom[..],
-                    get_denom_amount_from_coins(&env.message.sent_funds, &denom[..]),
-                )
+                let amount = get_denom_amount_from_coins(&info.funds, &denom[..]);
+                repay(deps, env, info, &denom[..], amount)
             } else {
                 Err(StdError::generic_err("unimplemented"))
             }
@@ -73,89 +73,90 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Debt {
             address,
-        } => to_binary(&query_debt(deps, address)?),
+        } => to_binary(&query_debt(deps, env, address)?),
     }
 }
 
-pub fn migrate<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    _env: Env,
-    msg: MockMigrateMsg,
-) -> StdResult<MigrateResponse> {
-    write_config(
-        &mut deps.storage,
-        &Config {
-            mock_interest_rate: msg.mock_interest_rate.unwrap(),
-        },
-    )?;
-    Ok(MigrateResponse::default())
+pub fn migrate(deps: DepsMut, _env: Env, msg: MockMigrateMsg) -> StdResult<Response> {
+    let config = Config {
+        mock_interest_rate: msg.mock_interest_rate.unwrap_or(Decimal256::one()),
+    };
+    config.write(deps.storage)?;
+
+    Ok(Response {
+        messages: vec![],
+        attributes: vec![attr("mock_interest_rate", config.mock_interest_rate)],
+        events: vec![],
+        data: None,
+    })
 }
 
 //----------------------------------------------------------------------------------------
 // Handle Functions
 //----------------------------------------------------------------------------------------
 
-fn borrow<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
+fn borrow(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
     denom: &str,
     amount: Uint256,
-) -> StdResult<HandleResponse> {
-    let user_raw = deps.api.canonical_address(&env.message.sender)?;
-    let mut position = read_position(&deps.storage, &user_raw, denom).unwrap_or_default();
-    position.borrowed_amount += amount;
-    write_position(&mut deps.storage, &user_raw, denom, &position)?;
+) -> StdResult<Response> {
+    let user_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
 
-    Ok(HandleResponse {
-        messages: vec![BankMsg::Send {
-            from_address: env.contract.address,
-            to_address: env.message.sender.clone(),
+    let mut position = Position::read(deps.storage, denom, &user_raw).unwrap_or_default();
+    position.borrowed_amount += amount;
+    position.write(deps.storage, denom, &user_raw)?;
+
+    Ok(Response {
+        messages: vec![SubMsg::new(BankMsg::Send {
+            to_address: String::from(&info.sender),
             amount: vec![Coin {
                 denom: denom.to_string(),
-                amount: deduct_tax(&deps, amount.into(), denom)?,
+                amount: deduct_tax(deps.as_ref(), denom, amount.into())?,
             }],
-        }
-        .into()],
-        log: vec![
-            log("user", env.message.sender),
-            log("denom", denom),
-            log("amount", amount),
-            log("borrowed_amount", position.borrowed_amount),
+        })],
+        attributes: vec![
+            attr("user", info.sender),
+            attr("denom", denom),
+            attr("amount", amount),
+            attr("borrowed_amount", position.borrowed_amount),
         ],
+        events: vec![],
         data: None,
     })
 }
 
-fn repay<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
+fn repay(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
     denom: &str,
     amount: Uint256,
-) -> StdResult<HandleResponse> {
-    let user_raw = deps.api.canonical_address(&env.message.sender)?;
-    let config = read_config(&deps.storage)?;
-    let mut position = read_position(&deps.storage, &user_raw, denom).unwrap_or_default();
+) -> StdResult<Response> {
+    let user_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
 
+    let config = Config::read(deps.storage)?;
     let scaled_amount = amount / config.mock_interest_rate;
-    position.borrowed_amount = position.borrowed_amount - scaled_amount;
-    write_position(&mut deps.storage, &user_raw, denom, &position)?;
 
-    Ok(HandleResponse {
+    let mut position = Position::read(deps.storage, denom, &user_raw).unwrap_or_default();
+    position.borrowed_amount = position.borrowed_amount - scaled_amount;
+    position.write(deps.storage, denom, &user_raw)?;
+
+    Ok(Response {
         messages: vec![],
-        log: vec![
-            log("user", env.message.sender),
-            log("denom", denom),
-            log("amount", amount),
-            log("scaled_amount", scaled_amount),
-            log("borrowed_amount", position.borrowed_amount),
+        attributes: vec![
+            attr("user", info.sender),
+            attr("denom", denom),
+            attr("amount", amount),
+            attr("scaled_amount", scaled_amount),
+            attr("borrowed_amount", position.borrowed_amount),
         ],
+        events: vec![],
         data: None,
     })
 }
@@ -164,19 +165,15 @@ fn repay<S: Storage, A: Api, Q: Querier>(
 // Query Functions
 //----------------------------------------------------------------------------------------
 
-fn query_debt<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    user: HumanAddr,
-) -> StdResult<DebtResponse> {
-    let user_raw = deps.api.canonical_address(&user)?;
-    let config = read_config(&deps.storage)?;
+fn query_debt(deps: Deps, _env: Env, user: String) -> StdResult<DebtResponse> {
+    let user_raw = deps.api.addr_canonicalize(&user)?;
+    let config = Config::read(deps.storage)?;
 
-    let denoms = vec!["uluna", "uusd"];
-    let debts = denoms
+    let debts = ["uluna", "uusd"]
         .iter()
         .map(|denom| DebtInfo {
             denom: denom.to_string(),
-            amount: read_position(&deps.storage, &user_raw, denom)
+            amount: Position::read(deps.storage, denom, &user_raw)
                 .unwrap_or_default()
                 .borrowed_amount
                 * config.mock_interest_rate,
@@ -197,30 +194,23 @@ fn get_denom_amount_from_coins(coins: &[Coin], denom: &str) -> Uint256 {
         .iter()
         .find(|c| c.denom == denom)
         .map(|c| Uint256::from(c.amount))
-        .unwrap_or_else(Uint256::zero)
+        .unwrap_or(Uint256::zero())
 }
 
-fn deduct_tax<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    amount: Uint128,
-    denom: &str,
-) -> StdResult<Uint128> {
+fn deduct_tax(deps: Deps, denom: &str, amount: Uint128) -> StdResult<Uint128> {
     let tax = if denom == "uluna" {
-        Ok(Uint128::zero())
+        Uint128::zero()
     } else {
         let terra_querier = TerraQuerier::new(&deps.querier);
         let tax_rate = terra_querier.query_tax_rate()?.rate;
         let tax_cap = terra_querier.query_tax_cap(denom.to_string())?.cap;
-
-        Ok(std::cmp::min(
-            (amount
-                - amount.multiply_ratio(
-                    DECIMAL_FRACTION,
-                    DECIMAL_FRACTION * tax_rate + DECIMAL_FRACTION,
-                ))?,
+        std::cmp::min(
+            amount.checked_sub(amount.multiply_ratio(
+                DECIMAL_FRACTION,
+                DECIMAL_FRACTION * tax_rate + DECIMAL_FRACTION,
+            ))?,
             tax_cap,
-        ))
+        )
     };
-
-    amount - tax?
+    Ok(amount - tax)
 }

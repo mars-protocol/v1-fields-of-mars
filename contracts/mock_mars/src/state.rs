@@ -1,20 +1,34 @@
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{CanonicalAddr, StdResult, Storage};
-use cosmwasm_storage::{singleton, singleton_read, Bucket, ReadonlyBucket};
+use cosmwasm_storage::{Bucket, ReadonlyBucket, ReadonlySingleton, Singleton};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub static KEY_CONFIG: &[u8] = b"config";
-pub static PREFIX_POSITION: &[u8] = b"users";
+pub static NAMESPACE_POSITION: &[u8] = b"users";
 
 //----------------------------------------------------------------------------------------
-// Storage Types
+// Config
 //----------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub mock_interest_rate: Decimal256,
 }
+
+impl Config {
+    pub fn write(&self, storage: &mut dyn Storage) -> StdResult<()> {
+        Singleton::new(storage, KEY_CONFIG).save(self)
+    }
+
+    pub fn read(storage: &dyn Storage) -> StdResult<Self> {
+        ReadonlySingleton::new(storage, KEY_CONFIG).load()
+    }
+}
+
+//----------------------------------------------------------------------------------------
+// Position
+//----------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Position {
@@ -29,33 +43,23 @@ impl Default for Position {
     }
 }
 
-//----------------------------------------------------------------------------------------
-// Read/Write Functions
-//----------------------------------------------------------------------------------------
+impl Position {
+    pub fn write(
+        &self,
+        storage: &mut dyn Storage,
+        denom: &str,
+        user: &CanonicalAddr,
+    ) -> StdResult<()> {
+        Bucket::multilevel(storage, &[NAMESPACE_POSITION, denom.as_bytes()])
+            .save(user.as_slice(), self)
+    }
 
-pub fn read_config<S: Storage>(storage: &S) -> StdResult<Config> {
-    singleton_read(storage, KEY_CONFIG).load()
-}
-
-pub fn write_config<S: Storage>(storage: &mut S, config: &Config) -> StdResult<()> {
-    singleton(storage, KEY_CONFIG).save(config)
-}
-
-pub fn read_position<S: Storage>(
-    storage: &S,
-    user: &CanonicalAddr,
-    asset: &str,
-) -> StdResult<Position> {
-    ReadonlyBucket::multilevel(&[PREFIX_POSITION, asset.as_bytes()], storage)
-        .load(user.as_slice())
-}
-
-pub fn write_position<S: Storage>(
-    storage: &mut S,
-    user: &CanonicalAddr,
-    asset: &str,
-    position: &Position,
-) -> StdResult<()> {
-    Bucket::multilevel(&[PREFIX_POSITION, asset.as_bytes()], storage)
-        .save(user.as_slice(), position)
+    pub fn read(
+        storage: &dyn Storage,
+        denom: &str,
+        user: &CanonicalAddr,
+    ) -> StdResult<Self> {
+        ReadonlyBucket::multilevel(storage, &[NAMESPACE_POSITION, denom.as_bytes()])
+            .load(user.as_slice())
+    }
 }
