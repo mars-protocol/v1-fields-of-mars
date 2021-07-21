@@ -91,7 +91,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MockMigrateMsg) -> StdResult<Respo
 }
 
 //----------------------------------------------------------------------------------------
-// Handle Functions
+// Execute Functions
 //----------------------------------------------------------------------------------------
 
 fn borrow(
