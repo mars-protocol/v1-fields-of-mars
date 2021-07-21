@@ -1,8 +1,8 @@
 use cosmwasm_std::{
-    to_binary, Api, CanonicalAddr, Coin, CosmosMsg, Decimal, Extern, HumanAddr, Querier,
-    QueryRequest, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
+    to_binary, Coin, CosmosMsg, Decimal, QuerierWrapper, QueryRequest, StdResult,
+    Uint128, WasmMsg, WasmQuery,
 };
-use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use integer_sqrt::IntegerSquareRoot;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -25,7 +25,7 @@ pub enum HandleMsg {
         offer_asset: Asset,
         belief_price: Option<Decimal>,
         max_spread: Option<Decimal>,
-        to: Option<HumanAddr>,
+        to: Option<String>,
     },
 }
 
@@ -35,7 +35,7 @@ pub enum Cw20HookMsg {
     Swap {
         belief_price: Option<Decimal>,
         max_spread: Option<Decimal>,
-        to: Option<HumanAddr>,
+        to: Option<String>,
     },
     WithdrawLiquidity {},
 }
@@ -69,45 +69,34 @@ pub struct SimulationResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Swap {
     /// Address of the TerraSwap pair contract
-    pub pair: HumanAddr,
+    pub pair: String,
     /// Address of the TerraSwap LP token
-    pub share_token: HumanAddr,
+    pub share_token: String,
 }
 
 impl Swap {
-    /// @notice Convert `Swap` to `SwapRaw`
-    pub fn to_raw<S: Storage, A: Api, Q: Querier>(
-        &self,
-        deps: &Extern<S, A, Q>,
-    ) -> StdResult<SwapRaw> {
-        Ok(SwapRaw {
-            pair: deps.api.canonical_address(&self.pair)?,
-            share_token: deps.api.canonical_address(&self.share_token)?,
-        })
-    }
-
     /// @notice Generate messages for providing specified assets
-    pub fn provide_messages(&self, assets: &[Asset; 2]) -> StdResult<Vec<CosmosMsg>> {
+    pub fn provide_msgs(&self, assets: &[Asset; 2]) -> StdResult<Vec<CosmosMsg>> {
         let mut messages: Vec<CosmosMsg> = vec![];
-        let mut send: Vec<Coin> = vec![];
+        let mut funds: Vec<Coin> = vec![];
 
         for asset in assets.iter() {
             match &asset.info {
                 AssetInfo::Token {
                     contract_addr,
                 } => messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: HumanAddr::from(contract_addr),
-                    send: vec![],
-                    msg: to_binary(&Cw20HandleMsg::IncreaseAllowance {
+                    contract_addr: contract_addr.clone(),
+                    msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
                         spender: self.pair.clone(),
                         amount: asset.amount,
                         expires: None,
                     })?,
+                    funds: vec![],
                 })),
                 AssetInfo::NativeToken {
                     denom,
-                } => send.push(Coin {
-                    denom: String::from(denom),
+                } => funds.push(Coin {
+                    denom: denom.clone(),
                     amount: asset.amount,
                 }),
             }
@@ -115,11 +104,11 @@ impl Swap {
 
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.pair.clone(),
-            send,
             msg: to_binary(&HandleMsg::ProvideLiquidity {
                 assets: [assets[0].clone(), assets[1].clone()],
                 slippage_tolerance: None,
             })?,
+            funds,
         }));
 
         Ok(messages)
@@ -130,12 +119,12 @@ impl Swap {
     pub fn withdraw_message(&self, shares: Uint128) -> StdResult<CosmosMsg> {
         Ok(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.share_token.clone(),
-            send: vec![],
-            msg: to_binary(&Cw20HandleMsg::Send {
+            msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: self.pair.clone(),
                 amount: shares,
-                msg: Some(to_binary(&Cw20HookMsg::WithdrawLiquidity {})?),
+                msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {})?,
             })?,
+            funds: vec![],
         }))
     }
 
@@ -145,46 +134,46 @@ impl Swap {
             AssetInfo::Token {
                 contract_addr,
             } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(contract_addr),
-                send: vec![],
-                msg: to_binary(&Cw20HandleMsg::Send {
+                contract_addr: contract_addr.clone(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: self.pair.clone(),
                     amount: asset.amount,
-                    msg: Some(to_binary(&Cw20HookMsg::Swap {
+                    msg: to_binary(&Cw20HookMsg::Swap {
                         belief_price: None,
                         max_spread: None,
                         to: None,
-                    })?),
+                    })?,
                 })?,
+                funds: vec![],
             })),
             AssetInfo::NativeToken {
                 denom,
             } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: self.pair.clone(),
-                send: vec![Coin {
-                    denom: String::from(denom),
-                    amount: asset.amount,
-                }],
                 msg: to_binary(&HandleMsg::Swap {
                     offer_asset: asset.clone(),
                     belief_price: None,
                     max_spread: None,
                     to: None,
                 })?,
+                funds: vec![Coin {
+                    denom: String::from(denom),
+                    amount: asset.amount,
+                }],
             })),
         }
     }
 
     /// @notice Query and parse pool info, including depths of the two assets as well as
     //  the supply of LP tokens.
-    pub fn query_pool<S: Storage, A: Api, Q: Querier>(
+    pub fn query_pool(
         &self,
-        deps: &Extern<S, A, Q>,
+        querier: &QuerierWrapper,
         long_info: &AssetInfo,
         short_info: &AssetInfo,
     ) -> StdResult<PoolResponseParsed> {
         let response: PoolResponse =
-            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: self.pair.clone(),
                 msg: to_binary(&QueryMsg::Pool {})?,
             }))?;
@@ -194,15 +183,17 @@ impl Swap {
     /// @notice Simulate the amount of shares to receive by providing liquidity
     /// @dev Reference:
     /// https://github.com/terraswap/terraswap/blob/master/contracts/terraswap_pair/src/contract.rs#L247
-    pub fn simulate_provide<S: Storage, A: Api, Q: Querier>(
+    pub fn simulate_provide(
         &self,
-        deps: &Extern<S, A, Q>,
+        querier: &QuerierWrapper,
         assets: &[Asset; 2],
     ) -> StdResult<Uint128> {
-        let pool_info = self.query_pool(deps, &assets[0].info, &assets[1].info)?;
+        let pool_info = self.query_pool(querier, &assets[0].info, &assets[1].info)?;
 
         let shares = if pool_info.share_supply.is_zero() {
-            Uint128((assets[0].amount.u128() * assets[1].amount.u128()).integer_sqrt())
+            Uint128::new(
+                (assets[0].amount.u128() * assets[1].amount.u128()).integer_sqrt(),
+            )
         } else {
             std::cmp::min(
                 assets[0]
@@ -219,14 +210,14 @@ impl Swap {
 
     /// @notice Simulate the amount of assets to receive by removing liquidity
     /// @dev Must deduct tax!!
-    pub fn simulate_remove<S: Storage, A: Api, Q: Querier>(
+    pub fn simulate_remove(
         &self,
-        deps: &Extern<S, A, Q>,
+        querier: &QuerierWrapper,
         shares: Uint128,
         long_info: &AssetInfo,
         short_info: &AssetInfo,
     ) -> StdResult<[Uint128; 2]> {
-        let pool_info = self.query_pool(deps, long_info, short_info)?;
+        let pool_info = self.query_pool(querier, long_info, short_info)?;
 
         let return_amounts = [
             pool_info.long_depth.multiply_ratio(shares, pool_info.share_supply),
@@ -234,21 +225,21 @@ impl Swap {
         ];
 
         let return_amounts_after_tax = [
-            long_info.deduct_tax(deps, return_amounts[0])?,
-            short_info.deduct_tax(deps, return_amounts[1])?,
+            long_info.deduct_tax(querier, return_amounts[0])?,
+            short_info.deduct_tax(querier, return_amounts[1])?,
         ];
 
         Ok(return_amounts_after_tax)
     }
 
     /// @notice Query the return amount of a swap
-    pub fn simulate_swap<S: Storage, A: Api, Q: Querier>(
+    pub fn simulate_swap(
         &self,
-        deps: &Extern<S, A, Q>,
+        querier: &QuerierWrapper,
         offer_asset: &Asset,
     ) -> StdResult<Uint128> {
         let response: SimulationResponse =
-            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: self.pair.clone(),
                 msg: to_binary(&QueryMsg::Simulation {
                     offer_asset: offer_asset.clone(),
@@ -259,32 +250,7 @@ impl Swap {
 }
 
 //----------------------------------------------------------------------------------------
-// Raw Type
-//----------------------------------------------------------------------------------------
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct SwapRaw {
-    /// Address of the TerraSwap pair contract
-    pub pair: CanonicalAddr,
-    /// Address of the TerraSwap LP token
-    pub share_token: CanonicalAddr,
-}
-
-impl SwapRaw {
-    /// @notice Convert `SwapRaw` to `Swap`
-    pub fn to_normal<S: Storage, A: Api, Q: Querier>(
-        &self,
-        deps: &Extern<S, A, Q>,
-    ) -> StdResult<Swap> {
-        Ok(Swap {
-            pair: deps.api.human_address(&self.pair)?,
-            share_token: deps.api.human_address(&self.share_token)?,
-        })
-    }
-}
-
-//----------------------------------------------------------------------------------------
-// Helper Types
+// Helper Type(s)
 //----------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

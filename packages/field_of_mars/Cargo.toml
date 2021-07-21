@@ -3,12 +3,14 @@ name = "field-of-mars"
 version = "0.3.0"
 authors = ["larry_0x <larry@delphidigital.io>"]
 edition = "2018"
+license = "UNLICENSED"
+repository = "https://github.com/mars-protocol/field-of-mars"
 
 [dependencies]
-cosmwasm-bignumber = "1.0"
-cosmwasm-std = "0.10.1"
-cw20 = "0.2"
+cosmwasm-bignumber = "2.1.0"
+cosmwasm-std = "0.15.0"
+cw20 = "0.7.0"
 integer-sqrt = "0.1.5"
-schemars = "0.7"
+schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-terra-cosmwasm = { version = "1.2.3" }
+terra-cosmwasm = "2.1.0"
