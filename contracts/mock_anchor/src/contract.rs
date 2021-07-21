@@ -85,7 +85,7 @@ fn bond(
     amount: Uint128,
 ) -> StdResult<Response> {
     let staker_raw = deps.api.addr_canonicalize(staker.as_str())?;
-    let mut position = Position::read(deps.storage, &staker_raw)?;
+    let mut position = Position::read(deps.storage, &staker_raw).unwrap_or_default();
 
     position.bond_amount += amount;
     position.write(deps.storage, &staker_raw)?;
@@ -101,7 +101,7 @@ fn unbond(
 ) -> StdResult<Response> {
     let staker_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let config = Config::read(deps.storage)?;
-    let mut position = Position::read(deps.storage, &staker_raw)?;
+    let mut position = Position::read(deps.storage, &staker_raw).unwrap_or_default();
 
     position.bond_amount = position.bond_amount.checked_sub(amount)?;
     position.write(deps.storage, &staker_raw)?;
@@ -148,7 +148,7 @@ fn query_staker_info(
     staker: String,
 ) -> StdResult<StakerInfoResponse> {
     let staker_raw = deps.api.addr_canonicalize(&staker)?;
-    let position = Position::read(deps.storage, &staker_raw)?;
+    let position = Position::read(deps.storage, &staker_raw).unwrap_or_default();
     Ok(StakerInfoResponse {
         staker,
         reward_index: Decimal::zero(),
