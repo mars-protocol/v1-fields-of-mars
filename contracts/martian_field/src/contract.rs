@@ -804,9 +804,10 @@ fn _repay<S: Storage, A: Api, Q: Querier>(
     let mut position = Position::read(&deps.storage, &user_raw)?;
 
     // Amount of short asset to repay
-    let amount = position.unlocked_assets[1].amount;
+    let mut unlocked_short = position.unlocked_assets[1];
 
-    let response = if !amount.is_zero() {
+    // If there is asset available for repayment AND there is debt to be paid
+    let response = if !unlocked_short.amount.is_zero() && !position.debt_units.is_zero() {
         // Total amount of short asset owed by the contract to Mars
         let total_debt = config.red_bank.query_debt(
             deps,
@@ -815,6 +816,8 @@ fn _repay<S: Storage, A: Api, Q: Querier>(
         )?;
 
         // Amount of debt assigned to the user
+        // Nost: We already have `position.debt_units` != 0 so `state.total_debt_units` is
+        // necessarily non-zero. No need to check for division by zero here
         let debt_amount =
             total_debt.multiply_ratio(position.debt_units, state.total_debt_units);
 
@@ -822,12 +825,14 @@ fn _repay<S: Storage, A: Api, Q: Querier>(
         // Mars. Calculate the maximum deliverable amount.
         let amount_after_tax = config.short_asset.deduct_tax(deps, amount)?;
 
-        // If the user pays more than what he owes, we reduce his debt units to zero.
-        // Otherwise, we reduce his debt units proportionately.
-        let debt_units_to_reduce = std::cmp::min(
-            position.debt_units,
-            position.debt_units.multiply_ratio(amount_after_tax, debt_amount),
-        );
+        // The amount to repay is the deliverable amount of the user's unlocked asset, or
+        // the user's outstanding debt, whichever is smaller
+        let repay_amount = std::cmp::min(amount_after_tax, debt_amount);
+
+        // The amount of debt units to reduce
+        // Note: Same, `debt_amount` is necessarily non-zero
+        let debt_units_to_reduce =
+            position.debt_units.multiply_ratio(repay_amount, debt_amount);
 
         // Update state
         state.total_debt_units = (state.total_debt_units - debt_units_to_reduce)?;
@@ -835,7 +840,7 @@ fn _repay<S: Storage, A: Api, Q: Querier>(
 
         // Update position
         position.debt_units = (position.debt_units - debt_units_to_reduce)?;
-        position.unlocked_assets[1].amount = Uint128::zero();
+        position.unlocked_assets[1].amount = (unlocked_short.amount - repay_amount)?;
         position.write(&mut deps.storage, &user_raw)?;
 
         // Generate message
