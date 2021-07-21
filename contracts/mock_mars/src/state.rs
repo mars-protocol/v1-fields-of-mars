@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub static KEY_CONFIG: &[u8] = b"config";
-pub static NAMESPACE_POSITION: &[u8] = b"users";
+pub static NAMESPACE_POSITION: &[u8] = b"position";
 
 //----------------------------------------------------------------------------------------
 // Config

@@ -32,13 +32,7 @@ pub fn instantiate(
         mock_interest_rate: msg.mock_interest_rate.unwrap_or(Decimal256::one()),
     };
     config.write(deps.storage)?;
-
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("mock_interest_rate", config.mock_interest_rate)],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -93,13 +87,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MockMigrateMsg) -> StdResult<Respo
         mock_interest_rate: msg.mock_interest_rate.unwrap_or(Decimal256::one()),
     };
     config.write(deps.storage)?;
-
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("mock_interest_rate", config.mock_interest_rate)],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::default())
 }
 
 //----------------------------------------------------------------------------------------
