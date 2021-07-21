@@ -80,6 +80,14 @@ pub enum AssetInfo {
 }
 
 impl AssetInfo {
+    /// @notice Initialize an `Asset` object with zero amount
+    pub fn zero(&self) -> Asset {
+        Asset {
+            info: self.clone(),
+            amount: Uint128::zero(),
+        }
+    }
+
     /// @notice Assert two asset types are the same; panic if not
     pub fn assert_matched_info(&self, other: &Self) -> StdResult<()> {
         if self == other {

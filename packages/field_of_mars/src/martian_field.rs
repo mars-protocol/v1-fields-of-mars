@@ -207,16 +207,58 @@ pub struct StateResponse {
     pub total_debt_units: Uint128,
 }
 
+impl StateResponse {
+    pub fn new() -> Self {
+        Self {
+            total_bond_units: Uint128::zero(),
+            total_debt_units: Uint128::zero(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PositionResponse {
-    /// Whether the position is actively farming, or closed pending liquidation
-    pub is_active: bool,
     /// Amount of bond units representing user's share of bonded LP tokens
     pub bond_units: Uint128,
     /// Amount of debt units representing user's share of the debt
     pub debt_units: Uint128,
     /// Amount of assets not locked in TerraSwap pool; pending refund or liquidation
     pub unlocked_assets: [Asset; 3],
+}
+
+impl PositionResponse {
+    pub fn new(config: ConfigResponse) -> Self {
+        let share_token = AssetInfo::Token {
+            contract_addr: config.swap.share_token.clone(),
+        };
+        Self {
+            bond_units: Uint128::zero(),
+            debt_units: Uint128::zero(),
+            unlocked_assets: [
+                config.long_asset.zero(),
+                config.short_asset.zero(),
+                share_token.zero(),
+            ],
+        }
+    }
+
+    /// @notice A position is active is there is a non-zero amount of bond units
+    pub fn is_active(&self) -> bool {
+        !self.bond_units.is_zero()
+    }
+
+    /// @notice A position is empty if all data is zero
+    pub fn is_empty(&self) -> bool {
+        [
+            self.bond_units,
+            self.debt_units,
+            self.unlocked_assets[0].amount,
+            self.unlocked_assets[1].amount,
+            self.unlocked_assets[2].amount,
+        ]
+        .iter()
+        .all(|x| x.is_zero())
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
