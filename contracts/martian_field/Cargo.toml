@@ -3,7 +3,8 @@ name = "martian-field"
 version = "0.3.0"
 authors = ["larry_0x <larry@delphidigital.io>"]
 edition = "2018"
-exclude = ["contract.wasm", "hash.txt"]
+license = "UNLICENSED"
+repository = "https://github.com/mars-protocol/field-of-mars"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -12,9 +13,9 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = { version = "0.10.1", features = ["iterator"] }
-cosmwasm-storage = { version = "0.10.1", features = ["iterator"] }
-cw20 = "0.2"
-field-of-mars = { path = "../../packages/field_of_mars" }
-schemars = "0.7"
+field-of-mars = { version = "0.3.0", path = "../../packages/field_of_mars" }
+cosmwasm-std = { version = "0.15.0", features = ["iterator"] }
+cw20 = "0.7.0"
+cw-storage-plus = "0.7.0"
+schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }

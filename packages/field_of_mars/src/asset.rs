@@ -1,6 +1,7 @@
 use cosmwasm_std::{
-    to_binary, BalanceResponse, BankMsg, BankQuery, Coin, CosmosMsg, MessageInfo,
-    QuerierWrapper, QueryRequest, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
+    to_binary, Addr, BalanceResponse, BankMsg, BankQuery, Coin, MessageInfo,
+    QuerierWrapper, QueryRequest, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    WasmQuery,
 };
 use cw20::{
     BalanceResponse as Cw20BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg,
@@ -35,14 +36,14 @@ impl Asset {
 
     /// @notice Generate the message for transferring asset of a specific amount from one
     /// account to another using the `Cw20HandleMsg::Transfer` message type
-    pub fn transfer_msg(&self, to: &String) -> StdResult<CosmosMsg> {
+    pub fn transfer_msg(&self, to: &Addr) -> StdResult<SubMsg> {
         self.info.transfer_msg(to, self.amount)
     }
 
     /// @notice Generate the message for transferring asset of a specific amount from one
     /// account to another using the `Cw20HandleMsg::TransferFrom` message type
     /// @dev Must have allowance
-    pub fn transfer_from_msg(&self, from: &String, to: &String) -> StdResult<CosmosMsg> {
+    pub fn transfer_from_msg(&self, from: &Addr, to: &Addr) -> StdResult<SubMsg> {
         self.info.transfer_from_msg(from, to, self.amount)
     }
 
@@ -126,22 +127,22 @@ impl AssetInfo {
     /// @notice Generate the message for transferring asset of a specific amount from one
     /// account to another using the `Cw20ExecuteMsg::Transfer` message type
     /// @dev Note: `amount` must have tax deducted before passing into this function!
-    pub fn transfer_msg(&self, to: &String, amount: Uint128) -> StdResult<CosmosMsg> {
+    pub fn transfer_msg(&self, to: &Addr, amount: Uint128) -> StdResult<SubMsg> {
         match self {
             Self::Token {
                 contract_addr,
-            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            } => Ok(SubMsg::new(WasmMsg::Execute {
                 contract_addr: contract_addr.clone(),
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: to.clone(),
+                    recipient: String::from(to),
                     amount,
                 })?,
                 funds: vec![],
             })),
             Self::NativeToken {
                 denom,
-            } => Ok(CosmosMsg::Bank(BankMsg::Send {
-                to_address: to.clone(),
+            } => Ok(SubMsg::new(BankMsg::Send {
+                to_address: String::from(to),
                 amount: vec![Coin {
                     denom: denom.clone(),
                     amount,
@@ -155,18 +156,18 @@ impl AssetInfo {
     /// @dev Must have allowance
     pub fn transfer_from_msg(
         &self,
-        from: &String,
-        to: &String,
+        from: &Addr,
+        to: &Addr,
         amount: Uint128,
-    ) -> StdResult<CosmosMsg> {
+    ) -> StdResult<SubMsg> {
         match self {
             Self::Token {
                 contract_addr,
-            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            } => Ok(SubMsg::new(WasmMsg::Execute {
                 contract_addr: contract_addr.clone(),
                 msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                    owner: from.clone(),
-                    recipient: to.clone(),
+                    owner: String::from(from),
+                    recipient: String::from(to),
                     amount,
                 })?,
                 funds: vec![],

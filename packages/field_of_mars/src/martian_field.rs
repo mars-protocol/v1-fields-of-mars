@@ -1,4 +1,6 @@
-use cosmwasm_std::{to_binary, CosmosMsg, Decimal, StdResult, Uint128, WasmMsg};
+use cosmwasm_std::{
+    to_binary, Addr, Decimal, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -95,38 +97,38 @@ pub enum CallbackMsg {
     /// @dev Zero the user's unlocked long/short amounts, increase unlocked share amount
     /// @dev If used in harvesting, `user` should be set to the contract's address
     ProvideLiquidity {
-        user: String,
+        user: Addr,
     },
     /// Burn the user's unlocked share tokens, receive long/short assets
     /// @dev Zero the user's unlocked share amount, increase unlocked long/short amounts
     /// @param shares Amount of shares to burn
     RemoveLiquidity {
-        user: String,
+        user: Addr,
     },
     /// Bond share tokens to the staking contract
     /// @dev Zero the user's unlocked share amount, increase asset units
     /// @dev If used in harvesting, `user` should be set to the contract's address
     Bond {
-        user: String,
+        user: Addr,
     },
     /// Unbond share tokens from the staking contract
     /// @dev Reduce the user's asset units, increase unlocked share amount
     Unbond {
-        user: String,
+        user: Addr,
         bond_units: Option<Uint128>,
     },
     /// Borrow specified amount of short asset from Mars
     /// @dev Increase the user's debt units
     /// @param amount Amount of short asset to borrow
     Borrow {
-        user: String,
+        user: Addr,
         amount: Uint128,
     },
     /// Use the user's unlocked short asset to repay debt
     /// @dev Zero the user's unlocked short asset amount; reduce debt units
     /// @param amount Amount of short asset to repay
     Repay {
-        user: String,
+        user: Addr,
     },
     /// Collect a portion of rewards as performance fee, swap half of the rest for UST
     /// @param amount of reward asset to be collected fee and swapped
@@ -136,29 +138,29 @@ pub enum CallbackMsg {
     /// Send a percentage of a user's unlocked assets to a specified recipient
     /// @dev Reduce the user's unlocked assets by the specified percentage
     Refund {
-        user: String,
-        recipient: String,
+        user: Addr,
+        recipient: Addr,
         percentage: Decimal,
     },
     /// Save a snapshot of a user's position; useful for the frontend to calculate PnL
     Snapshot {
-        user: String,
+        user: Addr,
     },
     /// Delete data of a position if it is empty (completely withdrawn or liquidated)
     Purge {
-        user: String,
+        user: Addr,
     },
     /// Check if a user's LTV is below liquidation threshold; throw an error if not
     AssertHealth {
-        user: String,
+        user: Addr,
     },
 }
 
 // Modified from
 // https://github.com/CosmWasm/cosmwasm-plus/blob/v0.2.3/packages/cw20/src/receiver.rs#L15
 impl CallbackMsg {
-    pub fn into_cosmos_msg(&self, contract_addr: &String) -> StdResult<CosmosMsg> {
-        Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+    pub fn to_submsg(&self, contract_addr: &Addr) -> StdResult<SubMsg> {
+        Ok(SubMsg::new(WasmMsg::Execute {
             contract_addr: String::from(contract_addr),
             msg: to_binary(&ExecuteMsg::Callback(self.clone()))?,
             funds: vec![],
@@ -227,7 +229,7 @@ pub struct PositionResponse {
 }
 
 impl PositionResponse {
-    pub fn new(config: ConfigResponse) -> Self {
+    pub fn new(config: &ConfigResponse) -> Self {
         let share_token = AssetInfo::Token {
             contract_addr: config.swap.share_token.clone(),
         };
@@ -274,7 +276,7 @@ pub struct HealthResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SnapshotResponse {
     /// UNIX timestamp at which the snapshot was taken
-    pub time: u64,
+    pub time: Timestamp,
     /// Block number at which the snapshot was taken
     pub height: u64,
     /// Snapshot of the position's health info
