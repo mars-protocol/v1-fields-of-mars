@@ -44,7 +44,6 @@ pub fn execute(
     }
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
 fn _receive_cw20(
     deps: DepsMut,
     env: Env,

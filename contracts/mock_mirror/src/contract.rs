@@ -30,7 +30,7 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn handle(
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -48,8 +48,7 @@ pub fn handle(
     }
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn _receive_cw20(
+fn _receive_cw20(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
