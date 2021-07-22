@@ -27,7 +27,7 @@ const COLUMBUS_CONTRACTS = {
   },
 };
 
-const TEQUILA_CONTRACTS = {
+const BOMBAY_CONTRACTS = {
   anchor: {
     token: "terra1747mad58h0w4y589y3sk84r5efqdev9q4r02pc",
     staking: "terra19nxz35c8f7t3ghdxrxherym20tux8eccar0c3k",
@@ -78,22 +78,22 @@ let deployer: Wallet;
 let terra: LCDClient;
 let contracts: { [key: string]: { [key: string]: string } };
 
-if (!["columbus", "tequila"].includes(argv.network)) {
-  console.log(chalk.red("Error!"), "Invalid network: must be 'columbus' or 'tequila'");
+if (!["columbus", "bombay"].includes(argv.network)) {
+  console.log(chalk.red("Error!"), "Invalid network: must be 'columbus' or 'bombay'");
   process.exit(0);
 } else {
   terra =
     argv.network == "columbus"
       ? new LCDClient({
           URL: "https://lcd.terra.dev",
-          chainID: "columbus-4",
+          chainID: "columbus-5",
         })
       : new LCDClient({
-          URL: "https://tequila-lcd.terra.dev",
-          chainID: "tequila-0004",
+          URL: "https://bombay-lcd.terra.dev",
+          chainID: "bombay-0008",
         });
 
-  contracts = argv.network == "columbus" ? COLUMBUS_CONTRACTS : TEQUILA_CONTRACTS;
+  contracts = argv.network == "columbus" ? COLUMBUS_CONTRACTS : BOMBAY_CONTRACTS;
 
   console.log(`\nNetwork  : ${chalk.cyan(argv.network)}`);
 }

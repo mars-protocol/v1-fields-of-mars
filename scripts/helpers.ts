@@ -86,7 +86,8 @@ export async function instantiateContract(
 ) {
   const result = await sendTransaction(terra, deployer, [
     new MsgInstantiateContract(
-      deployer.key.accAddress,
+      deployer.key.accAddress, // creator
+      deployer.key.accAddress, // admin: the account who can migrate the contract
       codeId,
       initMsg,
       initCoins,

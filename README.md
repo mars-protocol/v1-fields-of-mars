@@ -135,7 +135,8 @@ Start LocalTerra:
 
 ```bash
 cd /path/to/LocalTerra
-git checkout v0.4.1
+git checkout main  # main branch for columbus-5 envrionment
+git pull
 docker-compose up
 ```
 
@@ -155,7 +156,7 @@ ts-node 6_martian_field.spec.ts
 Provide seed phrases in `scripts/.env` file, then:
 
 ```bash
-ts-node deploy.ts --network {columbus|tequila} --strategy {anchor|mirror} [--code-id <codeId>]
+ts-node deploy.ts --network {columbus|bombay} --strategy {anchor|mirror} [--code-id <codeId>]
 ```
 
 ### Notes
@@ -166,7 +167,7 @@ ts-node deploy.ts --network {columbus|tequila} --strategy {anchor|mirror} [--cod
 
 ## Deployment
 
-### Columbus-4
+### Columbus-5
 
 | Contract                   | Address                                                                                                                                      |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -182,7 +183,7 @@ ts-node deploy.ts --network {columbus|tequila} --strategy {anchor|mirror} [--cod
 | Martian Field: ANC-UST LP  | TBD                                                                                                                                          |
 | Martian Field: MIR-UST LP  | TBD                                                                                                                                          |
 
-### Tequila-0004
+### Bombay-0008
 
 | Contract                   | Address                                                                                                                                        |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |

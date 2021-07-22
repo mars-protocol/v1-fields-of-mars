@@ -1,7 +1,6 @@
 {
   "dependencies": {
-    "@mirror-protocol/mirror.js": "^1.1.7",
-    "@terra-money/terra.js": "^1.7.0",
+    "@terra-money/terra.js": "^2.0.0-beta.3",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "chalk": "^4.1.1",
