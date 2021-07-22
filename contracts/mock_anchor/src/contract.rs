@@ -11,7 +11,7 @@ use field_of_mars::staking::anchor_staking::{
     Cw20HookMsg, ExecuteMsg, MockInstantiateMsg, QueryMsg, StakerInfoResponse,
 };
 
-use crate::state::{Config, Position};
+use crate::state::{CONFIG, POSITION};
 
 //----------------------------------------------------------------------------------------
 // Entry Points
@@ -24,7 +24,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: MockInstantiateMsg,
 ) -> StdResult<Response> {
-    Config(msg).write(deps.storage)?;
+    CONFIG.save(deps.storage, &msg)?;
     Ok(Response::default())
 }
 
@@ -51,8 +51,7 @@ fn _receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
-    let config = Config::read(deps.storage)?;
-
+    let config = CONFIG.load(deps.storage)?;
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::Bond {} => {
             if info.sender == config.staking_token {
@@ -84,11 +83,11 @@ fn bond(
     staker: String,
     amount: Uint128,
 ) -> StdResult<Response> {
-    let staker_raw = deps.api.addr_canonicalize(staker.as_str())?;
-    let mut position = Position::read(deps.storage, &staker_raw).unwrap_or_default();
+    let staker_addr = deps.api.addr_validate(&staker)?;
+    let mut position = POSITION.load(deps.storage, &staker_addr).unwrap_or_default();
 
     position.bond_amount += amount;
-    position.write(deps.storage, &staker_raw)?;
+    POSITION.save(deps.storage, &staker_addr, &position)?;
 
     Ok(Response::default())
 }
@@ -99,12 +98,11 @@ fn unbond(
     info: MessageInfo,
     amount: Uint128,
 ) -> StdResult<Response> {
-    let staker_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let config = Config::read(deps.storage)?;
-    let mut position = Position::read(deps.storage, &staker_raw).unwrap_or_default();
+    let config = CONFIG.load(deps.storage)?;
+    let mut position = POSITION.load(deps.storage, &info.sender)?;
 
     position.bond_amount = position.bond_amount.checked_sub(amount)?;
-    position.write(deps.storage, &staker_raw)?;
+    POSITION.save(deps.storage, &info.sender, &position)?;
 
     Ok(Response {
         messages: vec![SubMsg::new(WasmMsg::Execute {
@@ -122,7 +120,7 @@ fn unbond(
 }
 
 fn withdraw(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
-    let config = Config::read(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     Ok(Response {
         messages: vec![SubMsg::new(WasmMsg::Execute {
             contract_addr: config.anchor_token,
@@ -147,8 +145,8 @@ fn query_staker_info(
     _env: Env,
     staker: String,
 ) -> StdResult<StakerInfoResponse> {
-    let staker_raw = deps.api.addr_canonicalize(&staker)?;
-    let position = Position::read(deps.storage, &staker_raw).unwrap_or_default();
+    let staker_addr = deps.api.addr_validate(&staker)?;
+    let position = POSITION.load(deps.storage, &staker_addr).unwrap_or_default();
     Ok(StakerInfoResponse {
         staker,
         reward_index: Decimal::zero(),

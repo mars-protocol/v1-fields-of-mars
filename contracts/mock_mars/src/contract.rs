@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
-use cosmwasm_bignumber::{Decimal256, Uint256};
+use cosmwasm_bignumber::Uint256;
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response,
     StdError, StdResult, SubMsg, Uint128,
@@ -13,7 +13,7 @@ use field_of_mars::red_bank::{
     RedBankAsset as Asset,
 };
 
-use crate::state::{Config, Position};
+use crate::state::{Config, CONFIG, POSITION};
 
 static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 
@@ -28,10 +28,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: MockInstantiateMsg,
 ) -> StdResult<Response> {
-    let config = Config {
-        mock_interest_rate: msg.mock_interest_rate.unwrap_or(Decimal256::one()),
-    };
-    config.write(deps.storage)?;
+    CONFIG.save(deps.storage, &Config::new(msg))?;
     Ok(Response::default())
 }
 
@@ -83,10 +80,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, msg: MockMigrateMsg) -> StdResult<Response> {
-    let config = Config {
-        mock_interest_rate: msg.mock_interest_rate.unwrap_or(Decimal256::one()),
-    };
-    config.write(deps.storage)?;
+    CONFIG.save(deps.storage, &Config::new(msg))?;
     Ok(Response::default())
 }
 
@@ -101,11 +95,11 @@ fn borrow(
     denom: &str,
     amount: Uint256,
 ) -> StdResult<Response> {
-    let user_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let mut position =
+        POSITION.load(deps.storage, (&info.sender, denom)).unwrap_or_default();
 
-    let mut position = Position::read(deps.storage, denom, &user_raw).unwrap_or_default();
     position.borrowed_amount += amount;
-    position.write(deps.storage, denom, &user_raw)?;
+    POSITION.save(deps.storage, (&info.sender, denom), &position)?;
 
     Ok(Response {
         messages: vec![SubMsg::new(BankMsg::Send {
@@ -133,14 +127,12 @@ fn repay(
     denom: &str,
     amount: Uint256,
 ) -> StdResult<Response> {
-    let user_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let config = CONFIG.load(deps.storage)?;
+    let mut position = POSITION.load(deps.storage, (&info.sender, denom))?;
 
-    let config = Config::read(deps.storage)?;
     let scaled_amount = amount / config.mock_interest_rate;
-
-    let mut position = Position::read(deps.storage, denom, &user_raw).unwrap_or_default();
     position.borrowed_amount = position.borrowed_amount - scaled_amount;
-    position.write(deps.storage, denom, &user_raw)?;
+    POSITION.save(deps.storage, (&info.sender, denom), &position)?;
 
     Ok(Response {
         messages: vec![],
@@ -161,17 +153,19 @@ fn repay(
 //----------------------------------------------------------------------------------------
 
 fn query_debt(deps: Deps, _env: Env, user: String) -> StdResult<DebtResponse> {
-    let user_raw = deps.api.addr_canonicalize(&user)?;
-    let config = Config::read(deps.storage)?;
+    let addr = deps.api.addr_validate(&user)?;
+    let config = CONFIG.load(deps.storage)?;
+
+    let compute_debt_amount = |denom: &str| {
+        let position = POSITION.load(deps.storage, (&addr, denom)).unwrap_or_default();
+        position.borrowed_amount * config.mock_interest_rate
+    };
 
     let debts = ["uluna", "uusd"]
         .iter()
         .map(|denom| DebtInfo {
             denom: denom.to_string(),
-            amount: Position::read(deps.storage, denom, &user_raw)
-                .unwrap_or_default()
-                .borrowed_amount
-                * config.mock_interest_rate,
+            amount: compute_debt_amount(denom),
         })
         .collect();
 

@@ -165,6 +165,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "cw-storage-plus"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62b1ea5dd8d8cc57e52190d7c69ade5383d3c37291abab3917dafce77b75ced5"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "cw0"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -383,7 +394,7 @@ name = "mock-anchor"
 version = "0.3.0"
 dependencies = [
  "cosmwasm-std",
- "cosmwasm-storage",
+ "cw-storage-plus",
  "cw20",
  "field-of-mars",
  "schemars",
@@ -396,7 +407,7 @@ version = "0.3.0"
 dependencies = [
  "cosmwasm-bignumber",
  "cosmwasm-std",
- "cosmwasm-storage",
+ "cw-storage-plus",
  "field-of-mars",
  "schemars",
  "serde",
@@ -408,7 +419,7 @@ name = "mock-mirror"
 version = "0.3.0"
 dependencies = [
  "cosmwasm-std",
- "cosmwasm-storage",
+ "cw-storage-plus",
  "cw20",
  "field-of-mars",
  "schemars",
