@@ -1,6 +1,6 @@
 [package]
 name = "mock-mars"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["larry_0x <larry@delphidigital.io>"]
 edition = "2018"
 license = "UNLICENSED"
@@ -14,7 +14,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 # Mars
-field-of-mars = { version = "0.3.0", path = "../../packages/field_of_mars" }
+field-of-mars = { version = "0.4.0", path = "../../packages/field_of_mars" }
 # CosmWasm
 cosmwasm-std = { version = "0.15.0", features = ["iterator"] }
 cw-storage-plus = "0.7.0"

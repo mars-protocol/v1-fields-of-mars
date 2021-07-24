@@ -269,7 +269,7 @@ dependencies = [
 
 [[package]]
 name = "field-of-mars"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "cosmwasm-bignumber",
  "cosmwasm-std",
@@ -369,7 +369,7 @@ checksum = "320cfe77175da3a483efed4bc0adc1968ca050b098ce4f2f1c13a56626128790"
 
 [[package]]
 name = "martian-field"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
@@ -381,7 +381,7 @@ dependencies = [
 
 [[package]]
 name = "mock-anchor"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
@@ -393,7 +393,7 @@ dependencies = [
 
 [[package]]
 name = "mock-mars"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "cosmwasm-bignumber",
  "cosmwasm-std",
@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "mock-mirror"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
