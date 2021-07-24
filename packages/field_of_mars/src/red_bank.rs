@@ -1,4 +1,4 @@
-use cosmwasm_bignumber::{Decimal256, Uint256};
+use cosmwasm_bignumber::Uint256;
 use cosmwasm_std::{
     to_binary, Addr, Coin, QuerierWrapper, QueryRequest, StdResult, SubMsg, Uint128,
     WasmMsg, WasmQuery,
@@ -14,12 +14,7 @@ use crate::asset::{Asset, AssetInfo};
 //----------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MockInstantiateMsg {
-    // User's debt = deposit_amount * mock_interest_rate
-    pub mock_interest_rate: Option<Decimal256>,
-}
-
-pub type MockMigrateMsg = MockInstantiateMsg;
+pub struct MockInstantiateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -31,6 +26,13 @@ pub enum ExecuteMsg {
     },
     RepayNative {
         denom: String,
+    },
+    /// @notice Forcibly resets a user's debt amount. Used in tests to simulate the accrual
+    /// of debts. The actual Red Bank doesn't have this message type
+    SetDebt {
+        user: String,
+        denom: String,
+        amount: Uint256,
     },
 }
 

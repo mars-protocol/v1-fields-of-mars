@@ -154,15 +154,19 @@ fn query_reward_info(
     let config = CONFIG.load(deps.storage)?;
     let position = POSITION.load(deps.storage, &staker_addr).unwrap_or_default();
 
-    let reward_info = RewardInfoResponseItem {
-        asset_token: config.asset_token,
-        bond_amount: position.bond_amount,
-        pending_reward: Uint128::new(1000000u128), // 1.0 MIR
-        is_short: false,
+    let reward_infos = if position.bond_amount.is_zero() {
+        vec![]
+    } else {
+        vec![RewardInfoResponseItem {
+            asset_token: config.asset_token,
+            bond_amount: position.bond_amount,
+            pending_reward: Uint128::new(1000000u128), // 1.0 MIR
+            is_short: false,
+        }]
     };
 
     Ok(RewardInfoResponse {
         staker_addr: staker,
-        reward_infos: vec![reward_info],
+        reward_infos,
     })
 }

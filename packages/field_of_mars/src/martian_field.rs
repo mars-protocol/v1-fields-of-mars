@@ -59,12 +59,6 @@ pub enum ExecuteMsg {
         remove: bool,
         repay: bool,
     },
-    /// Close a position whose LTV is greater than the liquidation threshold; typically to
-    /// be followed by a `HandleMsg::Liquidate` call.
-    /// Note: to close healthy positions, use `HandleMsg::ReducePosition`
-    ClosePosition {
-        user: String,
-    },
     /// Pay down debt owed to Mars, reduce debt units
     /// @param user Address of the user whose `debt_units` are to be reduced; default to sender
     /// @param deposit Asset to be used to pay debt
@@ -74,8 +68,15 @@ pub enum ExecuteMsg {
     },
     /// Claim staking reward and reinvest
     Harvest {},
-    /// Close an underfunded position, pay down remaining debt and claim the collateral
+    /// Close an unhealthy position in order to liquidate it
+    /// @dev This function is for liquidators. Users who wish to close their healthy
+    /// positions use `ExecuteMsg::ReducePosition`
     /// @param user Address of the user whose position is to be closed
+    ClosePosition {
+        user: String,
+    },
+    /// Pay down remaining debt of a closed position and be awarded its unlocked assets
+    /// @param user Address of the user whose closed position is to be liquidated
     /// @param deposit Asset to be used to liquidate to position
     Liquidate {
         user: String,
@@ -130,11 +131,6 @@ pub enum CallbackMsg {
     Repay {
         user: Addr,
     },
-    /// Collect a portion of rewards as performance fee, swap half of the rest for UST
-    /// @param amount of reward asset to be collected fee and swapped
-    Swap {
-        amount: Uint128,
-    },
     /// Send a percentage of a user's unlocked assets to a specified recipient
     /// @dev Reduce the user's unlocked assets by the specified percentage
     Refund {
@@ -142,12 +138,13 @@ pub enum CallbackMsg {
         recipient: Addr,
         percentage: Decimal,
     },
+    /// Collect a portion of rewards as performance fee, swap half of the rest for UST
+    /// @param amount of reward asset to be collected fee and swapped
+    Reinvest {
+        amount: Uint128,
+    },
     /// Save a snapshot of a user's position; useful for the frontend to calculate PnL
     Snapshot {
-        user: Addr,
-    },
-    /// Delete data of a position if it is empty (completely withdrawn or liquidated)
-    Purge {
         user: Addr,
     },
     /// Check if a user's LTV is below liquidation threshold; throw an error if not

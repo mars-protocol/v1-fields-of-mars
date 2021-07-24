@@ -47,20 +47,20 @@ pub fn execute(
             remove,
             repay,
         } => reduce_position(deps, env, info, bond_units, remove, repay),
-        ExecuteMsg::ClosePosition {
-            user,
-        } => close_position(deps, env, info, user),
         ExecuteMsg::PayDebt {
             user,
             deposit,
         } => pay_debt(deps, env, info, user, deposit),
+        ExecuteMsg::Harvest {
+            ..
+        } => harvest(deps, env, info),
+        ExecuteMsg::ClosePosition {
+            user,
+        } => close_position(deps, env, info, user),
         ExecuteMsg::Liquidate {
             user,
             deposit,
         } => liquidate(deps, env, info, user, deposit),
-        ExecuteMsg::Harvest {
-            ..
-        } => harvest(deps, env, info),
         ExecuteMsg::UpdateConfig {
             new_config,
         } => update_config(deps, env, info, new_config),
@@ -99,20 +99,17 @@ fn _handle_callback(
         CallbackMsg::Repay {
             user,
         } => _repay(deps, env, user),
-        CallbackMsg::Swap {
-            amount,
-        } => _swap(deps, env, amount),
         CallbackMsg::Refund {
             user,
             recipient,
             percentage,
         } => _refund(deps, env, user, recipient, percentage),
+        CallbackMsg::Reinvest {
+            amount,
+        } => _reinvest(deps, env, amount),
         CallbackMsg::Snapshot {
             user,
         } => _snapshot(deps, env, user),
-        CallbackMsg::Purge {
-            user,
-        } => _purge(deps, env, user),
         CallbackMsg::AssertHealth {
             user,
         } => _assert_health(deps, env, user),
@@ -284,9 +281,6 @@ fn reduce_position(
         CallbackMsg::Snapshot {
             user: info.sender.clone(),
         },
-        CallbackMsg::Purge {
-            user: info.sender.clone(),
-        },
     ]);
 
     let messages = callbacks
@@ -299,60 +293,6 @@ fn reduce_position(
         attributes: vec![
             attr("action", "martian_field::ExecuteMsg::ReducePosition"),
             attr("user", info.sender),
-        ],
-        events: vec![],
-        data: None,
-    })
-}
-
-fn close_position(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    user: String,
-) -> StdResult<Response> {
-    let user_addr = deps.api.addr_validate(&user)?;
-    let config_raw = CONFIG.load(deps.storage)?;
-    let position = POSITION.load(deps.storage, &user_addr)?;
-
-    let health_info = query_health(deps.as_ref(), env.clone(), Some(user.clone()))?;
-    let ltv = health_info.ltv.unwrap();
-
-    // The position must be open
-    if !position.is_active() {
-        return Err(StdError::generic_err("position is already closed!"));
-    }
-
-    // The position must have an LTV greater than the liquidation threshold
-    if ltv <= config_raw.max_ltv {
-        return Err(StdError::generic_err("cannot close a healthy position!"));
-    }
-
-    let callbacks = [
-        CallbackMsg::Unbond {
-            user: user_addr.clone(),
-            bond_units: None,
-        },
-        CallbackMsg::RemoveLiquidity {
-            user: user_addr.clone(),
-        },
-        CallbackMsg::Repay {
-            user: user_addr.clone(),
-        },
-    ];
-
-    let messages = callbacks
-        .iter()
-        .map(|msg| msg.to_submsg(&env.contract.address).unwrap())
-        .collect();
-
-    Ok(Response {
-        messages,
-        attributes: vec![
-            attr("action", "martian_field::ExecuteMsg::ClosePosition"),
-            attr("user", user),
-            attr("ltv", ltv),
-            attr("liquidator", info.sender),
         ],
         events: vec![],
         data: None,
@@ -444,7 +384,7 @@ fn harvest(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let mut messages = vec![config.staking.withdraw_msg()?];
 
     let callbacks = [
-        CallbackMsg::Swap {
+        CallbackMsg::Reinvest {
             amount: reward_amount,
         },
         CallbackMsg::ProvideLiquidity {
@@ -470,6 +410,61 @@ fn harvest(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     })
 }
 
+fn close_position(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    user: String,
+) -> StdResult<Response> {
+    let user_addr = deps.api.addr_validate(&user)?;
+    let config = CONFIG.load(deps.storage)?;
+    let position = POSITION.load(deps.storage, &user_addr)?;
+
+    // Only active positions can be closed
+    if !position.is_active() {
+        return Err(StdError::generic_err("position is already closed!"));
+    }
+
+    let health_info = query_health(deps.as_ref(), env.clone(), Some(user.clone()))?;
+    let ltv = health_info.ltv.unwrap();
+
+    // Only positions with unhealthy LTV's can be closed
+    // Since the position is active, we can safely unwrap it here
+    if ltv <= config.max_ltv {
+        return Err(StdError::generic_err(format!("position is healthy! ltv: {}", ltv)));
+    }
+
+    let callbacks = [
+        CallbackMsg::Unbond {
+            user: user_addr.clone(),
+            bond_units: None,
+        },
+        CallbackMsg::RemoveLiquidity {
+            user: user_addr.clone(),
+        },
+        CallbackMsg::Repay {
+            user: user_addr.clone(),
+        },
+    ];
+
+    let messages = callbacks
+        .iter()
+        .map(|msg| msg.to_submsg(&env.contract.address).unwrap())
+        .collect();
+
+    Ok(Response {
+        messages,
+        attributes: vec![
+            attr("action", "martian_field::ExecuteMsg::ClosePosition"),
+            attr("user", user),
+            attr("ltv", ltv),
+            attr("liquidator", info.sender),
+        ],
+        events: vec![],
+        data: None,
+    })
+}
+
 fn liquidate(
     deps: DepsMut,
     env: Env,
@@ -489,11 +484,27 @@ fn liquidate(
 
     // Make sure the asset deposited is the short asset
     if deposit.info != config.short_asset {
-        return Err(StdError::generic_err(format!(
-            "must deposit {}!",
-            config.short_asset.query_denom(&deps.querier)?
-        )));
+        return Err(StdError::generic_err("must deposit short asset!"));
     }
+
+    // Calculate percentage of unlocked asset that should be accredited to the liquidator
+    let total_debt = config.red_bank.query_debt(
+        &deps.querier,
+        &env.contract.address,
+        &config.short_asset,
+    )?;
+
+    let debt_amount =
+        total_debt.multiply_ratio(position.debt_units, state.total_debt_units);
+
+    let deliverable_amount =
+        config.short_asset.deduct_tax(&deps.querier, deposit.amount)?;
+
+    let percentage = if deliverable_amount > debt_amount {
+        Decimal::one()
+    } else {
+        Decimal::from_ratio(deliverable_amount, debt_amount)
+    };
 
     // Increment the user's unlocked short asset amount
     position.unlocked_assets[1].amount += deposit.amount;
@@ -515,21 +526,6 @@ fn liquidate(
         }
     }
 
-    // Calculate percentage of unlocked asset that should be accredited to the liquidator
-    let total_debt = config.red_bank.query_debt(
-        &deps.querier,
-        &env.contract.address,
-        &config.short_asset,
-    )?;
-
-    let debt_amount =
-        total_debt.multiply_ratio(position.debt_units, state.total_debt_units);
-
-    let repay_amount_after_tax =
-        config.short_asset.deduct_tax(&deps.querier, deposit.amount)?;
-
-    let percentage = Decimal::from_ratio(repay_amount_after_tax, debt_amount);
-
     let callbacks = [
         CallbackMsg::Repay {
             user: user_addr.clone(),
@@ -538,9 +534,6 @@ fn liquidate(
             user: user_addr.clone(),
             recipient: info.sender.clone(),
             percentage,
-        },
-        CallbackMsg::Purge {
-            user: user_addr.clone(),
         },
     ];
 
@@ -598,12 +591,18 @@ fn _provide_liquidity(deps: DepsMut, _env: Env, user: Addr) -> StdResult<Respons
         position.unlocked_assets[1].deduct_tax(&deps.querier)?, // short asset
     ];
 
+    // The total costs for deposits, including tax
+    let costs = [
+        deposits[0].add_tax(&deps.querier)?, // long asset
+        deposits[1].add_tax(&deps.querier)?, // short asset
+    ];
+
     // The amount of shares to expect to receive
     let shares = config.swap.simulate_provide(&deps.querier, &deposits)?;
 
     // Update unlocked asset amounts
-    position.unlocked_assets[0].amount = Uint128::zero(); // long asset
-    position.unlocked_assets[1].amount = Uint128::zero(); // short asset
+    position.unlocked_assets[0].amount -= costs[0].amount; // long asset
+    position.unlocked_assets[1].amount -= costs[1].amount; // short asset
     position.unlocked_assets[2].amount += shares; // share tokens
     POSITION.save(deps.storage, &user, &position)?;
 
@@ -640,7 +639,7 @@ fn _remove_liquidity(deps: DepsMut, _env: Env, user: Addr) -> StdResult<Response
     // Update unlocked asset amounts
     position.unlocked_assets[0].amount += return_amounts[0];
     position.unlocked_assets[1].amount += return_amounts[1];
-    position.unlocked_assets[2].amount = Uint128::zero();
+    position.unlocked_assets[2].amount -= shares;
     POSITION.save(deps.storage, &user, &position)?;
 
     Ok(Response {
@@ -687,7 +686,7 @@ fn _bond(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
 
     // Update position
     position.bond_units += bond_units_to_add;
-    position.unlocked_assets[2].amount = Uint128::zero();
+    position.unlocked_assets[2].amount -= bond_amount;
     POSITION.save(deps.storage, &user, &position)?;
 
     Ok(Response {
@@ -716,9 +715,10 @@ fn _unbond(
     // Unbond all if `bond_units` is not provided
     let bond_units_to_reduce = bond_units.unwrap_or(position.bond_units);
 
-    // Calculate how amount of stakine token to unbond
+    // Total amount of share tokens bonded in the staking contract
     let total_bond = config.staking.query_bond(&deps.querier, &env.contract.address)?;
 
+    // Amount of shares to unbond
     let unbond_amount =
         total_bond.multiply_ratio(bond_units_to_reduce, state.total_bond_units);
 
@@ -835,12 +835,15 @@ fn _repay(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
 
         // Due to tax, the amount of `repay_asset` received may not be fully delivered to
         // Mars. Calculate the maximum deliverable amount.
-        let amount_after_tax =
+        let deliverable_amount =
             config.short_asset.deduct_tax(&deps.querier, unlocked_short)?;
 
         // The amount to repay is the deliverable amount of the user's unlocked asset, or
         // the user's outstanding debt, whichever is smaller
-        let repay_amount = std::cmp::min(amount_after_tax, debt_amount);
+        let repay_amount = std::cmp::min(deliverable_amount, debt_amount);
+
+        // Total amount of short asset that will be deducted from the user's balance
+        let repay_cost = config.short_asset.add_tax(&deps.querier, repay_amount)?;
 
         // The amount of debt units to reduce
         // Note: Same, `debt_amount` is necessarily non-zero
@@ -848,18 +851,18 @@ fn _repay(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
             position.debt_units.multiply_ratio(repay_amount, debt_amount);
 
         // Update state
-        state.total_debt_units = state.total_debt_units - debt_units_to_reduce;
+        state.total_debt_units -= debt_units_to_reduce;
         STATE.save(deps.storage, &state)?;
 
         // Update position
         position.debt_units -= debt_units_to_reduce;
-        position.unlocked_assets[1].amount -= repay_amount;
+        position.unlocked_assets[1].amount -= repay_cost;
         POSITION.save(deps.storage, &user, &position)?;
 
         // Generate message
         let repay_message = config.red_bank.repay_msg(&Asset {
             info: config.short_asset.clone(),
-            amount: amount_after_tax,
+            amount: repay_amount,
         })?;
 
         Response {
@@ -868,6 +871,7 @@ fn _repay(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
                 attr("action", "martian_field::CallbackMsg::Repay"),
                 attr("user", user),
                 attr("repay_amount", repay_amount),
+                attr("repay_cost", repay_cost),
                 attr("debt_units_reduced", debt_units_to_reduce),
             ],
             events: vec![],
@@ -888,64 +892,6 @@ fn _repay(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
     Ok(response)
 }
 
-fn _swap(deps: DepsMut, env: Env, amount: Uint128) -> StdResult<Response> {
-    let config = CONFIG.load(deps.storage)?;
-    let treasury = deps.api.addr_validate(&config.treasury)?;
-
-    let mut position = POSITION
-        .load(deps.storage, &env.contract.address)
-        .unwrap_or(Position::new(&config));
-
-    // Calculate how much performance fee should be charged
-    let fee = amount * config.fee_rate;
-    let amount_after_fee = amount - fee;
-
-    // Half of the reward is to be retained, not swapped
-    let retain_amount = amount_after_fee.multiply_ratio(1u128, 1u128);
-
-    // The amount of reward to be swapped
-    // Note: here we assume `long_token` == `reward_token`. This is the case for popular
-    // farms e.g. ANC, MIR, MINE, but not for mAsset farms.
-    // MAsset support may be added in a future version
-    let offer_amount = amount_after_fee - retain_amount;
-    let offer_after_tax = config.long_asset.deduct_tax(&deps.querier, offer_amount)?;
-
-    // Note: must deduct tax here
-    let offer_asset = Asset {
-        info: config.long_asset.clone(),
-        amount: offer_after_tax,
-    };
-
-    // Calculate the return amount of the swap
-    // Note: must deduct_tax here
-    let return_amount = config.swap.simulate_swap(&deps.querier, &offer_asset)?;
-    let return_after_tax = config.short_asset.deduct_tax(&deps.querier, return_amount)?;
-
-    // Update position
-    position.unlocked_assets[0].amount += retain_amount;
-    position.unlocked_assets[1].amount += return_after_tax;
-    POSITION.save(deps.storage, &env.contract.address, &position)?;
-
-    Ok(Response {
-        messages: vec![
-            config.long_asset.transfer_msg(&treasury, fee)?,
-            config.swap.swap_msg(&offer_asset)?,
-        ],
-        attributes: vec![
-            attr("action", "martian_field::CallbackMsg::Swap"),
-            attr("amount", amount),
-            attr("fee_amount", fee),
-            attr("retain_amount", retain_amount),
-            attr("offer_amount", offer_amount),
-            attr("offer_after_tax", offer_after_tax),
-            attr("return_amount", return_amount),
-            attr("return_after_tax", return_after_tax),
-        ],
-        events: vec![],
-        data: None,
-    })
-}
-
 fn _refund(
     deps: DepsMut,
     _env: Env,
@@ -962,14 +908,21 @@ fn _refund(
         .iter()
         .map(|asset| Asset {
             info: asset.info.clone(),
-            amount: asset.amount * percentage,
+            amount: asset
+                .info
+                .deduct_tax(&deps.querier, asset.amount * percentage)
+                .unwrap(),
         })
         .collect();
 
+    // The transfer cost for refunding
+    let costs: Vec<Asset> =
+        assets.iter().map(|asset| asset.add_tax(&deps.querier).unwrap()).collect();
+
     // Update position
-    position.unlocked_assets[0].amount -= assets[0].amount;
-    position.unlocked_assets[1].amount -= assets[1].amount;
-    position.unlocked_assets[2].amount -= assets[2].amount;
+    position.unlocked_assets[0].amount -= costs[0].amount;
+    position.unlocked_assets[1].amount -= costs[1].amount;
+    position.unlocked_assets[2].amount -= costs[2].amount;
     POSITION.save(deps.storage, &user, &position)?;
 
     // Generate messages for the transfers
@@ -1001,6 +954,64 @@ fn _refund(
     })
 }
 
+fn _reinvest(deps: DepsMut, env: Env, amount: Uint128) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let treasury = deps.api.addr_validate(&config.treasury)?;
+
+    let mut position = POSITION
+        .load(deps.storage, &env.contract.address)
+        .unwrap_or(Position::new(&config));
+
+    // Calculate how much performance fee should be charged
+    let fee = amount * config.fee_rate;
+    let amount_after_fee = amount - fee;
+
+    // Half of the reward is to be retained, not swapped
+    let retain_amount = amount_after_fee.multiply_ratio(1u128, 2u128);
+
+    // The amount of reward to be swapped
+    // Note: here we assume `long_token` == `reward_token`. This is the case for popular
+    // farms e.g. ANC, MIR, MINE, but not for mAsset farms.
+    // MAsset support may be added in a future version
+    let offer_amount = amount_after_fee - retain_amount;
+    let offer_after_tax = config.long_asset.deduct_tax(&deps.querier, offer_amount)?;
+
+    // Note: must deduct tax here
+    let offer_asset = Asset {
+        info: config.long_asset.clone(),
+        amount: offer_after_tax,
+    };
+
+    // Calculate the return amount of the swap
+    // Note: must deduct_tax here
+    let return_amount = config.swap.simulate_swap(&deps.querier, &offer_asset)?;
+    let return_after_tax = config.short_asset.deduct_tax(&deps.querier, return_amount)?;
+
+    // Update position
+    position.unlocked_assets[0].amount += retain_amount;
+    position.unlocked_assets[1].amount += return_after_tax;
+    POSITION.save(deps.storage, &env.contract.address, &position)?;
+
+    Ok(Response {
+        messages: vec![
+            config.long_asset.transfer_msg(&treasury, fee)?,
+            config.swap.swap_msg(&offer_asset)?,
+        ],
+        attributes: vec![
+            attr("action", "martian_field::CallbackMsg::Reinvest"),
+            attr("amount", amount),
+            attr("fee_amount", fee),
+            attr("retain_amount", retain_amount),
+            attr("offer_amount", offer_amount),
+            attr("offer_after_tax", offer_after_tax),
+            attr("return_amount", return_amount),
+            attr("return_after_tax", return_after_tax),
+        ],
+        events: vec![],
+        data: None,
+    })
+}
+
 fn _snapshot(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
     let position = POSITION.load(deps.storage, &user)?;
 
@@ -1018,26 +1029,6 @@ fn _snapshot(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
         attributes: vec![
             attr("action", "martian_field::CallbackMsg::Snapshot"),
             attr("user", user),
-        ],
-        events: vec![],
-        data: None,
-    })
-}
-
-fn _purge(deps: DepsMut, _env: Env, user: Addr) -> StdResult<Response> {
-    let position = POSITION.load(deps.storage, &user)?;
-
-    if position.is_empty() {
-        POSITION.remove(deps.storage, &user);
-        SNAPSHOT.remove(deps.storage, &user);
-    }
-
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
-            attr("action", "martian_field::CallbackMsg::Purge"),
-            attr("user", user),
-            attr("purged", position.is_empty()),
         ],
         events: vec![],
         data: None,
@@ -1086,7 +1077,7 @@ fn _assert_health(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
             data: None,
         })
     } else {
-        Err(StdError::generic_err("LTV is greater than liquidation threshold!"))
+        Err(StdError::generic_err(format!("ltv is greater than threshold: {}", ltv_str)))
     }
 }
 
@@ -1102,30 +1093,33 @@ fn query_state(deps: Deps, _env: Env) -> StdResult<StateResponse> {
     STATE.load(deps.storage)
 }
 
+/// @dev Panics if the user hasn't had a position (error 500)
 fn query_position(deps: Deps, _env: Env, user: String) -> StdResult<PositionResponse> {
     POSITION.load(deps.storage, &deps.api.addr_validate(&user)?)
 }
 
+/// @dev Panics if the user hasn't had a position (error 500)
 fn query_snapshot(deps: Deps, _env: Env, user: String) -> StdResult<SnapshotResponse> {
     SNAPSHOT.load(deps.storage, &deps.api.addr_validate(&user)?)
 }
 
+/// @dev Returns `None` (serialized into `null`) if `bond_units = 0` which is the case for
+/// closed positions.
+/// @dev Panics if the user hasn't had a position (error 500)
 fn query_health(deps: Deps, env: Env, user: Option<String>) -> StdResult<HealthResponse> {
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
 
+    // If user address is provided, we read bond/debt units from storage
+    // Otherwise, use total units, in which case calculates the strategy's overall health
     let (bond_units, debt_units) = if let Some(user) = user {
-        let user_addr = deps.api.addr_validate(&user)?;
-        let position = POSITION.load(deps.storage, &user_addr)?;
+        let position = POSITION.load(deps.storage, &deps.api.addr_validate(&user)?)?;
         (position.bond_units, position.debt_units)
     } else {
         (state.total_bond_units, state.total_debt_units)
     };
 
-    // Info of the TerraSwap pool
-    let pool_info =
-        config.swap.query_pool(&deps.querier, &config.long_asset, &config.short_asset)?;
-
+    // Part 1. Query of necessary info
     // Total amount of share tokens bonded in the staking contract
     let total_bond = config.staking.query_bond(&deps.querier, &env.contract.address)?;
 
@@ -1136,36 +1130,35 @@ fn query_health(deps: Deps, env: Env, user: Option<String>) -> StdResult<HealthR
         &config.short_asset,
     )?;
 
-    // Value of each units of share, measured in the short asset
-    // Note: Here we don't check whether `pool_info.share_supply` is zero here because
-    // in practice it should never be zero
-    let share_value = Decimal::from_ratio(
-        pool_info.short_depth + pool_info.short_depth,
-        pool_info.share_supply,
-    );
+    // Info of the AMM pool
+    let pool_info =
+        config.swap.query_pool(&deps.querier, &config.long_asset, &config.short_asset)?;
 
-    // Amount of bonded shares assigned to the user
-    // Note: must handle division by zero!
-    let bond_amount = if state.total_bond_units.is_zero() {
+    // Part 2. Calculating value of the user's bonded assets
+    // valueOfThePool = longDepth * valueOfLongAsset + shortDepth = 2 * shortDepth
+    // totalBondValue = valueOfPool * strategyShares / totalShares
+    // bondValue = totalBondValue * bondUnits / totalBondUnits
+    // Note:
+    // 1. bond value is measured in the short asset
+    // 2. must handle the case where `total_bond_units` = 0
+    let bond_value = if state.total_bond_units.is_zero() {
         Uint128::zero()
     } else {
-        total_bond.multiply_ratio(bond_units, state.total_bond_units)
+        (pool_info.short_depth + pool_info.short_depth)
+            .multiply_ratio(total_bond, pool_info.share_supply)
+            .multiply_ratio(bond_units, state.total_bond_units)
     };
 
-    // Value of bonded shares assigned to the user
-    let bond_value = bond_amount * share_value;
-
-    // Value of debt assigned to the user
-    // Note: must handle division by zero!
+    // Part 2. Calculating value of the user's debt
+    // Note: must handle the case where `total_debt_units = 0`
     let debt_value = if state.total_debt_units.is_zero() {
         Uint128::zero()
     } else {
         total_debt.multiply_ratio(debt_units, state.total_debt_units)
     };
 
-    // Loan-to-value ratio
+    // Part 3. Calculating LTV
     // Note: must handle division by zero!
-    // `bond_units` can be zero if the position has been closed, pending liquidation
     let ltv = if bond_value.is_zero() {
         None
     } else {

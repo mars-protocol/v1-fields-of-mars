@@ -84,6 +84,12 @@ async function testTransfer() {
 }
 
 (async () => {
+  console.log(chalk.yellow("\nTest: Info"));
+
+  console.log(`Use ${chalk.cyan(deployer.key.accAddress)} as deployer`);
+  console.log(`Use ${chalk.cyan(user1.key.accAddress)} as user 1`);
+  console.log(`Use ${chalk.cyan(user2.key.accAddress)} as user 2`);
+
   console.log(chalk.yellow("\nTest: Setup"));
 
   await setupTest();

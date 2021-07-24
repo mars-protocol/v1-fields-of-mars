@@ -4,7 +4,6 @@ import BN from "bn.js";
 import {
   isTxError,
   Coin,
-  Coins,
   LocalTerra,
   Msg,
   MsgInstantiateContract,
@@ -25,7 +24,7 @@ export async function sendTransaction(
   terra: LocalTerra | LCDClient,
   sender: Wallet,
   msgs: Msg[],
-  printLogInfo = false
+  verbose = false
 ) {
   const tx = await sender.createAndSignTx({
     msgs,
@@ -38,11 +37,15 @@ export async function sendTransaction(
   const result = await terra.tx.broadcast(tx);
 
   // Print the log info
-  if (printLogInfo) {
+  if (verbose) {
+    console.log(chalk.magenta("\nTxHash:"), result.txhash);
     try {
-      console.log(JSON.stringify(JSON.parse(result.raw_log), null, 2));
+      console.log(
+        chalk.magenta("Raw log:"),
+        JSON.stringify(JSON.parse(result.raw_log), null, 2)
+      );
     } catch {
-      console.log("Failed to parse log! Raw log:", result.raw_log);
+      console.log(chalk.magenta("Failed to parse log! Raw log:"), result.raw_log);
     }
   }
 
@@ -79,19 +82,16 @@ export async function storeCode(
 export async function instantiateContract(
   terra: LocalTerra | LCDClient,
   deployer: Wallet,
+  admin: Wallet, // leave this emtpy then contract is not migratable
   codeId: number,
-  initMsg: object,
-  initCoins?: Coins,
-  migratable?: boolean
+  initMsg: object
 ) {
   const result = await sendTransaction(terra, deployer, [
     new MsgInstantiateContract(
-      deployer.key.accAddress, // creator
-      deployer.key.accAddress, // admin: the account who can migrate the contract
+      deployer.key.accAddress,
+      admin.key.accAddress,
       codeId,
-      initMsg,
-      initCoins,
-      migratable
+      initMsg
     ),
   ]);
   return result;
@@ -109,7 +109,7 @@ export async function queryNativeTokenBalance(
   if (balance) {
     return balance;
   } else {
-    throw Error("Failed to query native token balance");
+    return "0";
   }
 }
 

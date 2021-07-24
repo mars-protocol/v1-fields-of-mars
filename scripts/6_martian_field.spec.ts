@@ -1,14 +1,9 @@
-import * as path from "path";
 import chalk from "chalk";
 import chai from "chai";
 import chaiAsPromised from "chai-as-promised";
-import {
-  LocalTerra,
-  MsgExecuteContract,
-  MsgMigrateContract,
-  MsgSend,
-  Wallet,
-} from "@terra-money/terra.js";
+import { table } from "table";
+import { LocalTerra, MsgExecuteContract, MsgSend } from "@terra-money/terra.js";
+import { queryTokenBalance, sendTransaction, toEncodedBinary } from "./helpers";
 import {
   deployMartianField,
   deployMockAnchor,
@@ -16,17 +11,52 @@ import {
   deployTerraswapPair,
   deployTerraswapToken,
 } from "./fixture";
-import {
-  queryTokenBalance,
-  sendTransaction,
-  storeCode,
-  toEncodedBinary,
-} from "./helpers";
+
+//----------------------------------------------------------------------------------------
+// Interfaces
+//----------------------------------------------------------------------------------------
+
+interface StateResponse {
+  total_bond_units: string;
+  total_debt_units: string;
+}
+
+interface PositionResponse {
+  bond_units: string;
+  debt_units: string;
+  unlocked_assets: { amount: string }[];
+}
+
+interface HealthResponse {
+  bond_value: string;
+  debt_value: string;
+  ltv: string | null;
+}
+
+interface StakerInfoResponse {
+  bond_amount: string;
+}
+
+interface DebtResponse {
+  debts: { denom: string; amount: string }[];
+}
+
+interface PoolResponse {
+  assets: { amount: string }[];
+  total_share: string;
+}
+
+//----------------------------------------------------------------------------------------
+// Variables
+//----------------------------------------------------------------------------------------
 
 chai.use(chaiAsPromised);
 const { expect } = chai;
 
+// LocalTerra instance
 const terra = new LocalTerra();
+
+// User addresses
 const deployer = terra.wallets.test1;
 const treasury = terra.wallets.test2;
 const user1 = terra.wallets.test3;
@@ -34,6 +64,7 @@ const user2 = terra.wallets.test4;
 const liquidator1 = terra.wallets.test5;
 const liquidator2 = terra.wallets.test6;
 
+// Contract addresses
 let anchorToken: string;
 let anchorStaking: string;
 let terraswapPair: string;
@@ -41,8 +72,350 @@ let terraswapLpToken: string;
 let redBank: string;
 let field: string;
 
+// InstantiateMsg aka Config
 let config: object;
-let unlockedAssets: object;
+
+//----------------------------------------------------------------------------------------
+// Helper functions
+//----------------------------------------------------------------------------------------
+
+function _generateRow(
+  name: string,
+  expected: string | null | undefined,
+  actual: string | null | undefined
+) {
+  return [
+    name,
+    expected,
+    actual,
+    expected === actual ? chalk.green("true") : chalk.red("false"),
+  ];
+}
+
+async function verify(
+  // Hash of the transaction
+  txhash: string,
+  // Name of the test
+  name: string,
+  // Data related to contracts other than Marian Field, including Red Bank, staking, AMM
+  externalData: {
+    bondAmount: string;
+    debtAmount: string;
+    poolUanc: string;
+    poolUusd: string;
+    poolUlp: string;
+  },
+  // Overall state of Martian Field
+  stateData: {
+    totalBondUnits: string;
+    totalDebtUnits: string;
+    bondValue: string;
+    debtValue: string;
+    ltv: string | null;
+  },
+  // Data related to field (used in harvesting)
+  fieldData: null | {
+    unlockedUanc: string;
+    unlockedUusd: string;
+    unlockedUlp: string;
+  },
+  // Data related to user 1
+  // `null` if this user is expected to not have a position
+  user1Data: null | {
+    bondUnits: string;
+    debtUnits: string;
+    unlockedUanc: string;
+    unlockedUusd: string;
+    unlockedUlp: string;
+    bondValue: string;
+    debtValue: string;
+    ltv: string | null;
+  },
+  // Data related to user2
+  // `null` if this user is expected to not have a position
+  user2Data: null | {
+    bondUnits: string;
+    debtUnits: string;
+    unlockedUanc: string;
+    unlockedUusd: string;
+    unlockedUlp: string;
+    bondValue: string;
+    debtValue: string;
+    ltv: string | null;
+  }
+) {
+  const bondResponse: StakerInfoResponse = await terra.wasm.contractQuery(anchorStaking, {
+    staker_info: {
+      staker: field,
+      block_height: null,
+    },
+  });
+
+  const debtResponse: DebtResponse = await terra.wasm.contractQuery(redBank, {
+    debt: {
+      address: field,
+    },
+  });
+
+  const debt = debtResponse.debts.find((debt) => {
+    return debt.denom == "uusd";
+  })?.amount;
+
+  const poolResponse: PoolResponse = await terra.wasm.contractQuery(terraswapPair, {
+    pool: {},
+  });
+
+  const stateResponse: StateResponse = await terra.wasm.contractQuery(field, {
+    state: {},
+  });
+
+  const stateHealthResponse: HealthResponse = await terra.wasm.contractQuery(field, {
+    health: {
+      user: null,
+    },
+  });
+
+  let fieldPositionResponse: PositionResponse | null = null;
+  let user1PositionResponse: PositionResponse | null = null;
+  let user1HealthResponse: HealthResponse | null = null;
+  let user2PositionResponse: PositionResponse | null = null;
+  let user2HealthResponse: HealthResponse | null = null;
+
+  if (fieldData) {
+    fieldPositionResponse = await terra.wasm.contractQuery(field, {
+      position: {
+        user: field,
+      },
+    });
+  }
+
+  if (user1Data) {
+    user1PositionResponse = await terra.wasm.contractQuery(field, {
+      position: {
+        user: user1.key.accAddress,
+      },
+    });
+    user1HealthResponse = await await terra.wasm.contractQuery(field, {
+      health: {
+        user: user1.key.accAddress,
+      },
+    });
+  }
+
+  if (user2Data) {
+    user2PositionResponse = await terra.wasm.contractQuery(field, {
+      position: {
+        user: user2.key.accAddress,
+      },
+    });
+    user2HealthResponse = await await terra.wasm.contractQuery(field, {
+      health: {
+        user: user2.key.accAddress,
+      },
+    });
+  }
+
+  let header = [
+    chalk.magenta(name),
+    "expected            ",
+    "actual              ",
+    "match",
+  ];
+
+  let rows = [
+    header,
+    // bond
+    _generateRow("bond.amount", externalData.bondAmount, bondResponse.bond_amount),
+    // debt
+    _generateRow("debt.amount", externalData.debtAmount, debt ? debt : null),
+    // pool
+    _generateRow("pool.uanc_depth", externalData.poolUanc, poolResponse.assets[1].amount),
+    _generateRow("pool.uusd_depth", externalData.poolUusd, poolResponse.assets[0].amount),
+    _generateRow("pool.total_share", externalData.poolUlp, poolResponse.total_share),
+    // state
+    _generateRow(
+      "state.total_bond_units",
+      stateData.totalBondUnits,
+      stateResponse.total_bond_units
+    ),
+    _generateRow(
+      "state.total_debt_units",
+      stateData.totalDebtUnits,
+      stateResponse.total_debt_units
+    ),
+    // state health
+    _generateRow("state.bond_value", stateData.bondValue, stateHealthResponse.bond_value),
+    _generateRow("state.debt_value", stateData.debtValue, stateHealthResponse.debt_value),
+    _generateRow("state.ltv", stateData.ltv, stateHealthResponse.ltv),
+  ];
+
+  if (fieldData) {
+    rows = rows.concat([
+      _generateRow(
+        "field.unlocked_uanc",
+        fieldData.unlockedUanc,
+        fieldPositionResponse?.unlocked_assets[0].amount
+      ),
+      _generateRow(
+        "field.unlocked_uusd",
+        fieldData.unlockedUusd,
+        fieldPositionResponse?.unlocked_assets[1].amount
+      ),
+      _generateRow(
+        "field.unlocked_ulp",
+        fieldData.unlockedUlp,
+        fieldPositionResponse?.unlocked_assets[2].amount
+      ),
+    ]);
+  }
+
+  if (user1Data) {
+    rows = rows.concat([
+      // user 1 position
+      _generateRow(
+        "user1.bond_units",
+        user1Data.bondUnits,
+        user1PositionResponse?.bond_units
+      ),
+      _generateRow(
+        "user1.debt_units",
+        user1Data.debtUnits,
+        user1PositionResponse?.debt_units
+      ),
+      _generateRow(
+        "user1.unlocked_uanc",
+        user1Data.unlockedUanc,
+        user1PositionResponse?.unlocked_assets[0].amount
+      ),
+      _generateRow(
+        "user1.unlocked_uusd",
+        user1Data.unlockedUusd,
+        user1PositionResponse?.unlocked_assets[1].amount
+      ),
+      _generateRow(
+        "user1.unlocked_ulp",
+        user1Data.unlockedUlp,
+        user1PositionResponse?.unlocked_assets[2].amount
+      ),
+      // user 1 health
+      _generateRow(
+        "user1.bond_value",
+        user1Data.bondValue,
+        user1HealthResponse?.bond_value
+      ),
+      _generateRow(
+        "user1.debt_value",
+        user1Data.debtValue,
+        user1HealthResponse?.debt_value
+      ),
+      _generateRow("user1.ltv", user1Data?.ltv, user1HealthResponse?.ltv),
+    ]);
+  }
+
+  if (user2Data) {
+    rows = rows.concat([
+      // user 2 position
+      _generateRow(
+        "user2.bond_units",
+        user2Data.bondUnits,
+        user2PositionResponse?.bond_units
+      ),
+      _generateRow(
+        "user2.debt_units",
+        user2Data.debtUnits,
+        user2PositionResponse?.debt_units
+      ),
+      _generateRow(
+        "user2.unlocked_uanc",
+        user2Data.unlockedUanc,
+        user2PositionResponse?.unlocked_assets[0].amount
+      ),
+      _generateRow(
+        "user2.unlocked_uusd",
+        user2Data.unlockedUusd,
+        user2PositionResponse?.unlocked_assets[1].amount
+      ),
+      _generateRow(
+        "user2.unlocked_ulp",
+        user2Data.unlockedUlp,
+        user2PositionResponse?.unlocked_assets[2].amount
+      ),
+      // user 1 health
+      _generateRow(
+        "user2.bond_value",
+        user2Data.bondValue,
+        user2HealthResponse?.bond_value
+      ),
+      _generateRow(
+        "user2.debt_value",
+        user2Data.debtValue,
+        user2HealthResponse?.debt_value
+      ),
+      _generateRow("user2.ltv", user2Data?.ltv, user2HealthResponse?.ltv),
+    ]);
+  }
+
+  process.stdout.write(
+    table(rows, {
+      header: {
+        content: chalk.cyan(txhash),
+      },
+      drawHorizontalLine: (lineIndex: number, rowCount: number) => {
+        return [0, 1, 2, rowCount].includes(lineIndex);
+      },
+    })
+  );
+
+  expect(externalData).to.deep.equal({
+    bondAmount: bondResponse.bond_amount,
+    debtAmount: debt,
+    poolUanc: poolResponse.assets[1].amount,
+    poolUusd: poolResponse.assets[0].amount,
+    poolUlp: poolResponse.total_share,
+  });
+
+  expect(stateData).to.deep.equal({
+    totalBondUnits: stateResponse.total_bond_units,
+    totalDebtUnits: stateResponse.total_debt_units,
+    bondValue: stateHealthResponse.bond_value,
+    debtValue: stateHealthResponse.debt_value,
+    ltv: stateHealthResponse.ltv,
+  });
+
+  if (fieldData) {
+    expect(fieldData).to.deep.equal({
+      unlockedUanc: fieldPositionResponse?.unlocked_assets[0].amount,
+      unlockedUusd: fieldPositionResponse?.unlocked_assets[1].amount,
+      unlockedUlp: fieldPositionResponse?.unlocked_assets[2].amount,
+    });
+  }
+
+  if (user1Data) {
+    expect(user1Data).to.deep.equal({
+      bondUnits: user1PositionResponse?.bond_units,
+      debtUnits: user1PositionResponse?.debt_units,
+      unlockedUanc: user1PositionResponse?.unlocked_assets[0].amount,
+      unlockedUusd: user1PositionResponse?.unlocked_assets[1].amount,
+      unlockedUlp: user1PositionResponse?.unlocked_assets[2].amount,
+      bondValue: user1HealthResponse?.bond_value,
+      debtValue: user1HealthResponse?.debt_value,
+      ltv: user1HealthResponse?.ltv,
+    });
+  }
+
+  if (user2Data) {
+    expect(user2Data).to.deep.equal({
+      bondUnits: user2PositionResponse?.bond_units,
+      debtUnits: user2PositionResponse?.debt_units,
+      unlockedUanc: user2PositionResponse?.unlocked_assets[0].amount,
+      unlockedUusd: user2PositionResponse?.unlocked_assets[1].amount,
+      unlockedUlp: user2PositionResponse?.unlocked_assets[2].amount,
+      bondValue: user2HealthResponse?.bond_value,
+      debtValue: user2HealthResponse?.debt_value,
+      ltv: user2HealthResponse?.ltv,
+    });
+  }
+}
 
 //----------------------------------------------------------------------------------------
 // Setup
@@ -69,7 +442,7 @@ async function setupTest() {
 
   redBank = await deployMockMars(terra, deployer);
 
-  // Part 2. Initialize helper objects (helps reducing repetitive code in tests)
+  // Part 2. Deploy Martian Field
   config = {
     long_asset: {
       token: {
@@ -95,41 +468,13 @@ async function setupTest() {
         staking_token: terraswapLpToken,
       },
     },
-    keepers: [user1.key.accAddress],
+    keepers: [deployer.key.accAddress],
     treasury: treasury.key.accAddress,
     governance: deployer.key.accAddress,
-    max_ltv: "0.67", // 67% debt ratio, i.e. 150% collateralization ratio
+    max_ltv: "0.75", // 75% debt ratio, i.e. 133.333...% collateralization ratio
     fee_rate: "0.2", // 20%
   };
 
-  unlockedAssets = [
-    {
-      info: {
-        token: {
-          contract_addr: anchorToken,
-        },
-      },
-      amount: "0",
-    },
-    {
-      info: {
-        native_token: {
-          denom: "uusd",
-        },
-      },
-      amount: "0",
-    },
-    {
-      info: {
-        token: {
-          contract_addr: terraswapLpToken,
-        },
-      },
-      amount: "0",
-    },
-  ];
-
-  // Part 3. Deploy Martian Field
   field = await deployMartianField(
     terra,
     deployer,
@@ -137,7 +482,7 @@ async function setupTest() {
     config
   );
 
-  // Part 4. Misc
+  // Part 3. Misc
   process.stdout.write("Fund deployer with ANC... ");
 
   await sendTransaction(terra, deployer, [
@@ -201,7 +546,7 @@ async function setupTest() {
   process.stdout.write("Provide initial liquidity to TerraSwap Pair... ");
 
   // Deployer Provides 69 ANC + 420 UST
-  // Should receive sqrt(69 * 420) = 170.235131 LP tokens
+  // Should receive sqrt(69000000 * 420000000) = 170235131 uLP
   await sendTransaction(terra, deployer, [
     new MsgExecuteContract(deployer.key.accAddress, anchorToken, {
       increase_allowance: {
@@ -248,69 +593,100 @@ async function setupTest() {
 //----------------------------------------------------------------------------------------
 
 async function testConfig() {
-  process.stdout.write("Should store correct config info... ");
-
-  await verifyConfig(config);
-
-  // No position has been opened; State should be zero
-  await verifyState({
-    total_bond_units: "0",
-    total_debt_units: "0",
+  const response = await terra.wasm.contractQuery(field, {
+    config: {},
   });
-  await verifyHealth(null, {
-    bond_value: "0",
-    debt_value: "0",
+  expect(response).to.deep.equal(config);
+
+  const externalData = {
+    bondAmount: "0",
+    debtAmount: "0",
+    poolUanc: "69000000",
+    poolUusd: "420000000",
+    poolUlp: "170235131",
+  };
+
+  const stateData = {
+    totalBondUnits: "0",
+    totalDebtUnits: "0",
+    bondValue: "0",
+    debtValue: "0",
     ltv: null,
-  });
+  };
 
-  // User1's position should be zero; query Position or Health or Snapshot should fail
-  await expect(verifyPosition(user1, {})).to.be.rejectedWith("status code 500");
-  await expect(verifyHealth(user1, {})).to.be.rejectedWith("status code 500");
-  await expect(verifySnapshot(user1, {}, {})).to.be.rejectedWith("status code 500");
-
-  console.log(chalk.green("Passed!"));
+  await verify("null", "testConfig", externalData, stateData, null, null, null);
 }
 
 //----------------------------------------------------------------------------------------
 // Test: Open Position, Pt. 1
 //
-// User attempts to borrow 420 UST; should get 419.580419 after tax
-// When providing to Terraswap, deliverable is 419.161257 after rax
+// Prior to execution:
+// ---
+// bond      0 LP
+// debt      0 uusd
+// pool ANC  69000000 uANC
+// pool UST  420000000 uusd
+// pool LP   170235131 uLP
 //
-// Terraswap currently has 69 ANC + 420 UST, with
-// sqrt(69_000_000 * 420_000_000) = 170235131 total shares
+// Step 1. deposit
+// contract receives 69000000 uANC & 0 uusd
+// ---
+// user1 unlocked uANC  0 + 69000000 = 69000000
 //
-// User provides 69 ANC + 419.161257 UST, should get this many LP tokens:
+// Step 2. borrow
+// attempts to borrow 420000000 uusd; receives deductTax(420000000) = 419580419 uusd
+// ---
+// total debt unit      0 + 420000000000000 = 420000000000000
+// user1 debt unit      0 + 420000000000000 = 420000000000000
+// user1 unlocked uusd  0 + 419580419 = 419580419
+// debt                 0 + 420000000 = 420000000
 //
-// min(ustDeposit * totalShare / ustPooled, ancDeposit * totalShare / ancPooled)
-// = 419161257 * 170235131 / 420000000
-// = 169895170
+// Step 3. provide liquidity
+// sends 69000000 uANC + deductTax(419580419) = 419161257 uusd to pool
+// total tx cost is addTax(419161257) = 419580418 uusd
+// expects to receive 419161257 * 170235131 / 420000000 = 169895170 uLP
+// ---
+// user1 unlocked uANC  69000000 - 69000000 = 0
+// user1 unlocked uusd  419580419 - 419580418 = 1
+// user1 unlocked uLP   0 + 169895170 = 169895170
+// pool uANC            69000000 + 69000000 = 138000000
+// pool uusd            420000000 + 419161257 = 839161257
+// pool uLP             170235131 + 169895170 = 340130301
 //
-// Initial ratio 1 LP token = 1_000_000 asset units
-// The user should have:
-// 169895170000000 asset units
-// 420000000000000 debt units
+// Step 4. bond
+// send 169895170 uLP to staking contract
+// ---
+// total bond units     0 + 169895170000000 = 169895170000000
+// user1 bond units     0 + 169895170000000 = 169895170000000
+// user1 unlocked uLP   169895170 - 169895170 = 0
+// bond                 0 + 169895170 = 169895170
 //
-// After liquidity provision, the Terraswap pair has:
-// 69 + 69 = 138 ANC
-// 420000000 + 419161257 = 839161257 uusd
-// 170235131 + 169895170 = 340130301 total shares
+// Result
+// ---
+// total bond units     169895170000000
+// total debt units     420000000000000
+// user1 bond units     169895170000000
+// user1 debt units     420000000000000
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// bond                 169895170
+// debt                 420000000
+// pool uANC            138000000
+// pool uusd            839161257
+// pool uLP             340130301
 //
-//------------------------------- DEBT RATIO CALCULATION ---------------------------------
+// State health:
+// bondValue = 2 * 839161257 * 169895170 / 340130301 = 838322513 uusd
+// debtValue = 420000000
+// ltv = 420000000 / 838322513 = 0.501000502177853357
 //
-// Value per LP token:
-// 2 * 839161257 / 340130301 = 4.93435165601432258 uusd/uLP
-//
-// The value of the user's staked asset is
-// 169895170 * 4.93435165601432258 = 838322513 uusd
-// User's debt ratio is:
-// 420000000 / 838322513 = 0.501000502177853357
+// User1 health:
+// same as state as user1 is the only user now
 //----------------------------------------------------------------------------------------
 
 async function testOpenPosition1() {
-  process.stdout.write("Should open position for user 1... ");
-
-  await sendTransaction(terra, user1, [
+  const result = await sendTransaction(terra, user1, [
     new MsgExecuteContract(user1.key.accAddress, anchorToken, {
       increase_allowance: {
         amount: "69000000",
@@ -341,244 +717,385 @@ async function testOpenPosition1() {
     }),
   ]);
 
-  // State
-  await verifyState({
-    total_bond_units: "169895170000000",
-    total_debt_units: "420000000000000",
-  });
-  await verifyHealth(null, {
-    bond_value: "838322513",
-    debt_value: "420000000",
+  const externalData = {
+    bondAmount: "169895170",
+    debtAmount: "420000000",
+    poolUanc: "138000000",
+    poolUusd: "839161257",
+    poolUlp: "340130301",
+  };
+
+  const stateData = {
+    totalBondUnits: "169895170000000",
+    totalDebtUnits: "420000000000000",
+    bondValue: "838322513",
+    debtValue: "420000000",
     ltv: "0.501000502177853357",
-  });
+  };
 
-  // User 1
-  await verifyPosition(user1, {
-    is_active: true,
-    bond_units: "169895170000000",
-    debt_units: "420000000000000",
-    unlocked_assets: unlockedAssets,
-  });
-  await verifySnapshot(
-    user1,
-    {
-      is_active: true,
-      bond_units: "169895170000000",
-      debt_units: "420000000000000",
-      unlocked_assets: unlockedAssets,
-    },
-    {
-      bond_value: "838322513",
-      debt_value: "420000000",
-      ltv: "0.501000502177853357",
-    }
+  const user1Data = {
+    bondUnits: "169895170000000",
+    debtUnits: "420000000000000",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "838322513",
+    debtValue: "420000000",
+    ltv: "0.501000502177853357",
+  };
+
+  await verify(
+    result.txhash,
+    "testOpenPosition1",
+    externalData,
+    stateData,
+    null,
+    user1Data,
+    null
   );
-
-  // Bond & debt amounts
-  await verifyBond("169895170");
-  await verifyDebt("420000000");
-
-  console.log(chalk.green("Passed!"));
 }
 
 //----------------------------------------------------------------------------------------
 // Test: Harvest
 //
+// Prior to execution:
+// ---
+// total bond units     169895170000000
+// total debt units     420000000000000
+// user1 bond units     169895170000000
+// user1 debt units     420000000000000
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// bond                 169895170
+// debt                 420000000
+// pool uANC            138000000
+// pool uusd            839161257
+// pool uLP             340130301
+//
+// Step 1. reinvest
+// receives 1000000 uANC, sends 200000 uANC to treasury, swap 400000 uANC for UST
 // 1.0 ANC reward claimed, 0.2 ANC charged as performance fee, 0.4 ANC swapped for UST
-//
-// Prior to the swap, Terraswap pool has:
-// 138 ANC
-// 4839161257 uusd
-// 340130301 total shares
-//
-//-------------------------------- STEP 1. SWAP REWARD -----------------------------------
-//
-// If swapping 0.4 ANC to UST, the deliverable amount is calculated as follows:
-//
 // kValue = poolUst * poolAnc = 839161257 * 138000000
 // = 115804253466000000
-//
 // returnUst = poolUst - k / (poolAnc + sendAnc)
 // = 839161257 - 115804253466000000 / (138000000 + 400000)
 // = 2425321 uusd
-//
 // fee = returnUst * feeRate = 2425321 * 0.003
 // = 7275 uusd
-//
 // returnUstAfterFee = returnUst - fee = 2425321 - 7275
 // = 2418046 uusd
-//
 // returnUstAfterFeeAndTax = deductTax(returnUstAfterFee) = deductTax(2418046)
 // = 2415630 uusd
+// ustCostForPool = addTax(2415630) = 2418045 uusd
+// ---
+// field unlocked uANC  0 + 400000 = 400000
+// field unlocked uusd  0 + 2415630 = 2415630
+// pool uANC            138000000 + 400000 = 138400000
+// pool uusd            839161257 - 2418045 = 836743212
 //
-// The pool should now have
-// 138 + 0.4 = 138.4 ANC
-// 839161257 - 2418046 = 836743211 uusd
-// 340130301 total shares (unchanged)
+// Step 2. provide liquidity
+// sends: 400000 uANC + deductTax(2415631) = 2413216 uusd to pool
+// total tx cost: addTax(2413216) = 2415629 uusd
+// expects to receive: 2413216 * 340130301 / 836743212 = 980955 uLP
+// ---
+// Note: here my JS script incorrectly calculates deductTax(2415631) as 2413217; however,
+// the Rust function in the contract calculates as 2413216
+// ---
+// field unlocked uANC  400000 - 400000 = 0
+// field unlocked uusd  2415630 - 2415629 = 1
+// field unlocked uLP   0 + 980955 = 980955
+// pool uANC            138400000 + 400000 = 138800000
+// pool uusd            836743212 + 2413216 = 839156428
+// pool uLP             340130301 + 980955 = 341111256
 //
-//----------------------------- STEP 2. PROVIDE LIQUIDITY --------------------------------
+// Step 4. bond
+// send 341111256 uLP to staking contract
+// ---
+// Bond units should not change in a harvest transaction
+// ---
+// field unlocked uLP   980955 - 980955 = 0
+// bond                 169895170 + 980955 = 170876125
 //
-// When providing liquidity, the deliverable amount is
-// deductTax(2415630) = 2413216 uusd
+// Result
+// ---
+// total bond units     169895170000000
+// total debt units     420000000000000
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     169895170000000
+// user1 debt units     420000000000000
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// bond                 170876125
+// debt                 420000000
+// pool uANC            138800000
+// pool uusd            839156428
+// pool uLP             341111256
 //
-// Providing 0.4 ANC + 2413216 uusd, should get this many LP tokens:
-// min(2413216 * 340130301 / 836743211, 400000 * 340130130 / 138400000)
-// = 980955
+// State health:
+// bondValue = 2 * 839156428 * 170876125 / 341111256 = 840733315 uusd
+// debtValue = 420000000 uusd
+// ltv = 420000000 / 840733315 = 0.49956388370312172(0)
 //
-// The pool should now have
-// 138.4 + 0.4 = 138.8 ANC
-// 836743211 + 2413216 = 839156427 uusd
-// 340130301 + 980955 = 341111256 total shares
-//
-// Total bond amount 169895170 + 980955 = 170876125
-//
-//------------------------------- DEBT RATIO CALCULATION ---------------------------------
-//
-// Value per LP token:
-// 2 * 839156427 / 341111256 = 4.92013331275119223 uusd/uLP
-//
-// Asset value = 170876125 * 4.920133312751192238 = 840733315 uusd
-// Debt value = 420000000 uusd (unchanged)
-//
-// Debt ratio = 420000000 / 840733314 = 0.499563883703121720 (last digit 0 is dropped)
+// User1 health:
+// same as state as user1 is the only user now
 //----------------------------------------------------------------------------------------
 
 async function testHarvest() {
-  process.stdout.write("Should harvest staking rewards... ");
-
-  // Should fail as user2 is not a whitelisted operator
-  await expect(
-    sendTransaction(terra, user2, [
-      new MsgExecuteContract(user2.key.accAddress, field, {
-        harvest: {},
-      }),
-    ])
-  ).to.be.rejectedWith("unauthorized");
-
-  // User1 is a whitelisted operator; this should work
-  await sendTransaction(terra, user1, [
-    new MsgExecuteContract(user1.key.accAddress, field, {
+  const result = await sendTransaction(terra, deployer, [
+    new MsgExecuteContract(deployer.key.accAddress, field, {
       harvest: {},
     }),
   ]);
 
-  // State
-  await verifyState({
-    total_bond_units: "169895170000000",
-    total_debt_units: "420000000000000",
-  });
-  await verifyHealth(null, {
-    bond_value: "840733315",
-    debt_value: "420000000",
+  const externalData = {
+    bondAmount: "170876125",
+    debtAmount: "420000000",
+    poolUanc: "138800000",
+    poolUusd: "839156428",
+    poolUlp: "341111256",
+  };
+
+  const stateData = {
+    totalBondUnits: "169895170000000",
+    totalDebtUnits: "420000000000000",
+    bondValue: "840733315",
+    debtValue: "420000000",
     ltv: "0.49956388370312172",
-  });
+  };
 
-  // User 1
-  await verifyPosition(user1, {
-    is_active: true,
-    bond_units: "169895170000000",
-    debt_units: "420000000000000",
-    unlocked_assets: unlockedAssets,
-  });
-  await verifyHealth(user1, {
-    bond_value: "840733315",
-    debt_value: "420000000",
+  const fieldData = {
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+  };
+
+  const user1Data = {
+    bondUnits: "169895170000000",
+    debtUnits: "420000000000000",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "840733315",
+    debtValue: "420000000",
     ltv: "0.49956388370312172",
-  });
-  await verifySnapshot(
-    user1,
-    {
-      is_active: true,
-      bond_units: "169895170000000",
-      debt_units: "420000000000000",
-      unlocked_assets: unlockedAssets,
-    },
-    {
-      bond_value: "838322513",
-      debt_value: "420000000",
-      ltv: "0.501000502177853357",
-    }
+  };
+
+  await verify(
+    result.txhash,
+    "testHarvest",
+    externalData,
+    stateData,
+    fieldData,
+    user1Data,
+    null
   );
+}
 
-  // Bond & debt amounts
-  await verifyBond("170876125");
-  await verifyDebt("420000000");
+//----------------------------------------------------------------------------------------
+// Test: Accrue Interest
+//
+// Prior to execution:
+// ---
+// total bond units     169895170000000
+// total debt units     420000000000000
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     169895170000000
+// user1 debt units     420000000000000
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// bond                 170876125
+// debt                 420000000
+// pool uANC            138800000
+// pool uusd            839156428
+// pool uLP             341111256
+//
+// We forcibly set the strategy's debt to 441000000 to simulate accrual of a 5% interest
+//
+// Result
+// ---
+// total bond units     169895170000000
+// total debt units     420000000000000
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     169895170000000
+// user1 debt units     420000000000000
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// bond                 170876125
+// debt                 441000000
+// pool uANC            138800000
+// pool uusd            839156428
+// pool uLP             341111256
+//
+// State health:
+// bondValue = 2 * 839156428 * 170876125 / 341111256 = 840733315 uusd
+// debtValue = 441000000 uusd
+// ltv = 441000000 / 840733315 = 0.524542077888277806
+//
+// User1 health:
+// same as state as user1 is the only user now
+//----------------------------------------------------------------------------------------
 
-  // Fee collector should have received 0.2 ANC performance fee
-  const treasuryBalance = await queryTokenBalance(
-    terra,
-    treasury.key.accAddress,
-    anchorToken
+async function testAccrueInterest() {
+  const result = await sendTransaction(terra, deployer, [
+    new MsgExecuteContract(deployer.key.accAddress, redBank, {
+      set_debt: { user: field, denom: "uusd", amount: "441000000" },
+    }),
+  ]);
+
+  const externalData = {
+    bondAmount: "170876125",
+    debtAmount: "441000000",
+    poolUanc: "138800000",
+    poolUusd: "839156428",
+    poolUlp: "341111256",
+  };
+
+  const stateData = {
+    totalBondUnits: "169895170000000",
+    totalDebtUnits: "420000000000000",
+    bondValue: "840733315",
+    debtValue: "441000000",
+    ltv: "0.524542077888277806",
+  };
+
+  const fieldData = {
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+  };
+
+  const user1Data = {
+    bondUnits: "169895170000000",
+    debtUnits: "420000000000000",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "840733315",
+    debtValue: "441000000",
+    ltv: "0.524542077888277806",
+  };
+
+  await verify(
+    result.txhash,
+    "testAccrueInterest",
+    externalData,
+    stateData,
+    fieldData,
+    user1Data,
+    null
   );
-  expect(treasuryBalance).to.equal("200000");
-
-  console.log(chalk.green("Passed!"));
 }
 
 //----------------------------------------------------------------------------------------
 // Test: Open Position, Pt. 2
 //
-// User 2 sends enough UST along with the transaction so that he doesn't need to take on
-// debt from Mars.
+// Prior to execution:
+// ---
+// total bond units     169895170000000
+// total debt units     420000000000000
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     169895170000000
+// user1 debt units     420000000000000
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// bond                 170876125
+// debt                 441000000
+// pool uANC            138800000
+// pool uusd            839156428
+// pool uLP             341111256
 //
-// The pool currently has:
-// 138.8 ANC
-// 839156427 uusd
-// 341111256 total shares
+// Step 1. deposit
+// user deposits 34.5 ANC & 150 UST
+// ---
+// user2 unlocked uANC  0 + 34500000 = 34500000
+// user2 unlocked uusd  0 + 150000000 = 150000000
 //
-// To pair with 34.5 ANC, this much uusd is needed:
-// 839156427 * 34500000 / 138800000 = 208579947 uusd
+// Step 2. borrow
+// UST needed: 34500000 * 839156428 / 138800000 = 208579947 uusd
+// UST to borrow: 208579947 - 150000000 = 58579947 uusd
+// expects to receive: deductTax(58579947) = 58521425 uusd
+// debt units to add: 58579947 * 420000000000000 / 441000000 = 55790425714285
+// ---
+// total debt units     420000000000000 + 55790425714285 = 475790425714285
+// user2 debt units     0 + 55790425714285 = 55790425714285
+// user2 unlocked uusd  150000000 + 58521425 = 208521425
+// debt                 441000000 + 58579947 = 499579947
 //
-// The actual amount deliverable to Terraswap is
-// deductTax(208579947) = 208371575 uusd
+// Step 3. provide liquidity
+// sends 34500000 uANC + deductTax(208521425) = 208313111 uusd to pool
+// total tx cost is addTax(208313111) = 208521424 uusd
+// expects to receive 208313111 * 341111256 / 839156428 = 84677831 uLP
+// ---
+// user1 unlocked uANC  34500000 - 34500000 = 0
+// user1 unlocked uusd  208521425 - 208521424 = 1
+// user1 unlocked uLP   0 + 84677831 = 84677831
+// pool uANC            138800000 + 34500000 = 173300000
+// pool uusd            839156428 + 208313111 = 1047469539
+// pool uLP             341111256 + 84677831 = 425789087
 //
-// User 2 should receive this many LP tokens:
-// min(208371575 * 341111256 / 839156427, 34500000 * 341111256 / 138800000)
-// = min(84701597, 84786299)
-// = 84701597
+// Step 4. bond
+// send 84677831 uLP to staking contract
+// bond units to add: 84677831 * 169895170000000 / 170876125 = 84191717789575
+// ---
+// total bond units     169895170000000 + 84191717789575 = 254086887789575
+// user2 bond units     0 + 84191717789575 = 84191717789575
+// user2 unlocked uLP   84677831 - 84677831 = 0
+// bond                 170876125 + 84677831 = 255553956
 //
-// Pooled assets after provision:
-// 138.8 + 34.5 = 173.3 ANC
-// 839156427 + 208371575 = 1047528002 uusd
-// 341111256 + 84701597 = 425812853 total shares
+// Result
+// ---
+// total bond units     254086887789575
+// total debt units     475790425714285
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     169895170000000
+// user1 debt units     420000000000000
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// user2 bond units     84191717789575
+// user2 debt units     55790425714285
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+// user2 unlocked uLP   0
+// bond                 255553956
+// debt                 499579947
+// pool uANC            173300000
+// pool uusd            1047469539
+// pool uLP             425789087
 //
-// User 2 should be accredit this many asset units:
-// totalAssetUnits * lpTokensAdded / totalLpTokens
-// = 169895170000000 * 84701597 / 170876125
-// = 84215347355205
+// State health:
+// bondValue = 2 * 1047469539 * 255553956 / 425789087 = 1257359536 uusd
+// debtValue = 499579947
+// ltv = 499579947 / 1257359536 = 0.397324657503532068
 //
-// State after position increase:
-// totalAssetUnits = 169895170000000 + 84215347355205 = 254110517355205
-// totalDebtUnits = 420000000000000 + 0 = 420000000000000
-// totalLpTokensStaked = 170876125 + 84701597 = 255577722
+// User1 health:
+// bondValue = 1257359536 * 169895170000000 / 254086887789575 = 840733317
+// debtValue = 499579947 * 420000000000000 / 475790425714285 = 441000000
+// ltv = 441000000 / 840733317 = 0.52454207664045744(0)
 //
-//------------------------------- DEBT RATIO CALCULATION ---------------------------------
-//
-// Value per LP token:
-// 2 * 1047528002 / 425812853 = 4.920133314998831188 uusd/uLP
-//
-// Strategy:
-// Asset value = 255577722 * 4.920133314998831188 = 1257476465 uusd
-// Debt value = 420000000 uusd (unchanged)
-// Debt ratio = 420000000 / 1257476465 = 0.334002274945161697
-//
-// User 1:
-// LP tokens staked = 255577722 * 169895170000000 / 254110517355205 = 170876125 uLP
-// Asset value = 170876125 * 4.920133314998831188 = 840733316 uusd
-// Debt value = 420000000 uusd (unchanged)
-// Debt ratio = 420000000 / 840733316 = 0.499563883108921545
-//
-// User 2:
-// LP tokens staked = 255577722 * 84215347355205 / 254110517355205 = 84701596 uLP
-// Asset value = 84701596 * 4.920133314998831188 = 416743144 uusd
-// Debt value = 0
-// Debt ratio = 0
+// User2 health:
+// bondValue = 1257359536 * 84191717789575 / 254086887789575 = 416626218
+// debtValue = 499579947 * 55790425714285 / 475790425714285 = 58579946
+// ltv = 58579946 / 416626218 = 0.140605519933937522
 //----------------------------------------------------------------------------------------
 
 async function testOpenPosition2() {
-  process.stdout.write("Should open position for user 2... ");
-
-  await sendTransaction(terra, user2, [
+  const result = await sendTransaction(terra, user2, [
     new MsgExecuteContract(user2.key.accAddress, anchorToken, {
       increase_allowance: {
         amount: "34500000",
@@ -605,116 +1122,156 @@ async function testOpenPosition2() {
                   denom: "uusd",
                 },
               },
-              amount: "208579947",
+              amount: "150000000",
             },
           ],
         },
       },
       {
-        uusd: "208579947",
+        uusd: "150000000",
       }
     ),
   ]);
 
-  // State
-  await verifyState({
-    total_bond_units: "254110517355205",
-    total_debt_units: "420000000000000",
-  });
-  await verifyHealth(null, {
-    bond_value: "1257476465",
-    debt_value: "420000000",
-    ltv: "0.334002274945161697",
-  });
+  const externalData = {
+    bondAmount: "255553956",
+    debtAmount: "499579947",
+    poolUanc: "173300000",
+    poolUusd: "1047469539",
+    poolUlp: "425789087",
+  };
 
-  // User 1
-  await verifyPosition(user1, {
-    is_active: true,
-    bond_units: "169895170000000",
-    debt_units: "420000000000000",
-    unlocked_assets: unlockedAssets,
-  });
-  await verifyHealth(user1, {
-    bond_value: "840733316",
-    debt_value: "420000000",
-    ltv: "0.499563883108921545",
-  });
-  await verifySnapshot(
-    user1,
-    {
-      is_active: true,
-      bond_units: "169895170000000",
-      debt_units: "420000000000000",
-      unlocked_assets: unlockedAssets,
-    },
-    {
-      bond_value: "838322513",
-      debt_value: "420000000",
-      ltv: "0.501000502177853357",
-    }
+  const stateData = {
+    totalBondUnits: "254086887789575",
+    totalDebtUnits: "475790425714285",
+    bondValue: "1257359536",
+    debtValue: "499579947",
+    ltv: "0.397324657503532068",
+  };
+
+  const fieldData = {
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+  };
+
+  const user1Data = {
+    bondUnits: "169895170000000",
+    debtUnits: "420000000000000",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "840733317",
+    debtValue: "441000000",
+    ltv: "0.52454207664045744",
+  };
+
+  const user2Data = {
+    bondUnits: "84191717789575",
+    debtUnits: "55790425714285",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "416626218",
+    debtValue: "58579946",
+    ltv: "0.140605519933937522",
+  };
+
+  await verify(
+    result.txhash,
+    "testOpenPosition2",
+    externalData,
+    stateData,
+    fieldData,
+    user1Data,
+    user2Data
   );
-
-  // User 2
-  await verifyPosition(user2, {
-    is_active: true,
-    bond_units: "84215347355205",
-    debt_units: "0",
-    unlocked_assets: unlockedAssets,
-  });
-  await verifyHealth(user2, {
-    bond_value: "416743144",
-    debt_value: "0",
-    ltv: "0",
-  });
-  await verifySnapshot(
-    user2,
-    {
-      is_active: true,
-      bond_units: "84215347355205",
-      debt_units: "0",
-      unlocked_assets: unlockedAssets,
-    },
-    {
-      bond_value: "416743144",
-      debt_value: "0",
-      ltv: "0",
-    }
-  );
-
-  // Bond & debt amounts
-  await verifyBond("255577722");
-  await verifyDebt("420000000");
-
-  console.log(chalk.green("Passed!"));
 }
 
 //----------------------------------------------------------------------------------------
 // Test: Pay Debt
 //
-// User 1 pays 100 UST
+// Prior to execution:
+// ---
+// total bond units     254086887789575
+// total debt units     475790425714285
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     169895170000000
+// user1 debt units     420000000000000
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// user2 bond units     84191717789575
+// user2 debt units     55790425714285
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+// user2 unlocked uLP   0
+// bond                 255553956
+// debt                 499579947
+// pool uANC            173300000
+// pool uusd            1047469539
+// pool uLP             425789087
 //
-// After tax, the deliverable amount is deductTax(100_000_000) = 99900099 uusd
-// The current debt amount should be 420_000_000 - 99900099 = 320099901 uusd
+// Step 1. receiving user deposit
+// user1 deposits 100 UST to contract
+// ---
+// user1 unlocked uusd  1 + 100000000 = 100000001
 //
-// The user's debt units should be reduced accordingly to 320099901000000
+// Step 2. repay
+// user1's outstanding debt value (441000000) is greater than unlocked uusd, so use all
+// unlocked uusd to repay
+// deliverable amount: deductTax(100000001) = 99900100
+// transaction cost: addTax(99900100) = 100000000
+// debt units to reduce: 475790425714285 * 99900100 / 499579947 = 95142952380952
+// ---
+// debt                 499579947 - 99900100 = 399679847
+// total debt units     475790425714285 - 95142952380952 = 380647473333333
+// user1 debt units     420000000000000 - 95142952380952 = 324857047619048
+// user1 unlocked uusd  100000001 - 100000000 = 1
 //
-//------------------------------- DEBT RATIO CALCULATION -------------------------------
+// Result
+// ---
+// total bond units     254086887789575
+// total debt units     380647473333333
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     169895170000000
+// user1 debt units     324857047619048
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// user2 bond units     84191717789575
+// user2 debt units     55790425714285
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+// user2 unlocked uLP   0
+// bond                 255553956
+// debt                 399679847
+// pool uANC            173300000
+// pool uusd            1047469539
+// pool uLP             425789087
 //
-// Strategy:
-// Asset value = 1257476465 uusd (unchanged)
-// Debt value = 320099901 uusd
-// Debt ratio = 320099901 / 1257476465 = 0.254557369389811999
+// State health:
+// bondValue = 2 * 1047469539 * 255553956 / 425789087 = 1257359536 uusd
+// debtValue = 399679847
+// ltv = 399679847 / 1257359536 = 0.317872363120169631
 //
-// User 1:
-// Asset value = 840733316 uusd (unchanged)
-// Debt value = 320099901 uusd (unchanged)
-// Debt ratio = 320099901 / 840733316 = 0.380738927443669902
+// User1 health:
+// bondValue = 1257359536 * 169895170000000 / 254086887789575 = 840733317
+// debtValue = 399679847 * 324857047619048 / 380647473333333 = 341099900
+// ltv = 341099900 / 840733317 = 0.405717119927102877
+//
+// User2 health:
+// bondValue = 1257359536 * 84191717789575 / 254086887789575 = 416626218
+// debtValue = 399679847 * 55790425714285 / 380647473333333 = 58579946
+// ltv = 58579946 / 416626218 = 0.140605519933937522
 //----------------------------------------------------------------------------------------
 
 async function testPayDebt() {
-  process.stdout.write("Should repaying debt... ");
-
-  await sendTransaction(terra, user1, [
+  const result = await sendTransaction(terra, user1, [
     new MsgExecuteContract(
       user1.key.accAddress,
       field,
@@ -737,379 +1294,303 @@ async function testPayDebt() {
     ),
   ]);
 
-  // State
-  await verifyState({
-    total_bond_units: "254110517355205",
-    total_debt_units: "320099901000000",
-  });
-  await verifyHealth(null, {
-    bond_value: "1257476465",
-    debt_value: "320099901",
-    ltv: "0.254557369389811999",
-  });
+  const externalData = {
+    bondAmount: "255553956",
+    debtAmount: "399679847",
+    poolUanc: "173300000",
+    poolUusd: "1047469539",
+    poolUlp: "425789087",
+  };
 
-  // User 1
-  await verifyPosition(user1, {
-    is_active: true,
-    bond_units: "169895170000000",
-    debt_units: "320099901000000",
-    unlocked_assets: unlockedAssets,
-  });
-  await verifyHealth(user1, {
-    bond_value: "840733316",
-    debt_value: "320099901",
-    ltv: "0.380738927443669902",
-  });
-  await verifySnapshot(
-    user1,
-    {
-      is_active: true,
-      bond_units: "169895170000000",
-      debt_units: "320099901000000",
-      unlocked_assets: unlockedAssets,
-    },
-    {
-      bond_value: "840733316",
-      debt_value: "320099901",
-      ltv: "0.380738927443669902",
-    }
+  const stateData = {
+    totalBondUnits: "254086887789575",
+    totalDebtUnits: "380647473333333",
+    bondValue: "1257359536",
+    debtValue: "399679847",
+    ltv: "0.317872363120169631",
+  };
+
+  const fieldData = {
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+  };
+
+  const user1Data = {
+    bondUnits: "169895170000000",
+    debtUnits: "324857047619048",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "840733317",
+    debtValue: "341099900",
+    ltv: "0.405717119927102877",
+  };
+
+  const user2Data = {
+    bondUnits: "84191717789575",
+    debtUnits: "55790425714285",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "416626218",
+    debtValue: "58579946",
+    ltv: "0.140605519933937522",
+  };
+
+  await verify(
+    result.txhash,
+    "testPayDebt",
+    externalData,
+    stateData,
+    fieldData,
+    user1Data,
+    user2Data
   );
-
-  // User 2: should not have changed from the last test
-  await verifyPosition(user2, {
-    is_active: true,
-    bond_units: "84215347355205",
-    debt_units: "0",
-    unlocked_assets: unlockedAssets,
-  });
-  await verifyHealth(user2, {
-    bond_value: "416743144",
-    debt_value: "0",
-    ltv: "0",
-  });
-  await verifySnapshot(
-    user2,
-    {
-      is_active: true,
-      bond_units: "84215347355205",
-      debt_units: "0",
-      unlocked_assets: unlockedAssets,
-    },
-    {
-      bond_value: "416743144",
-      debt_value: "0",
-      ltv: "0",
-    }
-  );
-
-  // Bond & debt amounts
-  await verifyBond("255577722");
-  await verifyDebt("320099901");
-
-  console.log(chalk.green("Passed!"));
 }
 
 //----------------------------------------------------------------------------------------
 // Test: Reduce Position, Pt. 1
 //
-// User 1 has 169895170000000 asset units; we attempt to unstake 69895170000000
+// Prior to execution:
+// ---
+// total bond units     254086887789575
+// total debt units     380647473333333
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     169895170000000
+// user1 debt units     324857047619048
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// user2 bond units     84191717789575
+// user2 debt units     55790425714285
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+// user2 unlocked uLP   0
+// bond                 255553956
+// debt                 399679847
+// pool uANC            173300000
+// pool uusd            1047469539
+// pool uLP             425789087
 //
-// Currently the strategy has 255.577722 LP tokens staked, with 254110517355205 total
-// asset units
+// Step 1. unbond
+// user1 has 169895170000000 bond units; we try reduce it by 30000000000000
+// amount to unbond: 255553956 * 30000000000000 / 254086887789575 = 30173216
+// ---
+// bond                 255553956 - 30173216 = 225380740
+// total bond units     254086887789575 - 30000000000000 = 224086887789575
+// user1 bond units     169895170000000 - 30000000000000 = 139895170000000
+// user1 unlocked uLP   0 + 30173216 = 30173216
 //
-// The amount of LP tokens to be unbonded:
-// 255577722 * 69895170000000 / 254110517355205 = 70298736
+// Step 2. remove liquidity
+// skipped per message input
 //
-// The remaining bonded amount is
-// 255577722 - 70298736 = 185278986
+// Step 3. repay
+// skipped per message input
 //
-// Currently the Terraswap pair has:
-// 173.3 ANC
-// 1047528002 uusd
-// 425812853 total shares
+// Step 4. refund
+// send all 30173216 uLP to user1
+// ---
+// user1 unlocked uLP   30173216 - 30173216 = 0
 //
-// Burning this many LP tokens should get us these much ANC and UST:
-// 173300000 * 70298736 / 425812853 = 28610622 uANC (28.610622 ANC)
-// 1047528002 * 70298736 / 425812853 = 172939576 uusd
+// Result
+// ---
+// total bond units     224086887789575
+// total debt units     380647473333333
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     139895170000000
+// user1 debt units     324857047619048
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// user2 bond units     84191717789575
+// user2 debt units     55790425714285
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+// user2 unlocked uLP   0
+// bond                 225380740
+// debt                 399679847
+// pool uANC            173300000
+// pool uusd            1047469539
+// pool uLP             425789087
 //
-// The remaining balance at Terraswap pair should be:
-// 173300000 - 28610622 = 144689378 uANC
-// 1047528002 - 172939576 = 874588426 uusd
-// 425812853 - 70298736 = 355514117 uLP
+// State health:
+// bondValue = 2 * 1047469539 * 225380740 / 425789087 = 1108903290 uusd
+// debtValue = 399679847
+// ltv = 399679847 / 1108903290 = 0.360428046885856024
 //
-// The strategy will actually receive
-// deduct_tax(172939576) = 172766809 uusd
+// User1 health:
+// bondValue = 1108903290 * 139895170000000 / 224086887789575 = 692277070
+// debtValue = 399679847 * 324857047619048 / 380647473333333 = 341099900
+// ltv = 341099900 / 692277070 = 0.492721649729060071
 //
-// User 1 has 320099901 uusd debt, greater than 172766809, so the proceeding will all be
-// used to pay back debt
-//
-// After tax, the deliverable amount is
-// deduct_tax(172766809) = 172594214
-//
-// The strategy's total debt should be
-// 320099901 - 172594214 = 147505687 uusd
-//
-// The user's debt unit should be reduced by 172594214000000, to
-// 320099901000000 - 172594214000000 = 147505687000000
-//
-// State:
-// totalAssetUnits = 254110517355205 - 69895170000000 = 184215347355205
-// totalDebtUnits = 320099901000000 - 172594214000000 = 147505687000000
-//
-//------------------------------- DEBT RATIO CALCULATION ---------------------------------
-//
-// Value per LP token:
-// 2 * 874588426 / 355514117 = 4.920133317800148003 uusd/uLP
-//
-// Strategy:
-// Asset value = 185278986 * 4.920133317800148003 = 911597314 uusd
-// Debt value = 147505687 uusd
-// Debt ratio = 147505687 / 911597314 = 0.161810137803894406
-//
-// User 1:
-// LP tokens staked = 185278986 * 100000000000000 / 184215347355205 = 100577388 uLP
-// Asset value = 100577388 * 4.920133317800148003 = 494854158 uusd
-// Debt value = 147505687 uusd
-// Debt ratio = 147505687 / 494854158 = 0.298079110007195291
-//
-// User 2:
-// LP tokens staked = 185278986 * 84215347355205 / 184215347355205 = 84701597 uLP
-// Asset value = 84701597 * 4.920133317800148003 = 416743150 uusd
+// User2 health:
+// bondValue = 1108903290 * 84191717789575 / 224086887789575 = 416626219
+// debtValue = 399679847 * 55790425714285 / 380647473333333 = 58579946
+// ltv = 58579946 / 416626219 = 0.140605519596451513
 //----------------------------------------------------------------------------------------
 
 async function testReducePosition1() {
-  process.stdout.write("Should reduce position... ");
-
-  await sendTransaction(terra, user1, [
+  const result = await sendTransaction(terra, user1, [
     new MsgExecuteContract(user1.key.accAddress, field, {
       reduce_position: {
-        bond_units: "69895170000000",
-        remove: true,
-        repay: true,
+        bond_units: "30000000000000",
+        remove: false,
+        repay: false,
       },
     }),
   ]);
 
-  // State
-  await verifyState({
-    total_bond_units: "184215347355205",
-    total_debt_units: "147505687000000",
-  });
-  await verifyHealth(null, {
-    bond_value: "911597314",
-    debt_value: "147505687",
-    ltv: "0.161810137803894406",
-  });
+  const externalData = {
+    bondAmount: "225380740",
+    debtAmount: "399679847",
+    poolUanc: "173300000",
+    poolUusd: "1047469539",
+    poolUlp: "425789087",
+  };
 
-  // User 1
-  await verifyPosition(user1, {
-    is_active: true,
-    bond_units: "100000000000000",
-    debt_units: "147505687000000",
-    unlocked_assets: unlockedAssets,
-  });
-  await verifyHealth(user1, {
-    bond_value: "494854158",
-    debt_value: "147505687",
-    ltv: "0.298079110007195291",
-  });
-  await verifySnapshot(
-    user1,
-    {
-      is_active: true,
-      bond_units: "100000000000000",
-      debt_units: "147505687000000",
-      unlocked_assets: unlockedAssets,
-    },
-    {
-      bond_value: "494854158",
-      debt_value: "147505687",
-      ltv: "0.298079110007195291",
-    }
+  const stateData = {
+    totalBondUnits: "224086887789575",
+    totalDebtUnits: "380647473333333",
+    bondValue: "1108903290",
+    debtValue: "399679847",
+    ltv: "0.360428046885856024",
+  };
+
+  const fieldData = {
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+  };
+
+  const user1Data = {
+    bondUnits: "139895170000000",
+    debtUnits: "324857047619048",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "692277070",
+    debtValue: "341099900",
+    ltv: "0.492721649729060071",
+  };
+
+  const user2Data = {
+    bondUnits: "84191717789575",
+    debtUnits: "55790425714285",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "416626219",
+    debtValue: "58579946",
+    ltv: "0.140605519596451513",
+  };
+
+  await verify(
+    result.txhash,
+    "testReducePosition1",
+    externalData,
+    stateData,
+    fieldData,
+    user1Data,
+    user2Data
   );
 
-  // User 2
-  await verifyPosition(user2, {
-    is_active: true,
-    bond_units: "84215347355205",
-    debt_units: "0",
-    unlocked_assets: unlockedAssets,
-  });
-  await verifyHealth(user2, {
-    bond_value: "416743150",
-    debt_value: "0",
-    ltv: "0",
-  });
-  await verifySnapshot(
-    user2,
-    {
-      is_active: true,
-      bond_units: "84215347355205",
-      debt_units: "0",
-      unlocked_assets: unlockedAssets,
-    },
-    {
-      bond_value: "416743144",
-      debt_value: "0",
-      ltv: "0",
-    }
-  );
-
-  // Bond & debt amounts
-  await verifyBond("185278986");
-  await verifyDebt("147505687");
-
-  // User 1 should have received 28610622 uANC
-  const user1AncBalance = await queryTokenBalance(
-    terra,
-    user1.key.accAddress,
-    anchorToken
-  );
-  expect(user1AncBalance).to.equal("28610622");
-
-  console.log(chalk.green("Passed!"));
+  // Also, verify user1 has received correct amount of uLP
+  const balance = await queryTokenBalance(terra, user1.key.accAddress, terraswapLpToken);
+  expect(balance).to.equal("30173216");
 }
 
 //----------------------------------------------------------------------------------------
-// Test: Liquidation, Pt. 1
+// Test: Dump
 //
-//--------------------------------- Part 1. Dump tokens ----------------------------------
+// Prior to execution:
+// ---
+// total bond units     224086887789575
+// total debt units     380647473333333
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     139895170000000
+// user1 debt units     324857047619048
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// user2 bond units     84191717789575
+// user2 debt units     55790425714285
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+// user2 unlocked uLP   0
+// bond                 225380740
+// debt                 399679847
+// pool uANC            173300000
+// pool uusd            1047469539
+// pool uLP             425789087
 //
-// First, we dump a large amount of ANC in the market. This should crash ANC price and
-// cause user 1's debt ratio to be above the threshold
+// We dump 35 ANC token in the AMM, which should barely make user1 liquidatable
+// kValue = poolUst * poolAnc = 1047469539 * 173300000
+// = 181526471108700000
+// returnUst = poolUst - k / (poolAnc + sendAnc)
+// = 1047469539 - 181526471108700000 / (173300000 + 100000000)
+// = 383267302 uusd
+// fee = returnUst * feeRate = 383267303 * 0.003
+// = 1149801 uusd
+// returnUstAfterFee = returnUst - fee = 383267302 - 1149801
+// = 382117501 uusd
+// returnUstAfterFeeAndTax = deductTax(returnUstAfterFee) = deductTax(382117501)
+// = 381735765 uusd
+// ustCostForPool = addTax(381735765) = 382117500 uusd
+// ---
+// pool uANC            173300000 + 100000000 = 273300000
+// pool uusd            1047469539 - 382117500 = 665352039
 //
-// User 2 should be fine, however, since he does not take on any debt
+// Result
+// ---
+// total bond units     224086887789575
+// total debt units     380647473333333
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     139895170000000
+// user1 debt units     324857047619048
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// user2 bond units     84191717789575
+// user2 debt units     55790425714285
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+// user2 unlocked uLP   0
+// bond                 225380740
+// debt                 399679847
+// pool uANC            273300000
+// pool uusd            665352039
+// pool uLP             425789087
 //
-// Prior to the swap, the pool has:
-// 144689378 uANC
-// 874588426 uusd
-// 355514117 uLP
+// State health:
+// bondValue = 2 * 665352039 * 225380740 / 425789087 = 704374722 uusd
+// debtValue = 399679847
+// ltv = 399679847 / 704374722 = 0.567425028918059328
 //
-// kValueBefore = 144689378 * 874588426 = 126543655363939028
+// User1 health:
+// bondValue = 704374722 * 139895170000000 / 224086887789575 = 439733990
+// debtValue = 399679847 * 324857047619048 / 380647473333333 = 341099900
+// ltv = 341099900 / 439733990 = 0.775696006578886476
 //
-// returnUstAmount = 874588426 - 126543655363939028 / (144689378 + 500000000)
-// = 678302183 uusd
-//
-// fee = 678302183 * 0.003 = 2034906 uusd
-//
-// After the swap, the pool should have
-// 144689378 + 500000000 = 644689378 uANC
-// 874588426 - 678302183 + 2034906 = 198321149 uusd
-// 355514117 uLP (unchanged)
-//
-// ANC price
-// before swap: 874588426 / 144689378 = 6.04 UST
-// after swap: 198321149 / 644689378 = 0.3076 UST
-//
-// Value per LP token:
-// 2 * 198321149 / 355514117 = 1.115686491853149111 uusd/uLP
-//
-// Strategy:
-// Asset value = 185278986 * 1.115686491853149111 = 206713261 uusd
-// Debt value = 147505687 uusd (unchanged)
-// Debt ratio = 147505687 / 206713261 = 0.713576314777405596
-//
-// User 1:
-// LP tokens staked = 100577388 uLP (unchanged)
-// Asset value = 100577388 * 1.115686491853149111 = 112212833 uusd
-// Debt value = 147505687 uusd (unchanged)
-// Debt ratio = 147505687 / 112212833 = 1.314517092710777563
-//
-// User 1 is insolvent (more debt than collateral). In practice, if liquidators are
-// efficient, this shouldn't happen.
-//
-// User 2:
-// LP tokens staked = 84701597 uLP (unchanged)
-// Asset value = 84701597 * 1.115686491853149111 = 94500427 uusd
-//
-//--------------------------------- Part 2. Liquidation ----------------------------------
-//
-// At this time, the strategy has:
-// 185278986 uLP staked
-// 147505687 uusd debt
-//
-// Terraswap pool has:
-// 644689378 uANC
-// 198321149 uusd
-// 355514117 uLP
-//
-//---------------------------------- POSITION CLOSURE ----------------------------------
-//
-// First, user's position needs to be closed. The amount of LP tokens to be unstaked:
-// 185278986 * 100000000000000 / 184215347355205
-// = 100577388 uLP
-//
-// Which should return:
-// 644689378 * 100577388 / 355514117 = 182387057 uANC
-// 198321149 * 100577388 / 355514117 = 56106416 uusd
-//
-// The amount the strategy will actually receive is
-// deductTax(56106416) = 56050365
-//
-// When repaying debt, the amount Mars will receive is
-// deductTax(56050365) = 55994370
-// 55994370000000 debt units should be reduced.
-//
-// Terraswap state after closure:
-// 644689378 - 182387057 = 462302321 uANC
-// 198321149 - 56106416 = 142214733 uusd
-// 355514117 - 100577388 = 254936729 uLP
-//
-// Value per LP token:
-// 2 * 142214733 / 254936729 = 1.115686496471836351
-//
-// Strategy state after closure:
-// 185278986 - 100577388 = 84701598 uLP staked
-// 147505687 - 55994370 = 91511317 uusd debt
-//
-// total_bond_value = 84701598 * 1.115686496471836351 = 94500429 uusd
-// total_bond_units = 184215347355205 - 100000000000000 = 84215347355205
-// total_debt_value = 91511317 uusd
-// total_debt_units = 147505687000000 - 55994370000000 = 91511317000000
-//
-// The user's position after closure:
-// unbonded_anc_amount = 182387057
-// debt_units = 147505687000000 - 55994370000000 = 91511317000000
-// debt_value = 91511317
-//
-//---------------------------------- CLAIM COLLATERAL ----------------------------------
-//
-// Liquidator sends 50000000 uusd. The amount deliverable to Mars:
-// deductTax(50000000) = 49950049
-//
-// 49950049000000 debt units should be reduced
-//
-// ANC to be released:
-// 182387057 * 49950049 / 91511317 = 99553178 uANC
-//
-// Strategy state after claim collateral:
-// 84701598 uLP staked (unchanged)
-// 91511317 - 49950049 = 41561268 uusd debt
-//
-// total_bond_value = 94500429 uusd (unchanged)
-// total_bond_units = 84215347355205 (unchanged)
-// total_debt_value = 41561268 uusd
-// total_debt_units = 91511317000000 - 49950049000000 = 41561268000000
-// ltv = 41561268 / 94500429 = 0.439799781226389988
-//
-// User 1 position:
-// unbonded_anc_amount = 182387057 - 99553178 = 82833879
-// debt_units = 91511317000000 - 49950049000000 = 41561268000000
-// debt_value = 41561268
-//
-// User 2 position:
-// bond_value = 94500429 (same as strategy)
-// bond_units = 84215347355205 (unchanged)
+// User2 health:
+// bondValue = 704374722 * 84191717789575 / 224086887789575 = 264640731
+// debtValue = 399679847 * 55790425714285 / 380647473333333 = 58579946
+// ltv = 58579946 / 264640731 = 0.221356500107309634
 //----------------------------------------------------------------------------------------
 
-async function testLiquidation1() {
-  process.stdout.write("Should partially liquidate user 1... ");
-
-  // Part 1. Dump tokens
-  await sendTransaction(terra, deployer, [
+async function testDump() {
+  const result = await sendTransaction(terra, deployer, [
     new MsgExecuteContract(deployer.key.accAddress, anchorToken, {
       send: {
-        amount: "500000000",
+        amount: "100000000",
         contract: terraswapPair,
         msg: toEncodedBinary({
           swap: {},
@@ -1118,52 +1599,217 @@ async function testLiquidation1() {
     }),
   ]);
 
-  // State
-  await verifyState({
-    total_bond_units: "184215347355205",
-    total_debt_units: "147505687000000",
-  });
-  await verifyHealth(null, {
-    bond_value: "206713261",
-    debt_value: "147505687",
-    ltv: "0.713576314777405596",
-  });
+  const externalData = {
+    bondAmount: "225380740",
+    debtAmount: "399679847",
+    poolUanc: "273300000",
+    poolUusd: "665352039",
+    poolUlp: "425789087",
+  };
 
-  // User 1
-  await verifyPosition(user1, {
-    is_active: true,
-    bond_units: "100000000000000",
-    debt_units: "147505687000000",
-    unlocked_assets: unlockedAssets,
-  });
-  await verifyHealth(user1, {
-    bond_value: "112212833",
-    debt_value: "147505687",
-    ltv: "1.314517092710777563",
-  });
+  const stateData = {
+    totalBondUnits: "224086887789575",
+    totalDebtUnits: "380647473333333",
+    bondValue: "704374722",
+    debtValue: "399679847",
+    ltv: "0.567425028918059328",
+  };
 
-  // User 2
-  await verifyPosition(user2, {
-    is_active: true,
-    bond_units: "84215347355205",
-    debt_units: "0",
-    unlocked_assets: unlockedAssets,
-  });
-  await verifyHealth(user2, {
-    bond_value: "94500427",
-    debt_value: "0",
-    ltv: "0",
-  });
+  const fieldData = {
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+  };
 
-  // Bond & debt amounts
-  await verifyBond("185278986");
-  await verifyDebt("147505687");
+  const user1Data = {
+    bondUnits: "139895170000000",
+    debtUnits: "324857047619048",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "439733990",
+    debtValue: "341099900",
+    ltv: "0.775696006578886476",
+  };
 
-  // Uncomment this to abort after Part 1
-  // return;
+  const user2Data = {
+    bondUnits: "84191717789575",
+    debtUnits: "55790425714285",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "264640731",
+    debtValue: "58579946",
+    ltv: "0.221356500107309634",
+  };
 
-  // Part 2. Liquidation
-  await sendTransaction(terra, liquidator1, [
+  await verify(
+    result.txhash,
+    "testDump",
+    externalData,
+    stateData,
+    fieldData,
+    user1Data,
+    user2Data
+  );
+}
+
+//----------------------------------------------------------------------------------------
+// Test: Liquidation, Pt. 1
+//
+//----------------------------------------------------------------------------------------
+// Part 1. Close Position
+//
+// Prior to execution:
+// ---
+// total bond units     224086887789575
+// total debt units     380647473333333
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     139895170000000
+// user1 debt units     324857047619048
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// user2 bond units     84191717789575
+// user2 debt units     55790425714285
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+// user2 unlocked uLP   0
+// bond                 225380740
+// debt                 399679847
+// pool uANC            273300000
+// pool uusd            665352039
+// pool uLP             425789087
+//
+// Step 1. unbond
+// reduce all of user1's bond units
+// amount to unbond: 225380740 * 139895170000000 / 224086887789575 = 140702908
+// ---
+// bond                 225380740 - 140702908 = 84677832
+// total bond units     224086887789575 - 139895170000000 = 84191717789575
+// user1 bond units     139895170000000 - 139895170000000 = 0
+// user1 unlocked uLP   0 + 140702908 = 140702908
+//
+// Step 2. remove liquidity
+// burn of of user1's 140702908 uLP
+// ANC to be released: 273300000 * 140702908 / 425789087 = 90312565
+// UST to be released: 665352039 * 140702908 / 425789087 = 219866994
+// UST to receive: deductTax(219866994) = 219647346
+// transaction cost for pool: addTax(219647346) = 219866993
+// ---
+// pool uANC            273300000 - 90312565 = 182987435
+// pool uusd            665352039 - 219866993 = 445485046
+// pool uLP             425789087 - 140702908 = 285086179
+// user1 unlocked uANC  0 + 90312565 = 90312565
+// user1 unlocked uusd  1 + 219647346 = 219647347
+// user1 unlocked uLP   140702908 - 140702908 = 0
+//
+// Step 3. repay
+// user1's outstanding debt (341099900) is greater than his unlocked uusd (219647347)
+// therefore, use all of the unlocked uusd to repay
+// deliverable amount: deductTax(219647347) = 219427919
+// transaction cost: addTax(219427919) = 219647346
+// debt units to reduce: 380647473333333 * 219427919 / 399679847 = 208978970476190
+// ---
+// debt                 399679847 - 219427919 = 180251928
+// total debt units     380647473333333 - 208978970476190 = 171668502857143
+// user1 debt units     324857047619048 - 208978970476190 = 115878077142858
+// user1 unlocked uusd  219647347 - 219647346 = 1
+//
+// Result
+// ---
+// total bond units     84191717789575
+// total debt units     171668502857143
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     0
+// user1 debt units     115878077142858
+// user1 unlocked uANC  90312565
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// user2 bond units     84191717789575
+// user2 debt units     55790425714285
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+// user2 unlocked uLP   0
+// bond                 84677832
+// debt                 180251928
+// pool uANC            182987435
+// pool uusd            445485046
+// pool uLP             285086179
+//----------------------------------------------------------------------------------------
+// Part 2. Liquidate
+//
+// Step 1. deposit
+// user1 has 121671981 uusd remaining debt
+// liquidator provides 100000000 uusd
+// deliverable amount: deductTax(100000000) = 99900099
+// percentage: 99900099 / 121671981 = 0.821060840621967024
+// ---
+// user1 unlocked uusd  1 + 100000000 = 100000001
+//
+// Step 2. repay
+// user1's outstanding debt (121671981) is greater than his unlocked uusd (100000001)
+// therefore, use all of the unlocked uusd to repay
+// deliverable amount: deductTax(100000001) = 99900100
+// transaction cost: addTax(99900100) = 100000000
+// debt units to reduce: 115878077142858 * 99900100 / 121671981 = 95142952380953
+// ---
+// debt                 180251928 - 99900100 = 80351828
+// total debt units     171668502857143 - 95142952380953 = 76525550476190
+// user1 debt units     115878077142858 - 95142952380953 = 20735124761905
+// user1 unlocked uusd  100000001 - 100000000 = 1
+//
+// Step 3. refund
+// ANC to refund: 90312565 * 0.821060840621967024 = 74152110
+// UST to refund: 1 * 0.821060840621967024 = 0
+// ---
+// user1 unlocked uANC  90312565 - 74152110 = 16160455
+//
+// Result
+// ---
+// total bond units     84191717789575
+// total debt units     76525550476190
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     0
+// user1 debt units     20735124761905
+// user1 unlocked uANC  16160455
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// user2 bond units     84191717789575
+// user2 debt units     55790425714285
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+// user2 unlocked uLP   0
+// bond                 84677832
+// debt                 80351828
+// pool uANC            182987435
+// pool uusd            445485046
+// pool uLP             285086179
+//
+// State health:
+// bondValue = 2 * 445485046 * 84677832 / 285086179 = 264640734 uusd
+// debtValue = 80351828
+// ltv = 80351828 / 264640734 = 0.303626077457901851
+//
+// User1 health:
+// bondValue = 0
+// debtValue = 80351828 * 20735124761905 / 76525550476190 = 21771881
+// ltv = null
+//
+// User2 health:
+// bondValue = 264640734 (same as state)
+// debtValue = 80351828 * 55790425714285 / 76525550476190 = 58579946
+// ltv = 58579946 / 264640734 = 0.221356497597985047
+//----------------------------------------------------------------------------------------
+
+async function testLiquidation1() {
+  const result = await sendTransaction(terra, liquidator1, [
     new MsgExecuteContract(liquidator1.key.accAddress, field, {
       close_position: {
         user: user1.key.accAddress,
@@ -1181,104 +1827,165 @@ async function testLiquidation1() {
                 denom: "uusd",
               },
             },
-            amount: "50000000",
+            amount: "100000000",
           },
         },
       },
       {
-        uusd: "50000000",
+        uusd: "100000000",
       }
     ),
   ]);
 
-  // State
-  await verifyState({
-    total_bond_units: "84215347355205",
-    total_debt_units: "41561268000000",
-  });
-  await verifyHealth(null, {
-    bond_value: "94500429",
-    debt_value: "41561268",
-    ltv: "0.439799781226389988",
-  });
+  const externalData = {
+    bondAmount: "84677832",
+    debtAmount: "80351828",
+    poolUanc: "182987435",
+    poolUusd: "445485046",
+    poolUlp: "285086179",
+  };
 
-  // User 1
-  await verifyPosition(user1, {
-    is_active: false,
-    bond_units: "0",
-    debt_units: "41561268000000", // still have some debt left
-    unlocked_assets: [
-      {
-        info: {
-          token: {
-            contract_addr: anchorToken,
-          },
-        },
-        amount: "82833879", // this is the amount of ANC not yet liquidated
-      },
-      {
-        info: {
-          native_token: {
-            denom: "uusd",
-          },
-        },
-        amount: "0",
-      },
-      {
-        info: {
-          token: {
-            contract_addr: terraswapLpToken,
-          },
-        },
-        amount: "0",
-      },
-    ],
-  });
-  await verifyHealth(user1, {
-    bond_value: "0",
-    debt_value: "41561268", // still have some debt left
-    ltv: null, // Option<T>::None is serialized as null
-  });
+  const stateData = {
+    totalBondUnits: "84191717789575",
+    totalDebtUnits: "76525550476190",
+    bondValue: "264640734",
+    debtValue: "80351828",
+    ltv: "0.303626077457901851",
+  };
 
-  // User 2
-  await verifyPosition(user2, {
-    is_active: true,
-    bond_units: "84215347355205",
-    debt_units: "0",
-    unlocked_assets: unlockedAssets,
-  });
-  await verifyHealth(user2, {
-    bond_value: "94500429",
-    debt_value: "0",
-    ltv: "0",
-  });
+  const fieldData = {
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+  };
 
-  // Bond & debt amounts
-  await verifyBond("84701598");
-  await verifyDebt("41561268");
+  const user1Data = {
+    bondUnits: "0",
+    debtUnits: "20735124761905",
+    unlockedUanc: "16160455",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "0",
+    debtValue: "21771881",
+    ltv: null,
+  };
 
-  // Liquidator should have receive correct amount of ANC token
-  const liquidatorAncBalance = await queryTokenBalance(
-    terra,
-    liquidator1.key.accAddress,
-    anchorToken
+  const user2Data = {
+    bondUnits: "84191717789575",
+    debtUnits: "55790425714285",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "264640734",
+    debtValue: "58579946",
+    ltv: "0.221356497597985047",
+  };
+
+  await verify(
+    result.txhash,
+    "testLiquidation1",
+    externalData,
+    stateData,
+    fieldData,
+    user1Data,
+    user2Data
   );
-  expect(liquidatorAncBalance).to.equal("99553178");
 
-  console.log(chalk.green("Passed!"));
+  // Also, verify liquidator has received correct amount of ANC
+  const balance = await queryTokenBalance(terra, liquidator1.key.accAddress, anchorToken);
+  expect(balance).to.equal("74152110");
 }
 
 //----------------------------------------------------------------------------------------
 // Test: Liquidation, Pt. 2
 //
-// User 1 has 41561268 uusd debt remaining. To fully pay down these, liquidator needs:
-// deduct_tax(x) = 41561268 => x = 41602830
+// Prior to execution:
+// ---
+// total bond units     84191717789575
+// total debt units     76525550476190
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     0
+// user1 debt units     20735124761905
+// user1 unlocked uANC  16160455
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// user2 bond units     84191717789575
+// user2 debt units     55790425714285
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+// user2 unlocked uLP   0
+// bond                 84677832
+// debt                 80351828
+// pool uANC            182987435
+// pool uusd            445485046
+// pool uLP             285086179
+//
+// Step 1. deposit
+// user1 has 121671981 uusd remaining debt
+// liquidator provides 200000000 uusd (more than enough)
+// percentage: 1
+// ---
+// user1 unlocked uusd  1 + 200000000 = 200000001
+//
+// Step 2. repay
+// repay all the remaining debt: 21771881 uusd
+// transaction cost: addTax(21771881) = 21793652
+// reduce debt units to zero
+// ---
+// debt                 80351828 - 21771881 = 58579947
+// total debt units     76525550476190 - 20735124761905 = 55790425714285
+// user1 debt units     0
+// user1 unlocked uusd  200000001 - 21793652 = 178206349
+//
+// Step 3. refund
+// refund all ANC
+// UST to refund: deductTax(178206349) = 178028320
+// transaction cost: addTax(178028320) = 178206348
+// ---
+// user1 unlocked uANC  0
+// user1 unlocked uusd  178206349 - 178206348 = 1
+//
+// Result
+// ---
+// total bond units     84191717789575
+// total debt units     55790425714285
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     0
+// user1 debt units     0
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// user2 bond units     84191717789575
+// user2 debt units     55790425714285
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+// user2 unlocked uLP   0
+// bond                 84677832
+// debt                 58579947
+// pool uANC            182987435
+// pool uusd            445485046
+// pool uLP             285086179
+//
+// State health:
+// bondValue = 2 * 445485046 * 84677832 / 285086179 = 264640734 uusd
+// debtValue = 58579947
+// ltv = 58579947 / 264640734 = 0.221356501376692826
+//
+// User1 health:
+// bondValue = 0
+// debtValue = 0
+// ltv = null
+//
+// User2 health:
+// same as state
 //----------------------------------------------------------------------------------------
 
 async function testLiquidation2() {
-  process.stdout.write("Should completely liquidate user 1... ");
-
-  await sendTransaction(terra, liquidator2, [
+  const result = await sendTransaction(terra, liquidator2, [
     new MsgExecuteContract(
       liquidator2.key.accAddress,
       field,
@@ -1291,174 +1998,223 @@ async function testLiquidation2() {
                 denom: "uusd",
               },
             },
-            amount: "41602830",
+            amount: "200000000",
           },
         },
       },
       {
-        uusd: "41602830",
+        uusd: "200000000",
       }
     ),
   ]);
 
-  // State
-  await verifyState({
-    total_bond_units: "84215347355205",
-    total_debt_units: "0",
-  });
-  await verifyHealth(null, {
-    bond_value: "94500429",
-    debt_value: "0",
-    ltv: "0",
-  });
+  const externalData = {
+    bondAmount: "84677832",
+    debtAmount: "58579947",
+    poolUanc: "182987435",
+    poolUusd: "445485046",
+    poolUlp: "285086179",
+  };
 
-  // Debt amount: should be zero
-  await verifyDebt("0");
+  const stateData = {
+    totalBondUnits: "84191717789575",
+    totalDebtUnits: "55790425714285",
+    bondValue: "264640734",
+    debtValue: "58579947",
+    ltv: "0.221356501376692826",
+  };
 
-  // User 1 is fully liquidated, so their position and snapshot should have been purged
-  // from storage. Querying it should fail with statue code 500
-  await expect(verifyPosition(user1, {})).to.be.rejectedWith("status code 500");
-  await expect(verifySnapshot(user1, {}, {})).to.be.rejectedWith("status code 500");
+  const fieldData = {
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+  };
 
-  // Liquidator should have received all of user 1's unstaked ANC, which is 82833879
-  const liquidatorAncBalance = await queryTokenBalance(
-    terra,
-    liquidator2.key.accAddress,
-    anchorToken
+  const user1Data = {
+    bondUnits: "0",
+    debtUnits: "0",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "0",
+    debtValue: "0",
+    ltv: null,
+  };
+
+  const user2Data = {
+    bondUnits: "84191717789575",
+    debtUnits: "55790425714285",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "264640734",
+    debtValue: "58579947",
+    ltv: "0.221356501376692826",
+  };
+
+  await verify(
+    result.txhash,
+    "testLiquidation2",
+    externalData,
+    stateData,
+    fieldData,
+    user1Data,
+    user2Data
   );
-  expect(liquidatorAncBalance).to.equal("82833879");
 
-  console.log(chalk.green("Passed!"));
+  // Verify liquidator has received correct amount of ANC
+  const balance = await queryTokenBalance(terra, liquidator2.key.accAddress, anchorToken);
+  expect(balance).to.equal("16160455");
 }
 
 //----------------------------------------------------------------------------------------
 // Test: Reduce Position, Pt. 2
 //
-// User 2 closes position completely and withdraw all assets by not providing optional
-// `bond_units` argument
+// Prior to execution:
+// ---
+// total bond units     84191717789575
+// total debt units     55790425714285
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     0
+// user1 debt units     0
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// user2 bond units     84191717789575
+// user2 debt units     55790425714285
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+// user2 unlocked uLP   0
+// bond                 84677832
+// debt                 58579947
+// pool uANC            182987435
+// pool uusd            445485046
+// pool uLP             285086179
 //
-// Prior to withdrawal, strategy has 84701598 uLP staked, which all belong to user 2
+// Step 1. unbond
+// amount to unbond: 84677832 (all)
+// ---
+// bond                 0
+// total bond units     0
+// user1 bond units     0
+// user1 unlocked uLP   0 + 84677832 = 84677832
 //
-// Terraswap has:
-// 462302321 uANC
-// 142214733 uusd
-// 254936729 uLP
+// Step 2. remove liquidity
+// burn of of user2's 84677832 uLP
+// ANC to be released: 182987435 * 84677832 / 285086179 = 54351913
+// UST to be released: 445485046 * 84677832 / 285086179 = 132320367
+// UST to receive: deductTax(132320367) = 132188178
+// transaction cost for pool: addTax(132188178) = 132320366
+// ---
+// pool uANC            182987435 - 54351913 = 128635522
+// pool uusd            445485046 - 132320366 = 313164680
+// pool uLP             285086179 - 84677832 = 200408347
+// user2 unlocked uANC  0 + 54351913 = 54351913
+// user2 unlocked uusd  1 + 132320367 = 132320368
+// user2 unlocked uLP   0
 //
-// Burning 84701598 uLP should get
-// 462302321 * 84701598 / 254936729 = 153597896 uANC
-// 142214733 * 84701598 / 254936729 = 47250214 uusd
+// Step 3. repay
+// repay all remaining debts: 58579947 uusd
+// transaction cost: addTax(58579947) = 58638526 uusd
+// ---
+// debt                 0
+// total debt units     0
+// user2 debt units     0
+// user2 unlocked uusd  132320368 - 58638526 = 73681842
 //
-// The actual amount of uusd deliverable to the user is
-// deductTax(deductTax(47250214)) = 47155854
+// Step 4. refund
+// send all 54351913 uANC to user2
+// UST to send: deductTax(73681842) = 73608233
+// transaction cost: addTax(73608233) = 73681841
+// ---
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+//
+// Result
+// ---
+// total bond units     0
+// total debt units     0
+// field unlocked uANC  0
+// field unlocked uusd  1
+// field unlocked uLP   0
+// user1 bond units     0
+// user1 debt units     0
+// user1 unlocked uANC  0
+// user1 unlocked uusd  1
+// user1 unlocked uLP   0
+// user2 bond units     0
+// user2 debt units     0
+// user2 unlocked uANC  0
+// user2 unlocked uusd  1
+// user2 unlocked uLP   0
+// bond                 0
+// debt                 0
+// pool uANC            128635522
+// pool uusd            313164680
+// pool uLP             200408347
 //----------------------------------------------------------------------------------------
 
 async function testReducePosition2() {
-  process.stdout.write("Should close position... ");
-
-  await sendTransaction(terra, user2, [
+  const result = await sendTransaction(terra, user2, [
     new MsgExecuteContract(user2.key.accAddress, field, {
       reduce_position: {
-        bond_units: null, // burn all bond units,
-        remove: false, // do not remove liquidity; return share tokens directly
-        repay: true, // should skip as there is no UST to repay
+        bond_units: undefined, // gives `signature verification failed` error if use `null`
+        remove: true,
+        repay: true,
       },
     }),
   ]);
 
-  // State
-  await verifyState({
-    total_bond_units: "0",
-    total_debt_units: "0",
-  });
-  await verifyHealth(null, {
-    bond_value: "0",
-    debt_value: "0",
-    ltv: null,
-  });
-
-  // User's position as well as the snaphot should have been deleted
-  await expect(verifyPosition(user2, {})).to.be.rejectedWith("status code 500");
-  await expect(verifySnapshot(user2, {}, {})).to.be.rejectedWith("status code 500");
-
-  // User should have receive correct amount of UST and ANC
-  const userShareTokenBalance = await queryTokenBalance(
-    terra,
-    user2.key.accAddress,
-    terraswapLpToken
-  );
-  expect(userShareTokenBalance).to.equal("84701598");
-
-  console.log(chalk.green("Passed!"));
-}
-
-//----------------------------------------------------------------------------------------
-// Test: Update Config
-//----------------------------------------------------------------------------------------
-
-async function testUpdateConfig() {
-  process.stdout.write("Should update config... ");
-
-  const newConfig = config as { fee_rate: string };
-  newConfig.fee_rate = "1"; // change performance fee rate to 100%
-
-  const executeMsg = {
-    update_config: {
-      new_config: newConfig,
-    },
+  const externalData = {
+    bondAmount: "0",
+    debtAmount: "0",
+    poolUanc: "128635522",
+    poolUusd: "313164680",
+    poolUlp: "200408347",
   };
 
-  // Try updating config with a non-owner user; should fail
-  await expect(
-    sendTransaction(terra, user1, [
-      new MsgExecuteContract(user1.key.accAddress, field, executeMsg),
-    ])
-  ).to.be.rejectedWith("unauthorized");
+  const stateData = {
+    totalBondUnits: "0",
+    totalDebtUnits: "0",
+    bondValue: "0",
+    debtValue: "0",
+    ltv: null,
+  };
 
-  // Try updating with owner account; should succeed
-  await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, field, executeMsg),
-  ]);
+  const fieldData = {
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+  };
 
-  await verifyConfig(newConfig);
+  const user1Data = {
+    bondUnits: "0",
+    debtUnits: "0",
+    unlockedUanc: "0",
+    unlockedUusd: "1",
+    unlockedUlp: "0",
+    bondValue: "0",
+    debtValue: "0",
+    ltv: null,
+  };
 
-  console.log(chalk.green("Passed!"));
-}
+  const user2Data = user1Data;
 
-//----------------------------------------------------------------------------------------
-// Test: Migration
-//----------------------------------------------------------------------------------------
-
-async function testMigrate() {
-  process.stdout.write("Should migrate... ");
-
-  // Upload another copy of the contract code, get codeId
-  const newCodeId = await storeCode(
-    terra,
-    deployer,
-    path.resolve(__dirname, "../artifacts/martian_field.wasm")
+  await verify(
+    result.txhash,
+    "testReducePosition2",
+    externalData,
+    stateData,
+    fieldData,
+    user1Data,
+    user2Data
   );
 
-  // Try migrate with a non-owner user; should fail
-  await expect(
-    sendTransaction(terra, user1, [
-      new MsgMigrateContract(user1.key.accAddress, field, newCodeId, {}),
-    ])
-  ).to.be.rejectedWith("unauthorized");
-
-  // Try migrate with owner; should throw "unimplemented" error
-  // Note: the owner at WASM level at the one at contract level are separate and may be
-  // different; however, in this test, they are both set to `deployer`
-  await expect(
-    sendTransaction(terra, deployer, [
-      new MsgMigrateContract(deployer.key.accAddress, field, newCodeId, {}),
-    ])
-  ).to.be.rejectedWith("unimplemented");
-
-  // Check code ID
-  // const codeId = (await terra.wasm.contractInfo(strategy)).code_id;
-  // expect(codeId).to.equal(newCodeId);
-
-  console.log(chalk.green("Passed!"));
+  // Verify user2 has received correct amount of ANC
+  const balance = await queryTokenBalance(terra, user2.key.accAddress, anchorToken);
+  expect(balance).to.equal("54351913");
 }
 
 //----------------------------------------------------------------------------------------
@@ -1472,6 +2228,8 @@ async function testMigrate() {
   console.log(`Use ${chalk.cyan(treasury.key.accAddress)} as treasury`);
   console.log(`Use ${chalk.cyan(user1.key.accAddress)} as user 1`);
   console.log(`Use ${chalk.cyan(user2.key.accAddress)} as user 2`);
+  console.log(`Use ${chalk.cyan(liquidator1.key.accAddress)} as liquidator 1`);
+  console.log(`Use ${chalk.cyan(liquidator2.key.accAddress)} as liquidator 2`);
 
   console.log(chalk.yellow("\nTest: Setup"));
 
@@ -1482,123 +2240,14 @@ async function testMigrate() {
   await testConfig();
   await testOpenPosition1();
   await testHarvest();
+  await testAccrueInterest();
   await testOpenPosition2();
   await testPayDebt();
   await testReducePosition1();
+  await testDump();
   await testLiquidation1();
   await testLiquidation2();
   await testReducePosition2();
-  await testUpdateConfig();
-  await testMigrate();
 
-  console.log("");
+  console.log(chalk.green("\nAll tests successfully completed. Hooray!\n"));
 })();
-
-//----------------------------------------------------------------------------------------
-// Helper Functions
-//----------------------------------------------------------------------------------------
-
-async function verifyConfig(expectedResponse: object) {
-  const response = await terra.wasm.contractQuery(field, {
-    config: {},
-  });
-
-  // console.log("\nexpected:", expectedResponse);
-  // console.log("actual:", response);
-
-  expect(response).to.deep.equal(expectedResponse);
-}
-
-async function verifyState(expectedResponse: object) {
-  const response = await terra.wasm.contractQuery(field, {
-    state: {},
-  });
-
-  // console.log("\nexpected:", expectedResponse);
-  // console.log("actual:", response);
-
-  expect(response).to.deep.equal(expectedResponse);
-}
-
-async function verifyPosition(user: Wallet, expectedResponse: object) {
-  const response = await terra.wasm.contractQuery(field, {
-    position: {
-      user: user.key.accAddress,
-    },
-  });
-
-  // console.log("\nexpected:", expectedResponse);
-  // console.log("actual:", response);
-
-  expect(response).to.deep.equal(expectedResponse);
-}
-
-async function verifyHealth(user: Wallet | null, expectedResponse: object) {
-  const response = await terra.wasm.contractQuery(field, {
-    health: {
-      user: user ? user.key.accAddress : null,
-    },
-  });
-
-  // console.log("\nexpected:", expectedResponse);
-  // console.log("actual:", response);
-
-  expect(response).to.deep.equal(expectedResponse);
-}
-
-async function verifySnapshot(
-  user: Wallet,
-  expectedPosition: object,
-  expectedHealth: object
-) {
-  const response = (await terra.wasm.contractQuery(field, {
-    snapshot: {
-      user: user.key.accAddress,
-    },
-  })) as {
-    health: object;
-    position: object;
-  };
-
-  // console.log("\nexpected position:", expectedPosition);
-  // console.log("actual position:", response.position);
-
-  // console.log("\nexpected health:", expectedHealth);
-  // console.log("actual health:", response.health);
-
-  expect(response.position).to.deep.equal(expectedPosition);
-  expect(response.health).to.deep.equal(expectedHealth);
-}
-
-async function verifyDebt(expectedAmount: string) {
-  const response = (await terra.wasm.contractQuery(redBank, {
-    debt: {
-      address: field,
-    },
-  })) as {
-    debts: { denom: string; amount: string }[];
-  };
-
-  const debt = response.debts.find((debt) => {
-    return debt.denom == "uusd";
-  })?.amount;
-
-  // console.log("\nexpected:", expectedAmount);
-  // console.log("actual:", debt);
-
-  expect(debt).to.equal(expectedAmount);
-}
-
-async function verifyBond(expectedAmount: string) {
-  const response = (await terra.wasm.contractQuery(anchorStaking, {
-    staker_info: {
-      staker: field,
-      block_height: null,
-    },
-  })) as { bond_amount: string };
-
-  // console.log("expected:", expectedAmount);
-  // console.log("actual:", response.bond_amount);
-
-  expect(response.bond_amount).to.equal(expectedAmount);
-}

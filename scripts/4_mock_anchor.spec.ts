@@ -219,6 +219,11 @@ async function testUnbond() {
 }
 
 (async () => {
+  console.log(chalk.yellow("\nTest: Info"));
+
+  console.log(`Use ${chalk.cyan(deployer.key.accAddress)} as deployer`);
+  console.log(`Use ${chalk.cyan(user.key.accAddress)} as user`);
+
   console.log(chalk.yellow("\nTest: Setup"));
 
   await setupTest();

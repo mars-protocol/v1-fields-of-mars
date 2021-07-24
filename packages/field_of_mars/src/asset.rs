@@ -53,10 +53,16 @@ impl Asset {
         self.info.query_denom(querier)
     }
 
+    /// @notice Compute total cost (tax included) for transferring specified amount of asset
+    pub fn add_tax(&self, querier: &QuerierWrapper) -> StdResult<Self> {
+        Ok(Asset {
+            info: self.info.clone(),
+            amount: self.info.add_tax(querier, self.amount)?,
+        })
+    }
+
     /// @notice Return an asset whose amount reflects the deliverable amount if the asset
     /// is to be transferred.
-    /// @dev For example, if the asset is 1000 UST, and the tax for sending 1000 UST is
-    /// 1 UST, then update amount to 1000 - 1 = 999.
     pub fn deduct_tax(&self, querier: &QuerierWrapper) -> StdResult<Self> {
         Ok(Asset {
             info: self.info.clone(),
@@ -126,7 +132,7 @@ impl AssetInfo {
 
     /// @notice Generate the message for transferring asset of a specific amount from one
     /// account to another using the `Cw20ExecuteMsg::Transfer` message type
-    /// @dev Note: `amount` must have tax deducted before passing into this function!
+    /// @dev Note: `amount` must have tax deducted BEFORE passing into this function!
     pub fn transfer_msg(&self, to: &Addr, amount: Uint128) -> StdResult<SubMsg> {
         match self {
             Self::Token {
@@ -230,6 +236,32 @@ impl AssetInfo {
                 Ok(response.amount.amount)
             }
         }
+    }
+
+    /// @notice Compute total cost (tax included) for transferring specified amount of asset
+    pub fn add_tax(
+        &self,
+        querier: &QuerierWrapper,
+        amount: Uint128,
+    ) -> StdResult<Uint128> {
+        let tax = match self {
+            Self::Token {
+                ..
+            } => Uint128::zero(),
+            Self::NativeToken {
+                denom,
+            } => {
+                if denom == "luna" {
+                    Uint128::zero()
+                } else {
+                    let terra_querier = TerraQuerier::new(querier);
+                    let tax_rate = terra_querier.query_tax_rate()?.rate;
+                    let tax_cap = terra_querier.query_tax_cap(denom.clone())?.cap;
+                    std::cmp::min(amount * tax_rate, tax_cap)
+                }
+            }
+        };
+        Ok(amount + tax)
     }
 
     /// @notice Update the asset amount to reflect the deliverable amount if the asset is

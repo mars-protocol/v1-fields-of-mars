@@ -9,11 +9,11 @@ use cosmwasm_std::{
 use terra_cosmwasm::TerraQuerier;
 
 use field_of_mars::red_bank::{
-    DebtInfo, DebtResponse, ExecuteMsg, MockInstantiateMsg, MockMigrateMsg, QueryMsg,
+    DebtInfo, DebtResponse, ExecuteMsg, MockInstantiateMsg, QueryMsg,
     RedBankAsset as Asset,
 };
 
-use crate::state::{Config, CONFIG, POSITION};
+use crate::state::POSITION;
 
 static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 
@@ -23,12 +23,12 @@ static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: MockInstantiateMsg,
+    _msg: MockInstantiateMsg,
 ) -> StdResult<Response> {
-    CONFIG.save(deps.storage, &Config::new(msg))?;
+    // do nothing
     Ok(Response::default())
 }
 
@@ -65,6 +65,11 @@ pub fn execute(
                 Err(StdError::generic_err("unimplemented"))
             }
         }
+        ExecuteMsg::SetDebt {
+            user,
+            denom,
+            amount,
+        } => set_debt(deps, env, info, user, &denom[..], amount),
         _ => Err(StdError::generic_err("unimplemented")),
     }
 }
@@ -76,12 +81,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             address,
         } => to_binary(&query_debt(deps, env, address)?),
     }
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MockMigrateMsg) -> StdResult<Response> {
-    CONFIG.save(deps.storage, &Config::new(msg))?;
-    Ok(Response::default())
 }
 
 //----------------------------------------------------------------------------------------
@@ -127,11 +126,8 @@ fn repay(
     denom: &str,
     amount: Uint256,
 ) -> StdResult<Response> {
-    let config = CONFIG.load(deps.storage)?;
     let mut position = POSITION.load(deps.storage, (&info.sender, denom))?;
-
-    let scaled_amount = amount / config.mock_interest_rate;
-    position.borrowed_amount = position.borrowed_amount - scaled_amount;
+    position.borrowed_amount = position.borrowed_amount - amount;
     POSITION.save(deps.storage, (&info.sender, denom), &position)?;
 
     Ok(Response {
@@ -140,12 +136,30 @@ fn repay(
             attr("user", info.sender),
             attr("denom", denom),
             attr("amount", amount),
-            attr("scaled_amount", scaled_amount),
             attr("borrowed_amount", position.borrowed_amount),
         ],
         events: vec![],
         data: None,
     })
+}
+
+fn set_debt(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    user: String,
+    denom: &str,
+    amount: Uint256,
+) -> StdResult<Response> {
+    let user_addr = deps.api.addr_validate(&user)?;
+
+    let mut position =
+        POSITION.load(deps.storage, (&user_addr, denom)).unwrap_or_default();
+
+    position.borrowed_amount = amount;
+    POSITION.save(deps.storage, (&user_addr, denom), &position)?;
+
+    Ok(Response::default())
 }
 
 //----------------------------------------------------------------------------------------
@@ -154,11 +168,9 @@ fn repay(
 
 fn query_debt(deps: Deps, _env: Env, user: String) -> StdResult<DebtResponse> {
     let addr = deps.api.addr_validate(&user)?;
-    let config = CONFIG.load(deps.storage)?;
 
     let compute_debt_amount = |denom: &str| {
-        let position = POSITION.load(deps.storage, (&addr, denom)).unwrap_or_default();
-        position.borrowed_amount * config.mock_interest_rate
+        POSITION.load(deps.storage, (&addr, denom)).unwrap_or_default().borrowed_amount
     };
 
     let debts = ["uluna", "uusd"]

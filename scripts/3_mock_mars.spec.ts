@@ -21,7 +21,7 @@ const user = terra.wallets.test2;
 let redBank: string;
 
 async function setupTest() {
-  redBank = await deployMockMars(terra, deployer, "1.1");
+  redBank = await deployMockMars(terra, deployer);
 
   process.stdout.write("Fund contract with LUNA and UST...");
 
@@ -69,7 +69,6 @@ async function testBorrow1() {
     42000000 - GAS_AMOUNT
   );
 
-  // Should be 42000000 * 1.1 = 46200000 uluna
   const debtResponse = await terra.wasm.contractQuery(redBank, {
     debt: {
       address: user.key.accAddress,
@@ -79,7 +78,7 @@ async function testBorrow1() {
     debts: [
       {
         denom: "uluna",
-        amount: "46200000",
+        amount: "42000000",
       },
       {
         denom: "uusd",
@@ -136,11 +135,11 @@ async function testBorrow2() {
     debts: [
       {
         denom: "uluna",
-        amount: "46200000",
+        amount: "42000000",
       },
       {
         denom: "uusd",
-        amount: "75900000",
+        amount: "69000000",
       },
     ],
   });
@@ -164,12 +163,7 @@ async function testRepay1() {
     ),
   ]);
 
-  // User pays 12.345678 LUNA. At mockInterestRate = 1.1, this should reduce the debt by
-  // 12345678 / 1.1 = 11223343 uluna
-  // Remaining debt = (42000000 - 11223343) * 1.1
-  // = 30776657 * 1.1
-  // = 33854322
-  // 46200000 - 12345678 = 33854322 (match)
+  // 42000000 - 12345678 = 29654322 uluna
   const debtResponse = await terra.wasm.contractQuery(redBank, {
     debt: {
       address: user.key.accAddress,
@@ -179,11 +173,11 @@ async function testRepay1() {
     debts: [
       {
         denom: "uluna",
-        amount: "33854322",
+        amount: "29654322",
       },
       {
         denom: "uusd",
-        amount: "75900000",
+        amount: "69000000",
       },
     ],
   });
@@ -207,12 +201,7 @@ async function testRepay2() {
     ),
   ]);
 
-  // User pays 8.888888 UST. At mockInterestRate = 1.1, this should reduce the debt by
-  // 8888888 / 1.1 = 8080807 uluna
-  // Remaining debt = (69000000 - 8080807) * 1.1
-  // = 60919193 * 1.1
-  // = 67011112
-  // 75900000 - 8888888 = 67011112 (match)
+  // 69000000 - 8888888 = 60111112 uusd
   const debtResponse = await terra.wasm.contractQuery(redBank, {
     debt: {
       address: user.key.accAddress,
@@ -222,11 +211,11 @@ async function testRepay2() {
     debts: [
       {
         denom: "uluna",
-        amount: "33854322",
+        amount: "29654322",
       },
       {
         denom: "uusd",
-        amount: "67011112",
+        amount: "60111112",
       },
     ],
   });
@@ -234,21 +223,15 @@ async function testRepay2() {
   console.log(chalk.green("Passed!"));
 }
 
-async function testMigrate() {
-  process.stdout.write("Should migrate... ");
-
-  // We don't actually change the code ID during migration
-  const codeId = (await terra.wasm.contractInfo(redBank)).code_id;
+async function testSetDebt() {
+  process.stdout.write("Should forcibly set debt amount... ");
 
   await sendTransaction(terra, deployer, [
-    new MsgMigrateContract(deployer.key.accAddress, redBank, codeId, {
-      mock_interest_rate: "1.2",
+    new MsgExecuteContract(deployer.key.accAddress, redBank, {
+      set_debt: { user: user.key.accAddress, denom: "uusd", amount: "69420" },
     }),
   ]);
 
-  // With the new mockInterestRate, debt amounts should be:
-  // uluna: 30776657 * 1.2 = 36931988
-  // uusd: 60919193 * 1.2 = 73103031
   const debtResponse = await terra.wasm.contractQuery(redBank, {
     debt: {
       address: user.key.accAddress,
@@ -258,11 +241,11 @@ async function testMigrate() {
     debts: [
       {
         denom: "uluna",
-        amount: "36931988",
+        amount: "29654322",
       },
       {
         denom: "uusd",
-        amount: "73103031",
+        amount: "69420",
       },
     ],
   });
@@ -271,6 +254,11 @@ async function testMigrate() {
 }
 
 (async () => {
+  console.log(chalk.yellow("\nTest: Info"));
+
+  console.log(`Use ${chalk.cyan(deployer.key.accAddress)} as deployer`);
+  console.log(`Use ${chalk.cyan(user.key.accAddress)} as user`);
+
   console.log(chalk.yellow("\nTest: Setup"));
 
   await setupTest();
@@ -281,7 +269,7 @@ async function testMigrate() {
   await testBorrow2();
   await testRepay1();
   await testRepay2();
-  await testMigrate();
+  await testSetDebt();
 
   console.log("");
 })();

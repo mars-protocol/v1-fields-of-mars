@@ -26,11 +26,11 @@
     "explorer.confirmDelete": false,
     "editor.tabSize": 2,
     "editor.rulers": [90],
-    "editor.formatOnSave": true,
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "[rust]": {
       "editor.tabSize": 4,
       "editor.defaultFormatter": "rust-lang.rust"
-    }
+    },
+    "editor.formatOnSave": true
   }
 }
