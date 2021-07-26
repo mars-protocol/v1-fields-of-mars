@@ -133,20 +133,26 @@ export class Checker {
     expected: CheckData
   ) {
     // Query external contracts
-    const bond: StakerInfoResponse =
+    const bond =
       "anchor" in this.config.staking
-        ? await this.terra.wasm.contractQuery(this.config.staking.anchor.contract_addr, {
-            staker_info: {
-              staker: this.field,
-              block_height: null,
-            },
-          })
-        : await this.terra.wasm.contractQuery(this.config.staking.mirror.contract_addr, {
-            reward_info: {
-              staker_addr: this.field,
-              asset_token: undefined,
-            },
-          });
+        ? ((await this.terra.wasm.contractQuery(
+            this.config.staking.anchor.contract_addr,
+            {
+              staker_info: {
+                staker: this.field,
+                block_height: null,
+              },
+            }
+          )) as StakerInfoResponse)
+        : ((await this.terra.wasm.contractQuery(
+            this.config.staking.mirror.contract_addr,
+            {
+              reward_info: {
+                staker_addr: this.field,
+                asset_token: undefined,
+              },
+            }
+          )) as RewardInfoResponse);
 
     const debt: DebtResponse = await this.terra.wasm.contractQuery(
       this.config.red_bank.contract_addr,
