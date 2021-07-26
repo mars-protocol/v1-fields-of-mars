@@ -1,17 +1,15 @@
 {
   "dependencies": {
     "@terra-money/terra.js": "^2.0.0-beta.15",
+    "@types/bn.js": "^5.1.0",
     "chai": "^4.3.4",
-    "chai-as-promised": "^7.1.1",
     "chalk": "^4.1.1",
     "dotenv": "^10.0.0",
     "table": "^6.7.1",
     "yargs": "^17.0.1"
   },
   "devDependencies": {
-    "@types/bn.js": "^5.1.0",
     "@types/chai": "^4.2.17",
-    "@types/chai-as-promised": "^7.1.4",
     "@types/chalk": "^2.2.0",
     "@types/node": "^10.12.18",
     "@types/yargs": "^17.0.1",
