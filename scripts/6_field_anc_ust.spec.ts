@@ -2078,7 +2078,7 @@ async function testReducePosition2() {
 
   await setupTest();
 
-  console.log(chalk.yellow("\nTest: Strategy: ANC-UST LP"));
+  console.log(chalk.yellow("\nTest: Martian Field: ANC-UST LP"));
 
   await testConfig();
   await testOpenPosition1();

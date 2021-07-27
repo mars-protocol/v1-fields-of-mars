@@ -207,6 +207,7 @@ export class Checker {
 
     // Combine results
     const actual: CheckData = { bond, debt, pool, strategy, users };
+    // console.log(JSON.stringify(actual, null, 2));
 
     // Generate a comparison table
     let header = [
@@ -223,10 +224,14 @@ export class Checker {
         "bond.amount",
         "bond_amount" in expected.bond
           ? expected.bond.bond_amount
-          : expected.bond.reward_infos[0].bond_amount,
+          : expected.bond.reward_infos.length > 0
+          ? expected.bond.reward_infos[0].bond_amount
+          : "0",
         "bond_amount" in actual.bond
           ? actual.bond.bond_amount
-          : actual.bond.reward_infos[0].bond_amount
+          : actual.bond.reward_infos.length > 0
+          ? actual.bond.reward_infos[0].bond_amount
+          : "0"
       ),
       // debt
       _generateRow(
