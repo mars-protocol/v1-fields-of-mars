@@ -26,7 +26,7 @@ pub struct InstantiateMsg {
     /// TerraSwap/Astroport pair of long/short assets
     pub swap: Swap,
     /// Staking contract where LP tokens can be bonded to earn rewards
-    pub staking: Staking,
+    pub staking: Option<Staking>,
     /// Accounts who can harvest
     pub keepers: Vec<String>,
     /// Account to receive fee payments

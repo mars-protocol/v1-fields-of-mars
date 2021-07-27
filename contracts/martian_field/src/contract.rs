@@ -377,11 +377,18 @@ fn harvest(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
         return Err(StdError::generic_err("only whitelisted keepers can harvest!"));
     }
 
-    // Query the amount of reward to expect to receive
-    let reward_amount =
-        config.staking.query_reward(&deps.querier, &env.contract.address)?;
+    // Staking contract must be present
+    if config.staking.is_none() {
+        return Err(StdError::generic_err("staking not available for this strategy"));
+    }
 
-    let mut messages = vec![config.staking.withdraw_msg()?];
+    // Since `config.staking` is not None, we can safely unwrap here
+    let staking = config.staking.unwrap();
+
+    // Query the amount of reward to expect to receive
+    let reward_amount = staking.query_reward(&deps.querier, &env.contract.address)?;
+
+    let mut messages = vec![staking.withdraw_msg()?];
 
     let callbacks = [
         CallbackMsg::Reinvest {
@@ -664,21 +671,25 @@ fn _bond(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
     let bond_amount = position.unlocked_assets[2].amount;
 
     // Total amount of bonded shares the contract currently has
-    let total_bond = config.staking.query_bond(&deps.querier, &env.contract.address)?;
+    // If staking contract is available, we query the staking contract
+    // Otherwise, the "bonded" amount is simply the AMM LP token held by the contract
+    let total_bond = if let Some(staking) = &config.staking {
+        staking.query_bond(&deps.querier, &env.contract.address)?
+    } else {
+        config.swap.query_share(&deps.querier, &env.contract.address)?
+    };
 
     // Calculate how many bond units the user should be accredited
-    // We define the initial bond unit = 100,000 units per share bonded
-    let mut bond_units_to_add = if total_bond.is_zero() {
+    // 1. We define the initial bond unit = 100,000 units per share bonded
+    // 2. If user is the contract itself, which is the case during harvest, then we don't
+    // increment bond units
+    let bond_units_to_add = if user == env.contract.address {
+        Uint128::zero()
+    } else if total_bond.is_zero() {
         bond_amount.multiply_ratio(1_000_000u128, 1u128)
     } else {
         state.total_bond_units.multiply_ratio(bond_amount, total_bond)
     };
-
-    // If user is the contract itself, which is the case during harvest, then we don't
-    // increment bond units
-    if user == env.contract.address {
-        bond_units_to_add = Uint128::zero();
-    }
 
     // Update state
     state.total_bond_units += bond_units_to_add;
@@ -686,11 +697,15 @@ fn _bond(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
 
     // Update position
     position.bond_units += bond_units_to_add;
-    position.unlocked_assets[2].amount -= bond_amount;
+    position.unlocked_assets[2].amount = Uint128::zero();
     POSITION.save(deps.storage, &user, &position)?;
 
     Ok(Response {
-        messages: vec![config.staking.bond_msg(bond_amount)?],
+        messages: if let Some(staking) = &config.staking {
+            vec![staking.bond_msg(bond_amount)?]
+        } else {
+            vec![]
+        },
         attributes: vec![
             attr("action", "martian_field::CallbackMsg::Bond"),
             attr("user", user),
@@ -715,8 +730,12 @@ fn _unbond(
     // Unbond all if `bond_units` is not provided
     let bond_units_to_reduce = bond_units.unwrap_or(position.bond_units);
 
-    // Total amount of share tokens bonded in the staking contract
-    let total_bond = config.staking.query_bond(&deps.querier, &env.contract.address)?;
+    // Total amount of bonded shares the contract currently has
+    let total_bond = if let Some(staking) = &config.staking {
+        staking.query_bond(&deps.querier, &env.contract.address)?
+    } else {
+        config.swap.query_share(&deps.querier, &env.contract.address)?
+    };
 
     // Amount of shares to unbond
     let unbond_amount =
@@ -732,7 +751,11 @@ fn _unbond(
     POSITION.save(deps.storage, &user, &position)?;
 
     Ok(Response {
-        messages: vec![config.staking.unbond_msg(unbond_amount)?],
+        messages: if let Some(staking) = &config.staking {
+            vec![staking.unbond_msg(unbond_amount)?]
+        } else {
+            vec![]
+        },
         attributes: vec![
             attr("action", "martian_field::CallbackMsg::Unbond"),
             attr("user", user),
@@ -1120,8 +1143,12 @@ fn query_health(deps: Deps, env: Env, user: Option<String>) -> StdResult<HealthR
     };
 
     // Part 1. Query of necessary info
-    // Total amount of share tokens bonded in the staking contract
-    let total_bond = config.staking.query_bond(&deps.querier, &env.contract.address)?;
+    // Total amount of bonded shares the contract currently has
+    let total_bond = if let Some(staking) = &config.staking {
+        staking.query_bond(&deps.querier, &env.contract.address)?
+    } else {
+        config.swap.query_share(&deps.querier, &env.contract.address)?
+    };
 
     // Total amount of debt owed to Mars
     let total_debt = config.red_bank.query_debt(

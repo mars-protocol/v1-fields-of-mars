@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, Coin, Decimal, QuerierWrapper, QueryRequest, StdResult, SubMsg, Uint128,
-    WasmMsg, WasmQuery,
+    to_binary, Addr, Coin, Decimal, QuerierWrapper, QueryRequest, StdResult, SubMsg,
+    Uint128, WasmMsg, WasmQuery,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use integer_sqrt::IntegerSquareRoot;
@@ -178,6 +178,18 @@ impl Swap {
                 msg: to_binary(&QueryMsg::Pool {})?,
             }))?;
         Ok(PoolResponseParsed::parse(&response, &long_info, &short_info))
+    }
+
+    /// @notice Query an account's balance of the pool's share token
+    pub fn query_share(
+        &self,
+        querier: &QuerierWrapper,
+        account: &Addr,
+    ) -> StdResult<Uint128> {
+        AssetInfo::Token {
+            contract_addr: self.share_token.clone(),
+        }
+        .query_balance(querier, &String::from(account))
     }
 
     /// @notice Simulate the amount of shares to receive by providing liquidity
