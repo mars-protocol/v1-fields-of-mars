@@ -143,7 +143,7 @@ if (!process.env.MNEMONIC) {
   }
 
   // Deploy the contract
-  process.stdout.write("Instantiating contract... ");
+  process.stdout.write("Instantiating Martian Field... ");
 
   const initMsg = {
     long_asset: {
@@ -195,17 +195,16 @@ if (!process.env.MNEMONIC) {
 
   const result = await instantiateContract(
     terra,
-    deployer,
+    deployer, // deployer
+    deployer, // admin
     argv["code-id"],
-    initMsg,
-    undefined, // coins
-    true // INPORTANT: migratable needs to be set to true
+    initMsg
   );
 
   console.log(
     "Done!",
-    `${chalk.blue("contractAddress")}=${result.logs[0].events[0].attributes[2].value}`
+    `${chalk.blue("contractAddress")}=${result.logs[0].events[0].attributes[3].value}\n`
   );
 
-  console.log("\nInitMsg =", initMsg, "\n");
+  console.log("InitMsg =", initMsg, "\n");
 })();
