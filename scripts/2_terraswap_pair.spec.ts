@@ -9,6 +9,10 @@ import {
   toEncodedBinary,
 } from "./helpers";
 
+//----------------------------------------------------------------------------------------
+// Variables
+//----------------------------------------------------------------------------------------
+
 const terra = new LocalTerra();
 const deployer = terra.wallets.test1;
 const user1 = terra.wallets.test2;
@@ -19,6 +23,10 @@ let cw20Token: string;
 let terraswapPair: string;
 let terraswapLpToken: string;
 
+//----------------------------------------------------------------------------------------
+// Setup
+//----------------------------------------------------------------------------------------
+
 async function setupTest() {
   ({ cw20CodeId, cw20Token } = await deployTerraswapToken(
     terra,
@@ -27,13 +35,18 @@ async function setupTest() {
     "MIR"
   ));
 
-  ({ terraswapPair, terraswapLpToken } = await deployTerraswapPair(
-    terra,
-    deployer,
-    cw20CodeId,
-    cw20Token
-  ));
+  ({ terraswapPair, terraswapLpToken } = await deployTerraswapPair(terra, deployer, {
+    asset_infos: [
+      { native_token: { denom: "uusd" } },
+      { token: { contract_addr: cw20Token } },
+    ],
+    token_code_id: cw20CodeId,
+  }));
 }
+
+//----------------------------------------------------------------------------------------
+// Test 1. Provide Initial Liquidity
+//----------------------------------------------------------------------------------------
 
 async function testProvideInitialLiquidity() {
   process.stdout.write("Should handle providing initial liquidity... ");
@@ -112,6 +125,10 @@ async function testProvideInitialLiquidity() {
   console.log(chalk.green("Passed!"));
 }
 
+//----------------------------------------------------------------------------------------
+// Test 2. Provide Further Liquidity
+//----------------------------------------------------------------------------------------
+
 async function testProvideFurtherLiquidity() {
   process.stdout.write("Should handle providing further liquidity... ");
 
@@ -172,6 +189,10 @@ async function testProvideFurtherLiquidity() {
   console.log(chalk.green("Passed!"));
 }
 
+//----------------------------------------------------------------------------------------
+// Test 3. Swap
+//----------------------------------------------------------------------------------------
+
 async function testSwap() {
   process.stdout.write("Should handle swaps... ");
 
@@ -221,10 +242,8 @@ async function testSwap() {
 
   // The pool should send out 626.368030 UST
   // total balance: 1690.000000 - 626.368030 = 1063631970 uusd
-  // Some numerical error here... The pool turns out to actually have 1063631971 uusd left
-  // Ignoring this for now
   const poolUstBalance = await queryNativeTokenBalance(terra, terraswapPair);
-  expect(poolUstBalance).to.equal("1063631971");
+  expect(poolUstBalance).to.equal("1063631970");
 
   // The pool should receive 100 MIR
   // total balance: 169 + 100 = 269 MIR
@@ -233,6 +252,10 @@ async function testSwap() {
 
   console.log(chalk.green("Passed!"));
 }
+
+//----------------------------------------------------------------------------------------
+// Test 4. Remove Liquidity
+//----------------------------------------------------------------------------------------
 
 async function testRemoveLiquidity() {
   process.stdout.write("Should handle removal of liquidity... ");
@@ -269,6 +292,10 @@ async function testRemoveLiquidity() {
 
   console.log(chalk.green("Passed!"));
 }
+
+//----------------------------------------------------------------------------------------
+// Main
+//----------------------------------------------------------------------------------------
 
 (async () => {
   console.log(chalk.yellow("\nTest: Info"));

@@ -59,31 +59,25 @@ export async function deployTerraswapToken(
 export async function deployTerraswapPair(
   terra: LocalTerra,
   deployer: Wallet,
-  cw20CodeId: number,
-  cw20Token: string
+  initMsg: object,
+  stable = false // whether to deploy `terraswap_pair` or `terraswap_pair_stable`
 ) {
   process.stdout.write("Uploading TerraSwap pair code... ");
 
-  const codeId = await storeCode(
-    terra,
-    deployer,
-    path.resolve(__dirname, "../artifacts/terraswap_pair.wasm")
-  );
+  const codePath = stable
+    ? "../artifacts/terraswap_pair_stable.wasm"
+    : "../artifacts/terraswap_pair.wasm";
+
+  const codeId = await storeCode(terra, deployer, path.resolve(__dirname, codePath));
 
   console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
 
   process.stdout.write("Instantiating TerraSwap pair contract... ");
 
-  const result = await instantiateContract(terra, deployer, deployer, codeId, {
-    asset_infos: [
-      { native_token: { denom: "uusd" } },
-      { token: { contract_addr: cw20Token } },
-    ],
-    token_code_id: cw20CodeId,
-  });
+  const result = await instantiateContract(terra, deployer, deployer, codeId, initMsg);
 
-  const terraswapLpToken = result.logs[0].events[3].attributes[1].value;
-  const terraswapPair = result.logs[0].events[1].attributes[3].value;
+  const terraswapPair = result.logs[0].events[2].attributes[3].value;
+  const terraswapLpToken = result.logs[0].events[2].attributes[7].value;
 
   console.log(
     chalk.green("Done!"),

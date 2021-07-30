@@ -53,12 +53,13 @@ async function setupTest() {
   );
   mirrorToken = cw20Token;
 
-  ({ terraswapPair, terraswapLpToken } = await deployTerraswapPair(
-    terra,
-    deployer,
-    cw20CodeId,
-    mirrorToken
-  ));
+  ({ terraswapPair, terraswapLpToken } = await deployTerraswapPair(terra, deployer, {
+    asset_infos: [
+      { native_token: { denom: "uusd" } },
+      { token: { contract_addr: mirrorToken } },
+    ],
+    token_code_id: cw20CodeId,
+  }));
 
   mirrorStaking = await deployMockMirror(
     terra,

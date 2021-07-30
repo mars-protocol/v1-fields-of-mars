@@ -53,12 +53,13 @@ async function setupTest() {
   );
   anchorToken = cw20Token;
 
-  ({ terraswapPair, terraswapLpToken } = await deployTerraswapPair(
-    terra,
-    deployer,
-    cw20CodeId,
-    anchorToken
-  ));
+  ({ terraswapPair, terraswapLpToken } = await deployTerraswapPair(terra, deployer, {
+    asset_infos: [
+      { native_token: { denom: "uusd" } },
+      { token: { contract_addr: anchorToken } },
+    ],
+    token_code_id: cw20CodeId,
+  }));
 
   anchorStaking = await deployMockAnchor(terra, deployer, anchorToken, terraswapLpToken);
 

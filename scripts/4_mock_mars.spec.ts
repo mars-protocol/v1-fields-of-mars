@@ -14,11 +14,19 @@ import {
   sendTransaction,
 } from "./helpers";
 
+//----------------------------------------------------------------------------------------
+// Variables
+//----------------------------------------------------------------------------------------
+
 const terra = new LocalTerra();
 const deployer = terra.wallets.test1;
 const user = terra.wallets.test2;
 
 let redBank: string;
+
+//----------------------------------------------------------------------------------------
+// Setup
+//----------------------------------------------------------------------------------------
 
 async function setupTest() {
   redBank = await deployMockMars(terra, deployer);
@@ -35,6 +43,10 @@ async function setupTest() {
 
   console.log(chalk.green("Done!"));
 }
+
+//----------------------------------------------------------------------------------------
+// Test 1. Borrow, Pt. 1
+//----------------------------------------------------------------------------------------
 
 async function testBorrow1() {
   process.stdout.write("Should handle borrowing LUNA... ");
@@ -89,6 +101,10 @@ async function testBorrow1() {
 
   console.log(chalk.green("Passed!"));
 }
+
+//----------------------------------------------------------------------------------------
+// Test 2. Borrow, Pt. 2
+//----------------------------------------------------------------------------------------
 
 async function testBorrow2() {
   process.stdout.write("Should handle borrowing UST... ");
@@ -147,6 +163,10 @@ async function testBorrow2() {
   console.log(chalk.green("Passed!"));
 }
 
+//----------------------------------------------------------------------------------------
+// Test 3. Repay, Pt. 1
+//----------------------------------------------------------------------------------------
+
 async function testRepay1() {
   process.stdout.write("Should handle repaying LUNA... ");
 
@@ -184,6 +204,10 @@ async function testRepay1() {
 
   console.log(chalk.green("Passed!"));
 }
+
+//----------------------------------------------------------------------------------------
+// Test 4. Repay, Pt. 2
+//----------------------------------------------------------------------------------------
 
 async function testRepay2() {
   process.stdout.write("Should handle repaying UST... ");
@@ -223,6 +247,10 @@ async function testRepay2() {
   console.log(chalk.green("Passed!"));
 }
 
+//----------------------------------------------------------------------------------------
+// Test 5. Set Debt
+//----------------------------------------------------------------------------------------
+
 async function testSetDebt() {
   process.stdout.write("Should forcibly set debt amount... ");
 
@@ -252,6 +280,10 @@ async function testSetDebt() {
 
   console.log(chalk.green("Passed!"));
 }
+
+//----------------------------------------------------------------------------------------
+// Main
+//----------------------------------------------------------------------------------------
 
 (async () => {
   console.log(chalk.yellow("\nTest: Info"));

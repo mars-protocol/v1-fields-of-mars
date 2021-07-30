@@ -4,6 +4,10 @@ import { expect } from "chai";
 import { deployMockAnchor, deployTerraswapPair, deployTerraswapToken } from "./fixture";
 import { queryTokenBalance, sendTransaction, toEncodedBinary } from "./helpers";
 
+//----------------------------------------------------------------------------------------
+// Variables
+//----------------------------------------------------------------------------------------
+
 const terra = new LocalTerra();
 const deployer = terra.wallets.test1;
 const user = terra.wallets.test2;
@@ -12,6 +16,10 @@ let anchorToken: string;
 let anchorStaking: string;
 let terraswapPair: string;
 let terraswapLpToken: string;
+
+//----------------------------------------------------------------------------------------
+// Setup
+//----------------------------------------------------------------------------------------
 
 async function setupTest() {
   let { cw20CodeId, cw20Token } = await deployTerraswapToken(
@@ -102,6 +110,10 @@ async function setupTest() {
   console.log(chalk.green("Done!"));
 }
 
+//----------------------------------------------------------------------------------------
+// Test 1. Bond
+//----------------------------------------------------------------------------------------
+
 async function testBond() {
   process.stdout.write("Should bond LP tokens... ");
 
@@ -134,6 +146,10 @@ async function testBond() {
   console.log(chalk.green("Passed!"));
 }
 
+//----------------------------------------------------------------------------------------
+// Test 1. Query Staker Info, Pt. 1
+//----------------------------------------------------------------------------------------
+
 async function testQueryStakerInfo1() {
   process.stdout.write("Should return correct staker info... ");
 
@@ -152,6 +168,10 @@ async function testQueryStakerInfo1() {
 
   console.log(chalk.green("Passed!"));
 }
+
+//----------------------------------------------------------------------------------------
+// Test 2. Query Staker Info, Pt. 2
+//----------------------------------------------------------------------------------------
 
 async function testQueryStakerInfo2() {
   process.stdout.write("Should return zero for users who has no stake... ");
@@ -174,6 +194,10 @@ async function testQueryStakerInfo2() {
   console.log(chalk.green("Passed!"));
 }
 
+//----------------------------------------------------------------------------------------
+// Test 3. Withdraw Reward
+//----------------------------------------------------------------------------------------
+
 async function testWithdraw() {
   process.stdout.write("Should withdraw reward... ");
 
@@ -188,6 +212,10 @@ async function testWithdraw() {
 
   console.log(chalk.green("Passed!"));
 }
+
+//----------------------------------------------------------------------------------------
+// Test 4. Unbond
+//----------------------------------------------------------------------------------------
 
 async function testUnbond() {
   process.stdout.write("Should unbond LP tokens... ");
@@ -217,6 +245,10 @@ async function testUnbond() {
 
   console.log(chalk.green("Passed!"));
 }
+
+//----------------------------------------------------------------------------------------
+// Main
+//----------------------------------------------------------------------------------------
 
 (async () => {
   console.log(chalk.yellow("\nTest: Info"));

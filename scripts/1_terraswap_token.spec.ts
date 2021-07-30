@@ -4,6 +4,10 @@ import { expect } from "chai";
 import { deployTerraswapToken } from "./fixture";
 import { queryTokenBalance, sendTransaction } from "./helpers";
 
+//----------------------------------------------------------------------------------------
+// Variables
+//----------------------------------------------------------------------------------------
+
 const terra = new LocalTerra();
 const deployer = terra.wallets.test1;
 const user1 = terra.wallets.test2;
@@ -11,9 +15,17 @@ const user2 = terra.wallets.test3;
 
 let cw20Token: string;
 
+//----------------------------------------------------------------------------------------
+// Setup
+//----------------------------------------------------------------------------------------
+
 async function setupTest() {
   ({ cw20Token } = await deployTerraswapToken(terra, deployer, "Test Token", "TST"));
 }
+
+//----------------------------------------------------------------------------------------
+// Test 1. Config
+//----------------------------------------------------------------------------------------
 
 async function testConfig() {
   process.stdout.write("Should store correct config info... ");
@@ -39,6 +51,10 @@ async function testConfig() {
   console.log(chalk.green("Passed!"));
 }
 
+//----------------------------------------------------------------------------------------
+// Test 2. Mint
+//----------------------------------------------------------------------------------------
+
 async function testMint() {
   process.stdout.write("Should mint correct amount of token... ");
 
@@ -58,6 +74,10 @@ async function testMint() {
 
   console.log(chalk.green("Passed!"));
 }
+
+//----------------------------------------------------------------------------------------
+// Test 3. Transfer
+//----------------------------------------------------------------------------------------
 
 async function testTransfer() {
   process.stdout.write("Should transfer correct amount of token... ");
@@ -82,6 +102,10 @@ async function testTransfer() {
 
   console.log(chalk.green("Passed!"));
 }
+
+//----------------------------------------------------------------------------------------
+// Main
+//----------------------------------------------------------------------------------------
 
 (async () => {
   console.log(chalk.yellow("\nTest: Info"));
