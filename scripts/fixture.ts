@@ -76,8 +76,16 @@ export async function deployTerraswapPair(
 
   const result = await instantiateContract(terra, deployer, deployer, codeId, initMsg);
 
-  const terraswapPair = result.logs[0].events[2].attributes[3].value;
-  const terraswapLpToken = result.logs[0].events[2].attributes[7].value;
+  const event = result.logs[0].events.find((event) => {
+    return event.type == "instantiate_contract";
+  });
+
+  const terraswapPair = event?.attributes[3].value;
+  const terraswapLpToken = event?.attributes[7].value;
+
+  if (!terraswapPair || !terraswapLpToken) {
+    throw "failed to parse instantiation event log";
+  }
 
   console.log(
     chalk.green("Done!"),

@@ -142,18 +142,14 @@ async function testProvideInitialLiquidity() {
     ),
   ]);
 
-  const blunaBalance = await queryTokenBalance(terra, terraswapPair, bLunaToken);
-  expect(blunaBalance).to.equal("698810752552");
+  const poolUBLuna = await queryTokenBalance(terra, terraswapPair, bLunaToken);
+  expect(poolUBLuna).to.equal("698810752552");
 
-  const lunaBalance = await queryNativeTokenBalance(terra, terraswapPair, "uluna");
-  expect(lunaBalance).to.equal("722090275787");
+  const poolULuna = await queryNativeTokenBalance(terra, terraswapPair, "uluna");
+  expect(poolULuna).to.equal("722090275787");
 
-  const lpTokenBalance = await queryTokenBalance(
-    terra,
-    user1.key.accAddress,
-    terraswapLpToken
-  );
-  expect(lpTokenBalance).to.equal("710355156969");
+  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, terraswapLpToken);
+  expect(poolULp).to.equal("710355156969");
 
   console.log(chalk.green("Passed!"));
 }
@@ -217,18 +213,14 @@ async function testProvideFurtherLiquidity() {
     ),
   ]);
 
-  const blunaBalance = await queryTokenBalance(terra, terraswapPair, bLunaToken);
-  expect(blunaBalance).to.equal("698879752552");
+  const poolUBLuna = await queryTokenBalance(terra, terraswapPair, bLunaToken);
+  expect(poolUBLuna).to.equal("698879752552");
 
-  const lunaBalance = await queryNativeTokenBalance(terra, terraswapPair, "uluna");
-  expect(lunaBalance).to.equal("722159275787");
+  const poolULuna = await queryNativeTokenBalance(terra, terraswapPair, "uluna");
+  expect(poolULuna).to.equal("722159275787");
 
-  const lpTokenBalance = await queryTokenBalance(
-    terra,
-    user1.key.accAddress,
-    terraswapLpToken
-  );
-  expect(lpTokenBalance).to.equal("710423035608");
+  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, terraswapLpToken);
+  expect(poolULp).to.equal("710423035608");
 
   console.log(chalk.green("Passed!"));
 }
@@ -251,14 +243,10 @@ async function testProvideFurtherLiquidity() {
 // returnAmount = swapAmount - commissionAmount = 99591879877
 // returnAmountAfterTax = deductTax(returnAmount) = 99591879877 (0 tax for LUNA transfers)
 //
+// Result
 // pool bluna  698879752552 + 100000000000 = 798879752552
 // pool luna   722159275787 - 99591879877 = 622567395910
-//
-// Result
-// ---
-// pool ubluna  798879752552
-// pool uluna   622567395910
-// pool uLP     710423035608
+// pool uLP    710423035608
 //----------------------------------------------------------------------------------------
 
 async function testSwap() {
@@ -276,18 +264,14 @@ async function testSwap() {
     }),
   ]);
 
-  const blunaBalance = await queryTokenBalance(terra, terraswapPair, bLunaToken);
-  expect(blunaBalance).to.equal("798879752552");
+  const poolUBLuna = await queryTokenBalance(terra, terraswapPair, bLunaToken);
+  expect(poolUBLuna).to.equal("798879752552");
 
-  const lunaBalance = await queryNativeTokenBalance(terra, terraswapPair, "uluna");
-  expect(lunaBalance).to.equal("622567395910");
+  const poolULuna = await queryNativeTokenBalance(terra, terraswapPair, "uluna");
+  expect(poolULuna).to.equal("622567395910");
 
-  const lpTokenBalance = await queryTokenBalance(
-    terra,
-    user1.key.accAddress,
-    terraswapLpToken
-  );
-  expect(lpTokenBalance).to.equal("710423035608");
+  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, terraswapLpToken);
+  expect(poolULp).to.equal("710423035608");
 
   console.log(chalk.green("Passed!"));
 }
@@ -300,15 +284,11 @@ async function testSwap() {
 // bLuna to be released = 798879752552 * 420000000 / 710423035608 = 472295349
 // Luna to be released = 622567395910 * 420000000 / 710423035608 = 368060005
 //
+// Result
+// ---
 // pool ubluna  798879752552 - 472295349 = 798407457203
 // pool uluna   622567395910 - 368060005 = 622199335905
 // pool uLP     710423035608 - 420000000 = 710003035608
-//
-// Result
-// ---
-// pool ubluna  798407457203
-// pool uluna   622199335905
-// pool uLP     710003035608
 //----------------------------------------------------------------------------------------
 
 async function testRemoveLiquidity() {
@@ -326,18 +306,14 @@ async function testRemoveLiquidity() {
     }),
   ]);
 
-  const blunaBalance = await queryTokenBalance(terra, terraswapPair, bLunaToken);
-  expect(blunaBalance).to.equal("798407457203");
+  const poolUBLuna = await queryTokenBalance(terra, terraswapPair, bLunaToken);
+  expect(poolUBLuna).to.equal("798407457203");
 
-  const lunaBalance = await queryNativeTokenBalance(terra, terraswapPair, "uluna");
-  expect(lunaBalance).to.equal("622199335905");
+  const poolULuna = await queryNativeTokenBalance(terra, terraswapPair, "uluna");
+  expect(poolULuna).to.equal("622199335905");
 
-  const lpTokenBalance = await queryTokenBalance(
-    terra,
-    user1.key.accAddress,
-    terraswapLpToken
-  );
-  expect(lpTokenBalance).to.equal("710003035608");
+  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, terraswapLpToken);
+  expect(poolULp).to.equal("710003035608");
 
   console.log(chalk.green("Passed!"));
 }

@@ -18,8 +18,7 @@ const deployer = terra.wallets.test1;
 const user1 = terra.wallets.test2;
 const user2 = terra.wallets.test3;
 
-let cw20CodeId: number;
-let cw20Token: string;
+let mirrorToken: string;
 let terraswapPair: string;
 let terraswapLpToken: string;
 
@@ -28,12 +27,13 @@ let terraswapLpToken: string;
 //----------------------------------------------------------------------------------------
 
 async function setupTest() {
-  ({ cw20CodeId, cw20Token } = await deployTerraswapToken(
+  let { cw20CodeId, cw20Token } = await deployTerraswapToken(
     terra,
     deployer,
     "Mock Mirror Token",
     "MIR"
-  ));
+  );
+  mirrorToken = cw20Token;
 
   ({ terraswapPair, terraswapLpToken } = await deployTerraswapPair(terra, deployer, {
     asset_infos: [
@@ -42,16 +42,9 @@ async function setupTest() {
     ],
     token_code_id: cw20CodeId,
   }));
-}
 
-//----------------------------------------------------------------------------------------
-// Test 1. Provide Initial Liquidity
-//----------------------------------------------------------------------------------------
+  process.stdout.write("Fund user1 with MIR... ");
 
-async function testProvideInitialLiquidity() {
-  process.stdout.write("Should handle providing initial liquidity... ");
-
-  // Fist, mint some MIR tokens to the users
   await sendTransaction(terra, deployer, [
     new MsgExecuteContract(deployer.key.accAddress, cw20Token, {
       mint: {
@@ -59,6 +52,13 @@ async function testProvideInitialLiquidity() {
         amount: "10000000000",
       },
     }),
+  ]);
+
+  console.log(chalk.green("Done!"));
+
+  process.stdout.write("Fund user1 with MIR... ");
+
+  await sendTransaction(terra, deployer, [
     new MsgExecuteContract(deployer.key.accAddress, cw20Token, {
       mint: {
         recipient: user2.key.accAddress,
@@ -67,9 +67,27 @@ async function testProvideInitialLiquidity() {
     }),
   ]);
 
-  // User1 provides 100 MIR + 1000 UST (price: 1 MIR = 10 UST)
+  console.log(chalk.green("Done!"));
+}
+
+//----------------------------------------------------------------------------------------
+// Test 1. Provide Initial Liquidity
+//
+// User1 provides 1_000_000_000 uusd + 100_000_000 uMIR (price: 1 MIR = 10 UST)
+// User1 should receive sqrt(1_000_000_000 * 100_000_000) = 316227766 uLP
+//
+// Result
+// ---
+// pool uusd  1000000000
+// pool uMIR  100000000
+// pool uLP   316227766
+//----------------------------------------------------------------------------------------
+
+async function testProvideInitialLiquidity() {
+  process.stdout.write("Should handle providing initial liquidity... ");
+
   await sendTransaction(terra, user1, [
-    new MsgExecuteContract(user1.key.accAddress, cw20Token, {
+    new MsgExecuteContract(user1.key.accAddress, mirrorToken, {
       increase_allowance: {
         amount: "100000000",
         spender: terraswapPair,
@@ -93,7 +111,7 @@ async function testProvideInitialLiquidity() {
               amount: "100000000",
               info: {
                 token: {
-                  contract_addr: cw20Token,
+                  contract_addr: mirrorToken,
                 },
               },
             },
@@ -106,36 +124,41 @@ async function testProvideInitialLiquidity() {
     ),
   ]);
 
-  // The liquidity pool should have 1000 UST balance
-  const ustBalance = await queryNativeTokenBalance(terra, terraswapPair);
-  expect(ustBalance).to.equal("1000000000");
+  const poolUusd = await queryNativeTokenBalance(terra, terraswapPair);
+  expect(poolUusd).to.equal("1000000000");
 
-  // The liquidity pool should have 100 MIR balance
-  const tstBalance = await queryTokenBalance(terra, terraswapPair, cw20Token);
-  expect(tstBalance).to.equal("100000000");
+  const poolUMir = await queryTokenBalance(terra, terraswapPair, mirrorToken);
+  expect(poolUMir).to.equal("100000000");
 
-  // User1 should receive sqrt(100e6 * 1000e6) = 316.227766 LP tokens
-  const lpTokenBalance = await queryTokenBalance(
-    terra,
-    user1.key.accAddress,
-    terraswapLpToken
-  );
-  expect(lpTokenBalance).to.equal("316227766");
+  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, terraswapLpToken);
+  expect(poolULp).to.equal("316227766");
 
   console.log(chalk.green("Passed!"));
 }
 
 //----------------------------------------------------------------------------------------
 // Test 2. Provide Further Liquidity
+//
+// User1 provides another 690000000 uusd + 69000000 uMIR
+//
+// The amount of LP token the user should receive is:
+// min(ustDeposit * totalShare / ustBalance, mirDeposit * totalShare / tstBalance)
+// = min(690e6 * 316227766 / 1000e6, 69e6 * 316227766 / 100e6)
+// = min(218197158, 218197158)
+// = 218197158
+//
+// Result
+// ---
+// pool uusd  1000000000 + 690000000 = 1690000000
+// pool uMIR  100000000 + 69000000 = 169000000
+// pool uLP   316227766 + 218197158 = 534424924
 //----------------------------------------------------------------------------------------
 
 async function testProvideFurtherLiquidity() {
   process.stdout.write("Should handle providing further liquidity... ");
 
-  // User provides another 69 MIR
-  // The amount of UST needed: 69e6 * 1000e6 / 100e6 = 690000000
   await sendTransaction(terra, user1, [
-    new MsgExecuteContract(user1.key.accAddress, cw20Token, {
+    new MsgExecuteContract(user1.key.accAddress, mirrorToken, {
       increase_allowance: {
         amount: "69000000",
         spender: terraswapPair,
@@ -159,7 +182,7 @@ async function testProvideFurtherLiquidity() {
               amount: "69000000",
               info: {
                 token: {
-                  contract_addr: cw20Token,
+                  contract_addr: mirrorToken,
                 },
               },
             },
@@ -172,64 +195,48 @@ async function testProvideFurtherLiquidity() {
     ),
   ]);
 
-  // The amount of LP token the user should receive is:
-  // min(ustDeposit * totalShare / ustBalance, mirDeposit * totalShare / tstBalance)
-  // = min(690e6 * 316227766 / 1000e6, 69e6 * 316227766 / 100e6)
-  // = min(218197158, 218197158) = 218197158
-  //
-  // Total LP token user1 should have at this point:
-  // 316227766 + 218197158 = 534424924
-  const lpTokenBalance = await queryTokenBalance(
-    terra,
-    user1.key.accAddress,
-    terraswapLpToken
-  );
-  expect(lpTokenBalance).to.equal("534424924");
+  const poolUusd = await queryNativeTokenBalance(terra, terraswapPair);
+  expect(poolUusd).to.equal("1690000000");
+
+  const poolUMir = await queryTokenBalance(terra, terraswapPair, mirrorToken);
+  expect(poolUMir).to.equal("169000000");
+
+  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, terraswapLpToken);
+  expect(poolULp).to.equal("534424924");
 
   console.log(chalk.green("Passed!"));
 }
 
 //----------------------------------------------------------------------------------------
 // Test 3. Swap
+//
+// User2 sells 100 MIR for UST
+//
+// kValueBefore = poolUstBalance * pooltstBalance
+// = 1690000000 * 169000000 = 285610000000000000;
+// returnAmount = poolUstBalance - kValueBefore / (pooltstBalance + sendMirAmount)
+// = 1690000000 - 285610000000000000 / (169000000 + 100000000)
+// = 628252789
+// fee = returnAmount * feeRate
+// = 628252789 * 0.003
+// = 1884758
+// returnAmountAfterFee = returnUstAmount - fee
+// = 628252788 - 1884758
+// = 626368030
+// returnAmountAfterFeeAndTax = deductTax(626368030) = 625742287
+// transaction cost for pool = addTax(625742287) = 626368029
+//
+// Result
+// ---
+// pool uusd  1690000000 - 626368029 = 1063631971
+// pool uMIR  169000000 + 100000000 = 269000000
+// pool uLP   534424924
 //----------------------------------------------------------------------------------------
 
 async function testSwap() {
   process.stdout.write("Should handle swaps... ");
-
-  // User2 dumps 100 MIR for UST
-  //
-  // The trade amounts are calculated as follows
-  //
-  // kValueBefore = poolUstBalance * pooltstBalance
-  // = 1690000000 * 169000000 = 285610000000000000;
-  //
-  // returnUstAmount = poolUstBalance - kValueBefore / (pooltstBalance + sendMirAmount)
-  // = 1690000000 - 285610000000000000 / (169000000 + 100000000)
-  // = 628252788
-  //
-  // fee = returnUstAmount * feeRate
-  // = 628252789 * 0.003
-  // = 1884758
-  //
-  // returnUstAmountAfterFee = returnUstAmount - fee
-  // = 628252788 - 1884758
-  // = 626368030
-  //
-  // The user should receive 626.368030 UST minus tax; tax is calculated as follows:
-  // Github: terraswap/terraswap/packages/terraswap/src/asset.rs#L44
-  //
-  // tax = std::cmp::min(
-  //   amount - amount.multiply_ratio(1e18, 1e18 * tax_rate + 1e18),
-  //   tax_cap
-  // );
-  //
-  // Default values for LocalTerra:
-  //
-  // tax_rate = 0.001
-  // tax_cap = 1000000 uusd
-  //
   await sendTransaction(terra, user2, [
-    new MsgExecuteContract(user2.key.accAddress, cw20Token, {
+    new MsgExecuteContract(user2.key.accAddress, mirrorToken, {
       send: {
         amount: "100000000",
         contract: terraswapPair,
@@ -240,36 +247,36 @@ async function testSwap() {
     }),
   ]);
 
-  // The pool should send out 626.368030 UST
-  // total balance: 1690.000000 - 626.368030 = 1063631970 uusd
-  const poolUstBalance = await queryNativeTokenBalance(terra, terraswapPair);
-  expect(poolUstBalance).to.equal("1063631970");
+  const poolUusd = await queryNativeTokenBalance(terra, terraswapPair);
+  expect(poolUusd).to.equal("1063631971");
 
-  // The pool should receive 100 MIR
-  // total balance: 169 + 100 = 269 MIR
-  const pooltstBalance = await queryTokenBalance(terra, terraswapPair, cw20Token);
-  expect(pooltstBalance).to.equal("269000000");
+  const poolUMir = await queryTokenBalance(terra, terraswapPair, mirrorToken);
+  expect(poolUMir).to.equal("269000000");
+
+  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, terraswapLpToken);
+  expect(poolULp).to.equal("534424924");
 
   console.log(chalk.green("Passed!"));
 }
 
 //----------------------------------------------------------------------------------------
 // Test 4. Remove Liquidity
+//
+// User1 burns 420 LP tokens
+//
+// uusd to be released = 1063631971 * 420000000 / 534424924 = 835899314
+// uMIR to be released = 269000000 * 420000000 / 534424924 = 211404810
+// transaction cost for sending UST: addTax(deductTax(835899314)) = 835899313
+//
+// pool uusd  1063631971 - 835899313 = 227732658
+// pool uMIR  269000000 - 211404810 = 57595190
+// pool uLP   534424924 - 420000000 = 114424924
 //----------------------------------------------------------------------------------------
 
 async function testRemoveLiquidity() {
   process.stdout.write("Should handle removal of liquidity... ");
 
-  // User1 removes 420 LP tokens
-  //
-  // Prior to withdrawal, the pair contract has 534.424924 LP token supply, 269 MIR, and
-  // 1063.631970 UST
-  //
-  // Burning 420 LP token should get the user:
-  // 269 * 420 / 534.424924 = 211.404810 MIR
-  // 1063.631970 * 420 / 534.424924 = 83.5899314 UST
-  //
-  const result = await sendTransaction(terra, user1, [
+  await sendTransaction(terra, user1, [
     new MsgExecuteContract(user1.key.accAddress, terraswapLpToken, {
       send: {
         amount: "420000000",
@@ -281,14 +288,14 @@ async function testRemoveLiquidity() {
     }),
   ]);
 
-  // Due to the tax charged on UST transfers, it's difficult to estimate exactly how much
-  // UST the user should receive in his wallet. Therefore we simply validate the amounts
-  // recorded in the transaction's log message.
-  const refundAssets = result.logs[0].events[6].attributes.find((attr) => {
-    if (attr.key === "refund_assets") return true;
-    else return false;
-  });
-  expect(refundAssets?.value).to.equal(`835899314uusd, 211404810${cw20Token}`);
+  const poolUusd = await queryNativeTokenBalance(terra, terraswapPair);
+  expect(poolUusd).to.equal("227732658");
+
+  const poolUMir = await queryTokenBalance(terra, terraswapPair, mirrorToken);
+  expect(poolUMir).to.equal("57595190");
+
+  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, terraswapLpToken);
+  expect(poolULp).to.equal("114424924");
 
   console.log(chalk.green("Passed!"));
 }
