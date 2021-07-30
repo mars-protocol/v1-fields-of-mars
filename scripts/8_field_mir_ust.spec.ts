@@ -221,7 +221,7 @@ async function setupTest() {
 }
 
 //----------------------------------------------------------------------------------------
-// Tests
+// Test 1. Config
 //----------------------------------------------------------------------------------------
 
 async function testConfig() {
@@ -260,6 +260,10 @@ async function testConfig() {
     users: [],
   });
 }
+
+//----------------------------------------------------------------------------------------
+// Test 2. Open Position, Pt. 1
+//----------------------------------------------------------------------------------------
 
 async function testOpenPosition1() {
   const { txhash } = await sendTransaction(terra, user1, [
@@ -350,6 +354,10 @@ async function testOpenPosition1() {
   });
 }
 
+//----------------------------------------------------------------------------------------
+// Test 3. Harvest
+//----------------------------------------------------------------------------------------
+
 async function testHarvest() {
   const { txhash } = await sendTransaction(terra, deployer, [
     new MsgExecuteContract(deployer.key.accAddress, field, {
@@ -414,6 +422,10 @@ async function testHarvest() {
   });
 }
 
+//----------------------------------------------------------------------------------------
+// Test 4. Accrue Interest
+//----------------------------------------------------------------------------------------
+
 async function testAccrueInterest() {
   const { txhash } = await sendTransaction(terra, deployer, [
     new MsgExecuteContract(deployer.key.accAddress, redBank, {
@@ -477,6 +489,10 @@ async function testAccrueInterest() {
     ],
   });
 }
+
+//----------------------------------------------------------------------------------------
+// Test 5. Open Position, Pt. 2
+//----------------------------------------------------------------------------------------
 
 async function testOpenPosition2() {
   const { txhash } = await sendTransaction(terra, user2, [
@@ -596,6 +612,10 @@ async function testOpenPosition2() {
   });
 }
 
+//----------------------------------------------------------------------------------------
+// Test 6. Pay Debt
+//----------------------------------------------------------------------------------------
+
 async function testPayDebt() {
   const { txhash } = await sendTransaction(terra, user1, [
     new MsgExecuteContract(
@@ -699,6 +719,10 @@ async function testPayDebt() {
   });
 }
 
+//----------------------------------------------------------------------------------------
+// Test 7. Reduce Position, Pt. 1
+//----------------------------------------------------------------------------------------
+
 async function testReducePosition1() {
   const { txhash } = await sendTransaction(terra, user1, [
     new MsgExecuteContract(user1.key.accAddress, field, {
@@ -789,6 +813,10 @@ async function testReducePosition1() {
   });
 }
 
+//----------------------------------------------------------------------------------------
+// Test 8. Dump
+//----------------------------------------------------------------------------------------
+
 async function testDump() {
   const { txhash } = await sendTransaction(terra, deployer, [
     new MsgExecuteContract(deployer.key.accAddress, mirrorToken, {
@@ -817,7 +845,7 @@ async function testDump() {
     pool: {
       assets: [
         // uusd
-        { amount: "665352039" },
+        { amount: "665352038" },
         // uMIR
         { amount: "273300000" },
       ],
@@ -829,9 +857,9 @@ async function testDump() {
         total_debt_units: "380647473333333",
       },
       health: {
-        bond_value: "704374722",
+        bond_value: "704374721",
         debt_value: "399679847",
-        ltv: "0.567425028918059328",
+        ltv: "0.567425029723632004",
       },
     },
     users: [
@@ -872,14 +900,18 @@ async function testDump() {
           ],
         },
         health: {
-          bond_value: "264640731",
+          bond_value: "264640730",
           debt_value: "58579946",
-          ltv: "0.221356500107309634",
+          ltv: "0.221356500943751175",
         },
       },
     ],
   });
 }
+
+//----------------------------------------------------------------------------------------
+// Test 9. Liquidation, Pt. 1
+//----------------------------------------------------------------------------------------
 
 async function testLiquidation1() {
   const { txhash } = await sendTransaction(terra, liquidator1, [
@@ -919,7 +951,7 @@ async function testLiquidation1() {
         // uluna
         { amount: "0" },
         // uusd
-        { amount: "80351828" },
+        { amount: "80351829" },
       ],
     },
     pool: {
@@ -934,12 +966,12 @@ async function testLiquidation1() {
     strategy: {
       state: {
         total_bond_units: "84191717789575",
-        total_debt_units: "76525550476190",
+        total_debt_units: "76525551428571",
       },
       health: {
         bond_value: "264640734",
-        debt_value: "80351828",
-        ltv: "0.303626077457901851",
+        debt_value: "80351829",
+        ltv: "0.303626081236609629",
       },
     },
     users: [
@@ -948,10 +980,10 @@ async function testLiquidation1() {
         address: user1.key.accAddress,
         position: {
           bond_units: "0",
-          debt_units: "20735124761905",
+          debt_units: "20735125714286",
           unlocked_assets: [
             // uMIR
-            { amount: "16160455" },
+            { amount: "16160456" },
             // uusd
             { amount: "1" },
             // uLP
@@ -960,7 +992,7 @@ async function testLiquidation1() {
         },
         health: {
           bond_value: "0",
-          debt_value: "21771881",
+          debt_value: "21771882",
           ltv: null,
         },
       },
@@ -988,6 +1020,10 @@ async function testLiquidation1() {
     ],
   });
 }
+
+//----------------------------------------------------------------------------------------
+// Test 10. Liquidation, Pt. 2
+//----------------------------------------------------------------------------------------
 
 async function testLiquidation2() {
   const { txhash } = await sendTransaction(terra, liquidator2, [
@@ -1091,6 +1127,10 @@ async function testLiquidation2() {
     ],
   });
 }
+
+//----------------------------------------------------------------------------------------
+// Test 11. Reduce Position, Pt. 2
+//----------------------------------------------------------------------------------------
 
 async function testReducePosition2() {
   const { txhash } = await sendTransaction(terra, user2, [

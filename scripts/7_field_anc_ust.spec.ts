@@ -215,7 +215,7 @@ async function setupTest() {
 }
 
 //----------------------------------------------------------------------------------------
-// Test: Config
+// Test 1. Config
 //----------------------------------------------------------------------------------------
 
 async function testConfig() {
@@ -256,7 +256,7 @@ async function testConfig() {
 }
 
 //----------------------------------------------------------------------------------------
-// Test: Open Position, Pt. 1
+// Test 2. Open Position, Pt. 1
 //
 // Prior to execution:
 // ---
@@ -413,7 +413,7 @@ async function testOpenPosition1() {
 }
 
 //----------------------------------------------------------------------------------------
-// Test: Harvest
+// Test 3. Harvest
 //
 // Prior to execution:
 // ---
@@ -566,7 +566,7 @@ async function testHarvest() {
 }
 
 //----------------------------------------------------------------------------------------
-// Test: Accrue Interest
+// Test 4. Accrue Interest
 //
 // Prior to execution:
 // ---
@@ -680,7 +680,7 @@ async function testAccrueInterest() {
 }
 
 //----------------------------------------------------------------------------------------
-// Test: Open Position, Pt. 2
+// Test 5. Open Position, Pt. 2
 //
 // Prior to execution:
 // ---
@@ -896,7 +896,7 @@ async function testOpenPosition2() {
 }
 
 //----------------------------------------------------------------------------------------
-// Test: Pay Debt
+// Test 6. Pay Debt
 //
 // Prior to execution:
 // ---
@@ -1081,7 +1081,7 @@ async function testPayDebt() {
 }
 
 //----------------------------------------------------------------------------------------
-// Test: Reduce Position, Pt. 1
+// Test 7. Reduce Position, Pt. 1
 //
 // Prior to execution:
 // ---
@@ -1256,7 +1256,7 @@ async function testReducePosition1() {
 }
 
 //----------------------------------------------------------------------------------------
-// Test: Dump
+// Test 8. Dump
 //
 // Prior to execution:
 // ---
@@ -1286,17 +1286,17 @@ async function testReducePosition1() {
 // = 181526471108700000
 // returnUst = poolUst - k / (poolAnc + sendAnc)
 // = 1047469539 - 181526471108700000 / (173300000 + 100000000)
-// = 383267302 uusd
+// = 383267303 uusd
 // fee = returnUst * feeRate = 383267303 * 0.003
 // = 1149801 uusd
-// returnUstAfterFee = returnUst - fee = 383267302 - 1149801
-// = 382117501 uusd
-// returnUstAfterFeeAndTax = deductTax(returnUstAfterFee) = deductTax(382117501)
-// = 381735765 uusd
-// ustCostForPool = addTax(381735765) = 382117500 uusd
+// returnUstAfterFee = returnUst - fee = 383267303 - 1149801
+// = 382117502 uusd
+// returnUstAfterFeeAndTax = deductTax(returnUstAfterFee) = deductTax(382117502)
+// = 381735766 uusd
+// ustCostForPool = addTax(381735766) = 382117501 uusd
 // ---
 // pool uANC            173300000 + 100000000 = 273300000
-// pool uusd            1047469539 - 382117500 = 665352039
+// pool uusd            1047469539 - 382117501 = 665352038
 //
 // Result
 // ---
@@ -1318,23 +1318,23 @@ async function testReducePosition1() {
 // bond                 225380740
 // debt                 399679847
 // pool uANC            273300000
-// pool uusd            665352039
+// pool uusd            665352038
 // pool uLP             425789087
 //
 // State health:
-// bondValue = 2 * 665352039 * 225380740 / 425789087 = 704374722 uusd
+// bondValue = 2 * 665352038 * 225380740 / 425789087 = 704374721 uusd
 // debtValue = 399679847
-// ltv = 399679847 / 704374722 = 0.567425028918059328
+// ltv = 399679847 / 704374721 = 0.567425029723632004
 //
 // User1 health:
-// bondValue = 704374722 * 139895170000000 / 224086887789575 = 439733990
+// bondValue = 704374721 * 139895170000000 / 224086887789575 = 439733990
 // debtValue = 399679847 * 324857047619048 / 380647473333333 = 341099900
 // ltv = 341099900 / 439733990 = 0.775696006578886476
 //
 // User2 health:
-// bondValue = 704374722 * 84191717789575 / 224086887789575 = 264640731
+// bondValue = 704374721 * 84191717789575 / 224086887789575 = 264640730
 // debtValue = 399679847 * 55790425714285 / 380647473333333 = 58579946
-// ltv = 58579946 / 264640731 = 0.221356500107309634
+// ltv = 58579946 / 264640730 = 0.221356500943751175
 //----------------------------------------------------------------------------------------
 
 async function testDump() {
@@ -1365,7 +1365,7 @@ async function testDump() {
     pool: {
       assets: [
         // uusd
-        { amount: "665352039" },
+        { amount: "665352038" },
         // uANC
         { amount: "273300000" },
       ],
@@ -1377,9 +1377,9 @@ async function testDump() {
         total_debt_units: "380647473333333",
       },
       health: {
-        bond_value: "704374722",
+        bond_value: "704374721",
         debt_value: "399679847",
-        ltv: "0.567425028918059328",
+        ltv: "0.567425029723632004",
       },
     },
     users: [
@@ -1420,9 +1420,9 @@ async function testDump() {
           ],
         },
         health: {
-          bond_value: "264640731",
+          bond_value: "264640730",
           debt_value: "58579946",
-          ltv: "0.221356500107309634",
+          ltv: "0.221356500943751175",
         },
       },
     ],
@@ -1430,7 +1430,7 @@ async function testDump() {
 }
 
 //----------------------------------------------------------------------------------------
-// Test: Liquidation, Pt. 1
+// Test 9. Liquidation, Pt. 1
 //
 //----------------------------------------------------------------------------------------
 // Part 1. Close Position
@@ -1455,7 +1455,7 @@ async function testDump() {
 // bond                 225380740
 // debt                 399679847
 // pool uANC            273300000
-// pool uusd            665352039
+// pool uusd            665352038
 // pool uLP             425789087
 //
 // Step 1. unbond
@@ -1470,38 +1470,38 @@ async function testDump() {
 // Step 2. remove liquidity
 // burn of of user1's 140702908 uLP
 // ANC to be released: 273300000 * 140702908 / 425789087 = 90312565
-// UST to be released: 665352039 * 140702908 / 425789087 = 219866994
-// UST to receive: deductTax(219866994) = 219647346
-// transaction cost for pool: addTax(219647346) = 219866993
+// UST to be released: 665352038 * 140702908 / 425789087 = 219866993
+// UST to receive: deductTax(219866993) = 219647345
+// transaction cost for pool: addTax(219647345) = 219866992
 // ---
 // pool uANC            273300000 - 90312565 = 182987435
-// pool uusd            665352039 - 219866993 = 445485046
+// pool uusd            665352038 - 219866992 = 445485046
 // pool uLP             425789087 - 140702908 = 285086179
 // user1 unlocked uANC  0 + 90312565 = 90312565
-// user1 unlocked uusd  1 + 219647346 = 219647347
+// user1 unlocked uusd  1 + 219647345 = 219647346
 // user1 unlocked uLP   140702908 - 140702908 = 0
 //
 // Step 3. repay
-// user1's outstanding debt (341099900) is greater than his unlocked uusd (219647347)
+// user1's outstanding debt (341099900) is greater than his unlocked uusd (219647346)
 // therefore, use all of the unlocked uusd to repay
-// deliverable amount: deductTax(219647347) = 219427919
-// transaction cost: addTax(219427919) = 219647346
-// debt units to reduce: 380647473333333 * 219427919 / 399679847 = 208978970476190
+// deliverable amount: deductTax(219647346) = 219427918
+// transaction cost: addTax(219427918) = 219647345
+// debt units to reduce: 380647473333333 * 219427918 / 399679847 = 208978969523809
 // ---
-// debt                 399679847 - 219427919 = 180251928
-// total debt units     380647473333333 - 208978970476190 = 171668502857143
-// user1 debt units     324857047619048 - 208978970476190 = 115878077142858
-// user1 unlocked uusd  219647347 - 219647346 = 1
+// debt                 399679847 - 219427918 = 180251929
+// total debt units     380647473333333 - 208978969523809 = 171668503809524
+// user1 debt units     324857047619048 - 208978969523809 = 115878078095239
+// user1 unlocked uusd  219647346 - 219647345 = 1
 //
 // Result
 // ---
 // total bond units     84191717789575
-// total debt units     171668502857143
+// total debt units     171668503809524
 // field unlocked uANC  0
 // field unlocked uusd  1
 // field unlocked uLP   0
 // user1 bond units     0
-// user1 debt units     115878077142858
+// user1 debt units     115878078095239
 // user1 unlocked uANC  90312565
 // user1 unlocked uusd  1
 // user1 unlocked uLP   0
@@ -1511,7 +1511,7 @@ async function testDump() {
 // user2 unlocked uusd  1
 // user2 unlocked uLP   0
 // bond                 84677832
-// debt                 180251928
+// debt                 180251929
 // pool uANC            182987435
 // pool uusd            445485046
 // pool uLP             285086179
@@ -1519,10 +1519,10 @@ async function testDump() {
 // Part 2. Liquidate
 //
 // Step 1. deposit
-// user1 has 121671981 uusd remaining debt
+// user1 remaining debt: 180251929 * 115878078095239 / 171668503809524 = 121671982
 // liquidator provides 100000000 uusd
 // deliverable amount: deductTax(100000000) = 99900099
-// percentage: 99900099 / 121671981 = 0.821060840621967024
+// percentage: 99900099 / 121671982 = 0.821060833873816570
 // ---
 // user1 unlocked uusd  1 + 100000000 = 100000001
 //
@@ -1531,29 +1531,29 @@ async function testDump() {
 // therefore, use all of the unlocked uusd to repay
 // deliverable amount: deductTax(100000001) = 99900100
 // transaction cost: addTax(99900100) = 100000000
-// debt units to reduce: 115878077142858 * 99900100 / 121671981 = 95142952380953
+// debt units to reduce: 115878078095239 * 99900100 / 121671982 = 95142952380953
 // ---
-// debt                 180251928 - 99900100 = 80351828
-// total debt units     171668502857143 - 95142952380953 = 76525550476190
-// user1 debt units     115878077142858 - 95142952380953 = 20735124761905
+// debt                 180251929 - 99900100 = 80351829
+// total debt units     171668503809524 - 95142952380953 = 76525551428571
+// user1 debt units     115878078095239 - 95142952380953 = 20735125714286
 // user1 unlocked uusd  100000001 - 100000000 = 1
 //
 // Step 3. refund
-// ANC to refund: 90312565 * 0.821060840621967024 = 74152110
-// UST to refund: 1 * 0.821060840621967024 = 0
+// ANC to refund: 90312565 * 0.821060833873816570 = 74152109
+// UST to refund: 1 * 0.821060833873816570 = 0
 // ---
-// user1 unlocked uANC  90312565 - 74152110 = 16160455
+// user1 unlocked uANC  90312565 - 74152109 = 16160456
 //
 // Result
 // ---
 // total bond units     84191717789575
-// total debt units     76525550476190
+// total debt units     76525551428571
 // field unlocked uANC  0
 // field unlocked uusd  1
 // field unlocked uLP   0
 // user1 bond units     0
-// user1 debt units     20735124761905
-// user1 unlocked uANC  16160455
+// user1 debt units     20735125714286
+// user1 unlocked uANC  16160456
 // user1 unlocked uusd  1
 // user1 unlocked uLP   0
 // user2 bond units     84191717789575
@@ -1562,24 +1562,24 @@ async function testDump() {
 // user2 unlocked uusd  1
 // user2 unlocked uLP   0
 // bond                 84677832
-// debt                 80351828
+// debt                 80351829
 // pool uANC            182987435
 // pool uusd            445485046
 // pool uLP             285086179
 //
 // State health:
 // bondValue = 2 * 445485046 * 84677832 / 285086179 = 264640734 uusd
-// debtValue = 80351828
-// ltv = 80351828 / 264640734 = 0.303626077457901851
+// debtValue = 80351829
+// ltv = 80351829 / 264640734 = 0.303626081236609629
 //
 // User1 health:
 // bondValue = 0
-// debtValue = 80351828 * 20735124761905 / 76525550476190 = 21771881
+// debtValue = 80351829 * 20735125714286 / 76525551428571 = 21771882
 // ltv = null
 //
 // User2 health:
 // bondValue = 264640734 (same as state)
-// debtValue = 80351828 * 55790425714285 / 76525550476190 = 58579946
+// debtValue = 80351829 * 55790425714285 / 76525551428571 = 58579946
 // ltv = 58579946 / 264640734 = 0.221356497597985047
 //----------------------------------------------------------------------------------------
 
@@ -1621,7 +1621,7 @@ async function testLiquidation1() {
         // uluna
         { amount: "0" },
         // uusd
-        { amount: "80351828" },
+        { amount: "80351829" },
       ],
     },
     pool: {
@@ -1636,12 +1636,12 @@ async function testLiquidation1() {
     strategy: {
       state: {
         total_bond_units: "84191717789575",
-        total_debt_units: "76525550476190",
+        total_debt_units: "76525551428571",
       },
       health: {
         bond_value: "264640734",
-        debt_value: "80351828",
-        ltv: "0.303626077457901851",
+        debt_value: "80351829",
+        ltv: "0.303626081236609629",
       },
     },
     users: [
@@ -1650,10 +1650,10 @@ async function testLiquidation1() {
         address: user1.key.accAddress,
         position: {
           bond_units: "0",
-          debt_units: "20735124761905",
+          debt_units: "20735125714286",
           unlocked_assets: [
             // uANC
-            { amount: "16160455" },
+            { amount: "16160456" },
             // uusd
             { amount: "1" },
             // uLP
@@ -1662,7 +1662,7 @@ async function testLiquidation1() {
         },
         health: {
           bond_value: "0",
-          debt_value: "21771881",
+          debt_value: "21771882",
           ltv: null,
         },
       },
@@ -1692,18 +1692,18 @@ async function testLiquidation1() {
 }
 
 //----------------------------------------------------------------------------------------
-// Test: Liquidation, Pt. 2
+// Test 10. Liquidation, Pt. 2
 //
 // Prior to execution:
 // ---
 // total bond units     84191717789575
-// total debt units     76525550476190
+// total debt units     76525551428571
 // field unlocked uANC  0
 // field unlocked uusd  1
 // field unlocked uLP   0
 // user1 bond units     0
-// user1 debt units     20735124761905
-// user1 unlocked uANC  16160455
+// user1 debt units     20735125714286
+// user1 unlocked uANC  16160456
 // user1 unlocked uusd  1
 // user1 unlocked uLP   0
 // user2 bond units     84191717789575
@@ -1712,35 +1712,35 @@ async function testLiquidation1() {
 // user2 unlocked uusd  1
 // user2 unlocked uLP   0
 // bond                 84677832
-// debt                 80351828
+// debt                 80351829
 // pool uANC            182987435
 // pool uusd            445485046
 // pool uLP             285086179
 //
 // Step 1. deposit
-// user1 has 121671981 uusd remaining debt
+// user1 has 21771882 uusd remaining debt
 // liquidator provides 200000000 uusd (more than enough)
 // percentage: 1
 // ---
 // user1 unlocked uusd  1 + 200000000 = 200000001
 //
 // Step 2. repay
-// repay all the remaining debt: 21771881 uusd
-// transaction cost: addTax(21771881) = 21793652
+// repay all the remaining debt: 21771882 uusd
+// transaction cost: addTax(21771882) = 21793653
 // reduce debt units to zero
 // ---
-// debt                 80351828 - 21771881 = 58579947
-// total debt units     76525550476190 - 20735124761905 = 55790425714285
+// debt                 80351829 - 21771882 = 58579947
+// total debt units     76525551428571 - 20735125714286 = 55790425714285
 // user1 debt units     0
-// user1 unlocked uusd  200000001 - 21793652 = 178206349
+// user1 unlocked uusd  200000001 - 21793653 = 178206348
 //
 // Step 3. refund
 // refund all ANC
-// UST to refund: deductTax(178206349) = 178028320
-// transaction cost: addTax(178028320) = 178206348
+// UST to refund: deductTax(178206348) = 178028319
+// transaction cost: addTax(178028319) = 178206347
 // ---
 // user1 unlocked uANC  0
-// user1 unlocked uusd  178206349 - 178206348 = 1
+// user1 unlocked uusd  178206348 - 178206347 = 1
 //
 // Result
 // ---
@@ -1883,7 +1883,7 @@ async function testLiquidation2() {
 }
 
 //----------------------------------------------------------------------------------------
-// Test: Reduce Position, Pt. 2
+// Test 11. Reduce Position, Pt. 2
 //
 // Prior to execution:
 // ---
