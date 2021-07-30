@@ -41,12 +41,21 @@ async function setupTest() {
   ));
   mAssetToken = cw20Token;
 
-  ({ terraswapPair, terraswapLpToken } = await deployTerraswapPair(
-    terra,
-    deployer,
-    cw20CodeId,
-    mAssetToken
-  ));
+  ({ terraswapPair, terraswapLpToken } = await deployTerraswapPair(terra, deployer, {
+    asset_infos: [
+      {
+        native_token: {
+          denom: "uusd",
+        },
+      },
+      {
+        token: {
+          contract_addr: mAssetToken,
+        },
+      },
+    ],
+    token_code_id: cw20CodeId,
+  }));
 
   mirrorStaking = await deployMockMirror(
     terra,
@@ -100,20 +109,20 @@ async function setupTest() {
         provide_liquidity: {
           assets: [
             {
-              amount: "420000000",
               info: {
                 native_token: {
                   denom: "uusd",
                 },
               },
+              amount: "420000000",
             },
             {
-              amount: "69000000",
               info: {
                 token: {
                   contract_addr: mAssetToken,
                 },
               },
+              amount: "69000000",
             },
           ],
         },
