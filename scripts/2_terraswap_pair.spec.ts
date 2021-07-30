@@ -100,20 +100,20 @@ async function testProvideInitialLiquidity() {
         provide_liquidity: {
           assets: [
             {
-              amount: "1000000000",
               info: {
                 native_token: {
                   denom: "uusd",
                 },
               },
+              amount: "1000000000",
             },
             {
-              amount: "100000000",
               info: {
                 token: {
                   contract_addr: mirrorToken,
                 },
               },
+              amount: "100000000",
             },
           ],
         },
@@ -171,20 +171,20 @@ async function testProvideFurtherLiquidity() {
         provide_liquidity: {
           assets: [
             {
-              amount: "690000000",
               info: {
                 native_token: {
                   denom: "uusd",
                 },
               },
+              amount: "690000000",
             },
             {
-              amount: "69000000",
               info: {
                 token: {
                   contract_addr: mirrorToken,
                 },
               },
+              amount: "69000000",
             },
           ],
         },
