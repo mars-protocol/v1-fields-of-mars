@@ -221,14 +221,14 @@ async function testProvideFurtherLiquidity() {
 // = 628252789 * 0.003
 // = 1884758
 // returnAmountAfterFee = returnUstAmount - fee
-// = 628252788 - 1884758
-// = 626368030
-// returnAmountAfterFeeAndTax = deductTax(626368030) = 625742287
-// transaction cost for pool = addTax(625742287) = 626368029
+// = 628252789 - 1884758
+// = 626368031
+// returnAmountAfterFeeAndTax = deductTax(626368031) = 625742288
+// transaction cost for pool = addTax(625742288) = 626368030
 //
 // Result
 // ---
-// pool uusd  1690000000 - 626368029 = 1063631971
+// pool uusd  1690000000 - 626368030 = 1063631970
 // pool uMIR  169000000 + 100000000 = 269000000
 // pool uLP   534424924
 //----------------------------------------------------------------------------------------
@@ -248,7 +248,7 @@ async function testSwap() {
   ]);
 
   const poolUusd = await queryNativeTokenBalance(terra, terraswapPair);
-  expect(poolUusd).to.equal("1063631971");
+  expect(poolUusd).to.equal("1063631970");
 
   const poolUMir = await queryTokenBalance(terra, terraswapPair, mirrorToken);
   expect(poolUMir).to.equal("269000000");
@@ -264,11 +264,11 @@ async function testSwap() {
 //
 // User1 burns 420 LP tokens
 //
-// uusd to be released = 1063631971 * 420000000 / 534424924 = 835899314
+// uusd to be released = 1063631970 * 420000000 / 534424924 = 835899314
 // uMIR to be released = 269000000 * 420000000 / 534424924 = 211404810
 // transaction cost for sending UST: addTax(deductTax(835899314)) = 835899313
 //
-// pool uusd  1063631971 - 835899313 = 227732658
+// pool uusd  1063631970 - 835899313 = 227732657
 // pool uMIR  269000000 - 211404810 = 57595190
 // pool uLP   534424924 - 420000000 = 114424924
 //----------------------------------------------------------------------------------------
@@ -289,7 +289,7 @@ async function testRemoveLiquidity() {
   ]);
 
   const poolUusd = await queryNativeTokenBalance(terra, terraswapPair);
-  expect(poolUusd).to.equal("227732658");
+  expect(poolUusd).to.equal("227732657");
 
   const poolUMir = await queryTokenBalance(terra, terraswapPair, mirrorToken);
   expect(poolUMir).to.equal("57595190");
