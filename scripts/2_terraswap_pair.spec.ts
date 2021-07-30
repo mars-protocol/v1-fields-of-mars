@@ -142,7 +142,7 @@ async function testProvideInitialLiquidity() {
 // User1 provides another 690000000 uusd + 69000000 uMIR
 //
 // The amount of LP token the user should receive is:
-// min(ustDeposit * totalShare / ustBalance, mirDeposit * totalShare / tstBalance)
+// min(ustDeposit * totalShare / ustBalance, mirDeposit * totalShare / mirBalance)
 // = min(690e6 * 316227766 / 1000e6, 69e6 * 316227766 / 100e6)
 // = min(218197158, 218197158)
 // = 218197158
@@ -212,9 +212,9 @@ async function testProvideFurtherLiquidity() {
 //
 // User2 sells 100 MIR for UST
 //
-// kValueBefore = poolUstBalance * pooltstBalance
+// kValueBefore = poolUstBalance * poolMirBalance
 // = 1690000000 * 169000000 = 285610000000000000;
-// returnAmount = poolUstBalance - kValueBefore / (pooltstBalance + sendMirAmount)
+// returnAmount = poolUstBalance - kValueBefore / (poolMirBalance + sendMirAmount)
 // = 1690000000 - 285610000000000000 / (169000000 + 100000000)
 // = 628252789
 // fee = returnAmount * feeRate
