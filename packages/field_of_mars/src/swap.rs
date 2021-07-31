@@ -192,6 +192,34 @@ impl Swap {
         .query_balance(querier, &String::from(account))
     }
 
+    /// @notice Query the price of the specified asset as measured in another
+    /// @dev Price of asset A is defined as the amount of asset B acquired when swapping
+    /// 1,000,000 units of A for B (without commission).
+    /// @dev The number 1,000,000 here is chosen arbitrarily.
+    pub fn query_price(
+        &self,
+        querier: &QuerierWrapper,
+        info: &AssetInfo,
+    ) -> StdResult<Decimal> {
+        let offer_asset = Asset {
+            info: info.clone(),
+            amount: Uint128::new(1000000u128),
+        };
+
+        let response: SimulationResponse =
+            querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: self.pair.clone(),
+                msg: to_binary(&QueryMsg::Simulation {
+                    offer_asset: offer_asset.clone(),
+                })?,
+            }))?;
+
+        Ok(Decimal::from_ratio(
+            response.return_amount + response.commission_amount,
+            offer_asset.amount,
+        ))
+    }
+
     /// @notice Simulate the amount of shares to receive by providing liquidity
     /// @dev Reference:
     /// https://github.com/terraswap/terraswap/blob/master/contracts/terraswap_pair/src/contract.rs#L247

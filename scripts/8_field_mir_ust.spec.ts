@@ -324,9 +324,9 @@ async function testOpenPosition1() {
         total_debt_units: "420000000000000",
       },
       health: {
-        bond_value: "838322513",
+        bond_value: "835307009",
         debt_value: "420000000",
-        ltv: "0.501000502177853357",
+        ltv: "0.502809141399171475",
       },
     },
     users: [
@@ -345,9 +345,9 @@ async function testOpenPosition1() {
           ],
         },
         health: {
-          bond_value: "838322513",
+          bond_value: "835307009",
           debt_value: "420000000",
-          ltv: "0.501000502177853357",
+          ltv: "0.502809141399171475",
         },
       },
     ],
@@ -392,9 +392,9 @@ async function testHarvest() {
         total_debt_units: "420000000000000",
       },
       health: {
-        bond_value: "840733315",
+        bond_value: "837726432",
         debt_value: "420000000",
-        ltv: "0.49956388370312172",
+        ltv: "0.501356987145894424",
       },
     },
     users: [
@@ -413,9 +413,9 @@ async function testHarvest() {
           ],
         },
         health: {
-          bond_value: "840733315",
+          bond_value: "837726432",
           debt_value: "420000000",
-          ltv: "0.49956388370312172",
+          ltv: "0.501356987145894424",
         },
       },
     ],
@@ -460,9 +460,9 @@ async function testAccrueInterest() {
         total_debt_units: "420000000000000",
       },
       health: {
-        bond_value: "840733315",
+        bond_value: "837726432",
         debt_value: "441000000",
-        ltv: "0.524542077888277806",
+        ltv: "0.526424836503189146",
       },
     },
     users: [
@@ -481,9 +481,9 @@ async function testAccrueInterest() {
           ],
         },
         health: {
-          bond_value: "840733315",
+          bond_value: "837726432",
           debt_value: "441000000",
-          ltv: "0.524542077888277806",
+          ltv: "0.526424836503189146",
         },
       },
     ],
@@ -560,9 +560,9 @@ async function testOpenPosition2() {
         total_debt_units: "475790425714285",
       },
       health: {
-        bond_value: "1257359536",
+        bond_value: "1253752700",
         debt_value: "499579947",
-        ltv: "0.397324657503532068",
+        ltv: "0.398467693828296441",
       },
     },
     users: [
@@ -582,9 +582,9 @@ async function testOpenPosition2() {
           ],
         },
         health: {
-          bond_value: "840733317",
+          bond_value: "838321607",
           debt_value: "441000000",
-          ltv: "0.52454207664045744",
+          ltv: "0.526051095805765149",
         },
       },
       // user 2
@@ -603,9 +603,9 @@ async function testOpenPosition2() {
           ],
         },
         health: {
-          bond_value: "416626218",
+          bond_value: "415431092",
           debt_value: "58579946",
-          ltv: "0.140605519933937522",
+          ltv: "0.141010018576077112",
         },
       },
     ],
@@ -667,9 +667,9 @@ async function testPayDebt() {
         total_debt_units: "380647473333333",
       },
       health: {
-        bond_value: "1257359536",
+        bond_value: "1253752700",
         debt_value: "399679847",
-        ltv: "0.317872363120169631",
+        ltv: "0.318786828534845827",
       },
     },
     users: [
@@ -689,9 +689,9 @@ async function testPayDebt() {
           ],
         },
         health: {
-          bond_value: "840733317",
+          bond_value: "838321607",
           debt_value: "341099900",
-          ltv: "0.405717119927102877",
+          ltv: "0.406884299714822929",
         },
       },
       // user 2
@@ -710,9 +710,9 @@ async function testPayDebt() {
           ],
         },
         health: {
-          bond_value: "416626218",
+          bond_value: "415431092",
           debt_value: "58579946",
-          ltv: "0.140605519933937522",
+          ltv: "0.141010018576077112",
         },
       },
     ],
@@ -761,9 +761,9 @@ async function testReducePosition1() {
         total_debt_units: "380647473333333",
       },
       health: {
-        bond_value: "1108903290",
+        bond_value: "1105722313",
         debt_value: "399679847",
-        ltv: "0.360428046885856024",
+        ltv: "0.361464937716238344",
       },
     },
     users: [
@@ -783,9 +783,9 @@ async function testReducePosition1() {
           ],
         },
         health: {
-          bond_value: "692277070",
+          bond_value: "690291219",
           debt_value: "341099900",
-          ltv: "0.492721649729060071",
+          ltv: "0.49413912651842671",
         },
       },
       // user 2
@@ -804,9 +804,9 @@ async function testReducePosition1() {
           ],
         },
         health: {
-          bond_value: "416626219",
+          bond_value: "415431093",
           debt_value: "58579946",
-          ltv: "0.140605519596451513",
+          ltv: "0.141010018236646528",
         },
       },
     ],
@@ -857,9 +857,9 @@ async function testDump() {
         total_debt_units: "380647473333333",
       },
       health: {
-        bond_value: "704374721",
+        bond_value: "703090872",
         debt_value: "399679847",
-        ltv: "0.567425029723632004",
+        ltv: "0.568461151917785102",
       },
     },
     users: [
@@ -879,9 +879,9 @@ async function testDump() {
           ],
         },
         health: {
-          bond_value: "439733990",
+          bond_value: "438932496",
           debt_value: "341099900",
-          ltv: "0.775696006578886476",
+          ltv: "0.777112433252150918",
         },
       },
       // user 2
@@ -900,9 +900,9 @@ async function testDump() {
           ],
         },
         health: {
-          bond_value: "264640730",
+          bond_value: "264158375",
           debt_value: "58579946",
-          ltv: "0.221356500943751175",
+          ltv: "0.221760699428893746",
         },
       },
     ],
@@ -969,9 +969,9 @@ async function testLiquidation1() {
         total_debt_units: "76525551428571",
       },
       health: {
-        bond_value: "264640734",
+        bond_value: "263921567",
         debt_value: "80351829",
-        ltv: "0.303626081236609629",
+        ltv: "0.304453440138903085",
       },
     },
     users: [
@@ -1012,9 +1012,9 @@ async function testLiquidation1() {
           ],
         },
         health: {
-          bond_value: "264640734",
+          bond_value: "263921567",
           debt_value: "58579946",
-          ltv: "0.221356497597985047",
+          ltv: "0.221959677891727582",
         },
       },
     ],
@@ -1076,9 +1076,9 @@ async function testLiquidation2() {
         total_debt_units: "55790425714285",
       },
       health: {
-        bond_value: "264640734",
+        bond_value: "263921567",
         debt_value: "58579947",
-        ltv: "0.221356501376692826",
+        ltv: "0.221959681680732063",
       },
     },
     users: [
@@ -1119,9 +1119,9 @@ async function testLiquidation2() {
           ],
         },
         health: {
-          bond_value: "264640734",
+          bond_value: "263921567",
           debt_value: "58579947",
-          ltv: "0.221356501376692826",
+          ltv: "0.221959681680732063",
         },
       },
     ],

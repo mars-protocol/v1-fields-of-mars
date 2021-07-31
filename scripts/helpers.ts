@@ -182,7 +182,15 @@ export function toEncodedBinary(obj: any) {
 /**
  * @notice Calculate the output when swapping in a Uniswap V2-style pool
  */
-export function computeXykSwapOutput(offerAmount: BN, offerDepth: BN, askDepth: BN) {
+export function computeXykSwapOutput(
+  offerAmount: BN | number | string,
+  offerDepth: BN | number | string,
+  askDepth: BN | number | string
+) {
+  offerAmount = new BN(offerAmount);
+  offerDepth = new BN(offerDepth);
+  askDepth = new BN(askDepth);
+
   const k = offerDepth.mul(askDepth);
   const askDepthAfter = k.div(offerDepth.add(offerAmount));
   const swapAmount = askDepth.sub(askDepthAfter);
@@ -193,13 +201,25 @@ export function computeXykSwapOutput(offerAmount: BN, offerDepth: BN, askDepth: 
   // Note: return amount is after deducting commission but before duducting tax
   const returnAmount = swapAmount.sub(commission);
 
-  return { returnAmount, commission };
+  return {
+    swapAmount: swapAmount.toString(),
+    returnAmount: returnAmount.toString(),
+    commission: commission.toString(),
+  };
 }
 
 /**
  * @notice Calculate the output when swapping in a Curve V1-style pool
  */
-export function computeStableSwapOutput(offerAmount: BN, offerDepth: BN, askDepth: BN) {
+export function computeStableSwapOutput(
+  offerAmount: BN | number | string,
+  offerDepth: BN | number | string,
+  askDepth: BN | number | string
+) {
+  offerAmount = new BN(offerAmount);
+  offerDepth = new BN(offerDepth);
+  askDepth = new BN(askDepth);
+
   const d = _computeD(offerDepth, askDepth);
   const askDepthAfter = _computeNewBalanceOut(offerDepth.add(offerAmount), d);
   const swapAmount = askDepth.sub(askDepthAfter);
@@ -210,7 +230,11 @@ export function computeStableSwapOutput(offerAmount: BN, offerDepth: BN, askDept
   // Note: return amount is after deducting commission but before duducting tax
   const returnAmount = swapAmount.sub(commission);
 
-  return { returnAmount, commission };
+  return {
+    swapAmount: swapAmount.toString(),
+    returnAmount: returnAmount.toString(),
+    commission: commission.toString(),
+  };
 }
 
 /**

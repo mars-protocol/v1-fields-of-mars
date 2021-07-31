@@ -1161,8 +1161,11 @@ fn query_health(deps: Deps, env: Env, user: Option<String>) -> StdResult<HealthR
     let pool_info =
         config.swap.query_pool(&deps.querier, &config.long_asset, &config.short_asset)?;
 
+    // Price of long asset measured in short asset
+    let long_price = config.swap.query_price(&deps.querier, &config.long_asset)?;
+
     // Part 2. Calculating value of the user's bonded assets
-    // valueOfThePool = longDepth * valueOfLongAsset + shortDepth = 2 * shortDepth
+    // valueOfThePool = longDepth * longPrice + shortDepth
     // totalBondValue = valueOfPool * strategyShares / totalShares
     // bondValue = totalBondValue * bondUnits / totalBondUnits
     // Note:
@@ -1171,7 +1174,7 @@ fn query_health(deps: Deps, env: Env, user: Option<String>) -> StdResult<HealthR
     let bond_value = if state.total_bond_units.is_zero() {
         Uint128::zero()
     } else {
-        (pool_info.short_depth + pool_info.short_depth)
+        (pool_info.long_depth * long_price + pool_info.short_depth)
             .multiply_ratio(total_bond, pool_info.share_supply)
             .multiply_ratio(bond_units, state.total_bond_units)
     };
