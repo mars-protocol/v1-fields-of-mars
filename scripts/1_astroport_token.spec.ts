@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
-import { deployTerraswapToken } from "./fixture";
+import { deployAstroportToken } from "./fixture";
 import { queryTokenBalance, sendTransaction } from "./helpers";
 
 //----------------------------------------------------------------------------------------
@@ -20,7 +20,7 @@ let cw20Token: string;
 //----------------------------------------------------------------------------------------
 
 async function setupTest() {
-  ({ cw20Token } = await deployTerraswapToken(terra, deployer, "Test Token", "TST"));
+  ({ cw20Token } = await deployAstroportToken(terra, deployer, "Test Token", "TST"));
 }
 
 //----------------------------------------------------------------------------------------

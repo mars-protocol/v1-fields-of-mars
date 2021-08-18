@@ -68,9 +68,9 @@ pub struct SimulationResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Swap {
-    /// Address of the TerraSwap pair contract
+    /// Address of the Astroport pair contract
     pub pair: String,
-    /// Address of the TerraSwap LP token
+    /// Address of the Astroport LP token
     pub share_token: String,
 }
 

@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
-import { deployMockMirror, deployTerraswapPair, deployTerraswapToken } from "./fixture";
+import { deployMockMirror, deployAstroportPair, deployAstroportToken } from "./fixture";
 import { queryTokenBalance, sendTransaction, toEncodedBinary } from "./helpers";
 
 //----------------------------------------------------------------------------------------
@@ -14,8 +14,8 @@ const user = terra.wallets.test2;
 
 let mirrorToken: string;
 let mAssetToken: string;
-let terraswapPair: string;
-let terraswapLpToken: string;
+let astroportPair: string;
+let astroportLpToken: string;
 let mirrorStaking: string;
 
 //----------------------------------------------------------------------------------------
@@ -23,7 +23,7 @@ let mirrorStaking: string;
 //----------------------------------------------------------------------------------------
 
 async function setupTest() {
-  let { cw20CodeId, cw20Token } = await deployTerraswapToken(
+  let { cw20CodeId, cw20Token } = await deployAstroportToken(
     terra,
     deployer,
     "Mock Mirror Token",
@@ -31,7 +31,7 @@ async function setupTest() {
   );
   mirrorToken = cw20Token;
 
-  ({ cw20Token } = await deployTerraswapToken(
+  ({ cw20Token } = await deployAstroportToken(
     terra,
     deployer,
     "Mock mAsset Token",
@@ -41,7 +41,7 @@ async function setupTest() {
   ));
   mAssetToken = cw20Token;
 
-  ({ terraswapPair, terraswapLpToken } = await deployTerraswapPair(terra, deployer, {
+  ({ astroportPair, astroportLpToken } = await deployAstroportPair(terra, deployer, {
     asset_infos: [
       {
         native_token: {
@@ -62,7 +62,7 @@ async function setupTest() {
     deployer,
     mirrorToken,
     mAssetToken,
-    terraswapLpToken
+    astroportLpToken
   );
 
   process.stdout.write("Fund contract with MIR... ");
@@ -91,7 +91,7 @@ async function setupTest() {
 
   console.log(chalk.green("Done!"));
 
-  process.stdout.write("Provide liquidity to TerraSwap Pair... ");
+  process.stdout.write("Provide liquidity to Astroport Pair... ");
 
   // Provide 69 mASSET + 420 UST
   // Should receive sqrt(69 * 420) = 170.235131 LP tokens
@@ -99,12 +99,12 @@ async function setupTest() {
     new MsgExecuteContract(user.key.accAddress, mAssetToken, {
       increase_allowance: {
         amount: "69000000",
-        spender: terraswapPair,
+        spender: astroportPair,
       },
     }),
     new MsgExecuteContract(
       user.key.accAddress,
-      terraswapPair,
+      astroportPair,
       {
         provide_liquidity: {
           assets: [
@@ -144,7 +144,7 @@ async function testBond() {
   process.stdout.write("Should bond LP tokens... ");
 
   await sendTransaction(terra, user, [
-    new MsgExecuteContract(user.key.accAddress, terraswapLpToken, {
+    new MsgExecuteContract(user.key.accAddress, astroportLpToken, {
       send: {
         contract: mirrorStaking,
         amount: "170235131",
@@ -160,14 +160,14 @@ async function testBond() {
   const userLpTokenBalance = await queryTokenBalance(
     terra,
     user.key.accAddress,
-    terraswapLpToken
+    astroportLpToken
   );
   expect(userLpTokenBalance).to.equal("0");
 
   const contractLpTokenBalance = await queryTokenBalance(
     terra,
     mirrorStaking,
-    terraswapLpToken
+    astroportLpToken
   );
   expect(contractLpTokenBalance).to.equal("170235131");
 
@@ -265,7 +265,7 @@ async function testUnbond() {
   const userLpTokenBalance = await queryTokenBalance(
     terra,
     user.key.accAddress,
-    terraswapLpToken
+    astroportLpToken
   );
   expect(userLpTokenBalance).to.equal("123456789");
 
@@ -273,7 +273,7 @@ async function testUnbond() {
   const contractLpTokenBalance = await queryTokenBalance(
     terra,
     mirrorStaking,
-    terraswapLpToken
+    astroportLpToken
   );
   expect(contractLpTokenBalance).to.equal("46778342");
 

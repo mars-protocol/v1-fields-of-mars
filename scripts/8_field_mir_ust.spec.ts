@@ -5,8 +5,8 @@ import {
   deployMartianField,
   deployMockMirror,
   deployMockMars,
-  deployTerraswapPair,
-  deployTerraswapToken,
+  deployAstroportPair,
+  deployAstroportToken,
 } from "./fixture";
 import { Checker, Config } from "./check";
 
@@ -28,8 +28,8 @@ const liquidator2 = terra.wallets.test6;
 // Contract addresses
 let mirrorToken: string;
 let mirrorStaking: string;
-let terraswapPair: string;
-let terraswapLpToken: string;
+let astroportPair: string;
+let astroportLpToken: string;
 let redBank: string;
 let field: string;
 
@@ -45,7 +45,7 @@ let checker: Checker;
 
 async function setupTest() {
   // Part 1. Deploy mock contracts
-  let { cw20CodeId, cw20Token } = await deployTerraswapToken(
+  let { cw20CodeId, cw20Token } = await deployAstroportToken(
     terra,
     deployer,
     "Mock Mirror Token",
@@ -53,7 +53,7 @@ async function setupTest() {
   );
   mirrorToken = cw20Token;
 
-  ({ terraswapPair, terraswapLpToken } = await deployTerraswapPair(terra, deployer, {
+  ({ astroportPair, astroportLpToken } = await deployAstroportPair(terra, deployer, {
     asset_infos: [
       { native_token: { denom: "uusd" } },
       { token: { contract_addr: mirrorToken } },
@@ -66,7 +66,7 @@ async function setupTest() {
     deployer,
     mirrorToken,
     mirrorToken,
-    terraswapLpToken
+    astroportLpToken
   );
 
   redBank = await deployMockMars(terra, deployer);
@@ -87,14 +87,14 @@ async function setupTest() {
       contract_addr: redBank,
     },
     swap: {
-      pair: terraswapPair,
-      share_token: terraswapLpToken,
+      pair: astroportPair,
+      share_token: astroportLpToken,
     },
     staking: {
       mirror: {
         contract_addr: mirrorStaking,
         asset_token: mirrorToken,
-        staking_token: terraswapLpToken,
+        staking_token: astroportLpToken,
       },
     },
     keepers: [deployer.key.accAddress],
@@ -172,7 +172,7 @@ async function setupTest() {
 
   console.log(chalk.green("Done!"));
 
-  process.stdout.write("Provide initial liquidity to TerraSwap Pair... ");
+  process.stdout.write("Provide initial liquidity to Astroport Pair... ");
 
   // Deployer Provides 69 ANC + 420 UST
   // Should receive sqrt(69000000 * 420000000) = 170235131 uLP
@@ -180,12 +180,12 @@ async function setupTest() {
     new MsgExecuteContract(deployer.key.accAddress, mirrorToken, {
       increase_allowance: {
         amount: "69000000",
-        spender: terraswapPair,
+        spender: astroportPair,
       },
     }),
     new MsgExecuteContract(
       deployer.key.accAddress,
-      terraswapPair,
+      astroportPair,
       {
         provide_liquidity: {
           assets: [
@@ -822,7 +822,7 @@ async function testDump() {
     new MsgExecuteContract(deployer.key.accAddress, mirrorToken, {
       send: {
         amount: "100000000",
-        contract: terraswapPair,
+        contract: astroportPair,
         msg: toEncodedBinary({
           swap: {},
         }),

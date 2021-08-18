@@ -23,7 +23,7 @@ pub struct InstantiateMsg {
     pub short_asset: AssetInfo,
     /// Mars liquidity pool aka Red Bank
     pub red_bank: RedBank,
-    /// TerraSwap/Astroport pair of long/short assets
+    /// Astroport pair of long/short assets
     pub swap: Swap,
     /// Staking contract where LP tokens can be bonded to earn rewards
     pub staking: Option<Staking>,
@@ -221,7 +221,7 @@ pub struct PositionResponse {
     pub bond_units: Uint128,
     /// Amount of debt units representing user's share of the debt
     pub debt_units: Uint128,
-    /// Amount of assets not locked in TerraSwap pool; pending refund or liquidation
+    /// Amount of assets not locked in Astroport pool; pending refund or liquidation
     pub unlocked_assets: [Asset; 3],
 }
 

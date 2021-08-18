@@ -129,7 +129,7 @@ pub struct StakingConfig {
     pub contract_addr: String,
     /// Address of the asset token (MIR, mAsset, ANC)
     pub asset_token: String,
-    /// Address of the token that is to be bonded (typically, a TerraSwap LP token)
+    /// Address of the token that is to be bonded (typically, an Astroport LP token)
     pub staking_token: String,
 }
 

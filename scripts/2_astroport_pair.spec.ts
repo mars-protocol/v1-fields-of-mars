@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
-import { deployTerraswapPair, deployTerraswapToken } from "./fixture";
+import { deployAstroportPair, deployAstroportToken } from "./fixture";
 import {
   queryNativeTokenBalance,
   queryTokenBalance,
@@ -19,15 +19,15 @@ const user1 = terra.wallets.test2;
 const user2 = terra.wallets.test3;
 
 let mirrorToken: string;
-let terraswapPair: string;
-let terraswapLpToken: string;
+let astroportPair: string;
+let astroportLpToken: string;
 
 //----------------------------------------------------------------------------------------
 // Setup
 //----------------------------------------------------------------------------------------
 
 async function setupTest() {
-  let { cw20CodeId, cw20Token } = await deployTerraswapToken(
+  let { cw20CodeId, cw20Token } = await deployAstroportToken(
     terra,
     deployer,
     "Mock Mirror Token",
@@ -35,7 +35,7 @@ async function setupTest() {
   );
   mirrorToken = cw20Token;
 
-  ({ terraswapPair, terraswapLpToken } = await deployTerraswapPair(terra, deployer, {
+  ({ astroportPair, astroportLpToken } = await deployAstroportPair(terra, deployer, {
     asset_infos: [
       { native_token: { denom: "uusd" } },
       { token: { contract_addr: cw20Token } },
@@ -90,12 +90,12 @@ async function testProvideInitialLiquidity() {
     new MsgExecuteContract(user1.key.accAddress, mirrorToken, {
       increase_allowance: {
         amount: "100000000",
-        spender: terraswapPair,
+        spender: astroportPair,
       },
     }),
     new MsgExecuteContract(
       user1.key.accAddress,
-      terraswapPair,
+      astroportPair,
       {
         provide_liquidity: {
           assets: [
@@ -124,13 +124,13 @@ async function testProvideInitialLiquidity() {
     ),
   ]);
 
-  const poolUusd = await queryNativeTokenBalance(terra, terraswapPair);
+  const poolUusd = await queryNativeTokenBalance(terra, astroportPair);
   expect(poolUusd).to.equal("1000000000");
 
-  const poolUMir = await queryTokenBalance(terra, terraswapPair, mirrorToken);
+  const poolUMir = await queryTokenBalance(terra, astroportPair, mirrorToken);
   expect(poolUMir).to.equal("100000000");
 
-  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, terraswapLpToken);
+  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, astroportLpToken);
   expect(poolULp).to.equal("316227766");
 
   console.log(chalk.green("Passed!"));
@@ -161,12 +161,12 @@ async function testProvideFurtherLiquidity() {
     new MsgExecuteContract(user1.key.accAddress, mirrorToken, {
       increase_allowance: {
         amount: "69000000",
-        spender: terraswapPair,
+        spender: astroportPair,
       },
     }),
     new MsgExecuteContract(
       user1.key.accAddress,
-      terraswapPair,
+      astroportPair,
       {
         provide_liquidity: {
           assets: [
@@ -195,13 +195,13 @@ async function testProvideFurtherLiquidity() {
     ),
   ]);
 
-  const poolUusd = await queryNativeTokenBalance(terra, terraswapPair);
+  const poolUusd = await queryNativeTokenBalance(terra, astroportPair);
   expect(poolUusd).to.equal("1690000000");
 
-  const poolUMir = await queryTokenBalance(terra, terraswapPair, mirrorToken);
+  const poolUMir = await queryTokenBalance(terra, astroportPair, mirrorToken);
   expect(poolUMir).to.equal("169000000");
 
-  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, terraswapLpToken);
+  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, astroportLpToken);
   expect(poolULp).to.equal("534424924");
 
   console.log(chalk.green("Passed!"));
@@ -239,7 +239,7 @@ async function testSwap() {
     new MsgExecuteContract(user2.key.accAddress, mirrorToken, {
       send: {
         amount: "100000000",
-        contract: terraswapPair,
+        contract: astroportPair,
         msg: toEncodedBinary({
           swap: {},
         }),
@@ -247,13 +247,13 @@ async function testSwap() {
     }),
   ]);
 
-  const poolUusd = await queryNativeTokenBalance(terra, terraswapPair);
+  const poolUusd = await queryNativeTokenBalance(terra, astroportPair);
   expect(poolUusd).to.equal("1063631970");
 
-  const poolUMir = await queryTokenBalance(terra, terraswapPair, mirrorToken);
+  const poolUMir = await queryTokenBalance(terra, astroportPair, mirrorToken);
   expect(poolUMir).to.equal("269000000");
 
-  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, terraswapLpToken);
+  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, astroportLpToken);
   expect(poolULp).to.equal("534424924");
 
   console.log(chalk.green("Passed!"));
@@ -277,10 +277,10 @@ async function testRemoveLiquidity() {
   process.stdout.write("Should handle removal of liquidity... ");
 
   await sendTransaction(terra, user1, [
-    new MsgExecuteContract(user1.key.accAddress, terraswapLpToken, {
+    new MsgExecuteContract(user1.key.accAddress, astroportLpToken, {
       send: {
         amount: "420000000",
-        contract: terraswapPair,
+        contract: astroportPair,
         msg: toEncodedBinary({
           withdraw_liquidity: {},
         }),
@@ -288,13 +288,13 @@ async function testRemoveLiquidity() {
     }),
   ]);
 
-  const poolUusd = await queryNativeTokenBalance(terra, terraswapPair);
+  const poolUusd = await queryNativeTokenBalance(terra, astroportPair);
   expect(poolUusd).to.equal("227732657");
 
-  const poolUMir = await queryTokenBalance(terra, terraswapPair, mirrorToken);
+  const poolUMir = await queryTokenBalance(terra, astroportPair, mirrorToken);
   expect(poolUMir).to.equal("57595190");
 
-  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, terraswapLpToken);
+  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, astroportLpToken);
   expect(poolULp).to.equal("114424924");
 
   console.log(chalk.green("Passed!"));
@@ -315,7 +315,7 @@ async function testRemoveLiquidity() {
 
   await setupTest();
 
-  console.log(chalk.yellow("\nTest: TerraSwap Pair"));
+  console.log(chalk.yellow("\nTest: Astroport Pair (Xyk)"));
 
   await testProvideInitialLiquidity();
   await testProvideFurtherLiquidity();

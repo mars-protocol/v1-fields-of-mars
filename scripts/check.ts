@@ -49,7 +49,7 @@ export interface DebtResponse {
   }[];
 }
 
-// terraswap::pair::PoolResponse
+// astroport::pair::PoolResponse
 export interface PoolResponse {
   assets: Asset[];
   total_share: string;

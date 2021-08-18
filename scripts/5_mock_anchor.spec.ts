@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
-import { deployMockAnchor, deployTerraswapPair, deployTerraswapToken } from "./fixture";
+import { deployMockAnchor, deployAstroportPair, deployAstroportToken } from "./fixture";
 import { queryTokenBalance, sendTransaction, toEncodedBinary } from "./helpers";
 
 //----------------------------------------------------------------------------------------
@@ -14,15 +14,15 @@ const user = terra.wallets.test2;
 
 let anchorToken: string;
 let anchorStaking: string;
-let terraswapPair: string;
-let terraswapLpToken: string;
+let astroportPair: string;
+let astroportLpToken: string;
 
 //----------------------------------------------------------------------------------------
 // Setup
 //----------------------------------------------------------------------------------------
 
 async function setupTest() {
-  let { cw20CodeId, cw20Token } = await deployTerraswapToken(
+  let { cw20CodeId, cw20Token } = await deployAstroportToken(
     terra,
     deployer,
     "Mock Anchor Token",
@@ -30,7 +30,7 @@ async function setupTest() {
   );
   anchorToken = cw20Token;
 
-  ({ terraswapPair, terraswapLpToken } = await deployTerraswapPair(terra, deployer, {
+  ({ astroportPair, astroportLpToken } = await deployAstroportPair(terra, deployer, {
     asset_infos: [
       {
         native_token: {
@@ -46,7 +46,7 @@ async function setupTest() {
     token_code_id: cw20CodeId,
   }));
 
-  anchorStaking = await deployMockAnchor(terra, deployer, anchorToken, terraswapLpToken);
+  anchorStaking = await deployMockAnchor(terra, deployer, anchorToken, astroportLpToken);
 
   process.stdout.write("Fund staking contract with ANC... ");
 
@@ -74,7 +74,7 @@ async function setupTest() {
 
   console.log(chalk.green("Done!"));
 
-  process.stdout.write("Provide liquidity to TerraSwap Pair... ");
+  process.stdout.write("Provide liquidity to Astroport Pair... ");
 
   // Provide 69 mASSET + 420 UST
   // Should receive sqrt(69 * 420) = 170.235131 LP tokens
@@ -82,12 +82,12 @@ async function setupTest() {
     new MsgExecuteContract(user.key.accAddress, anchorToken, {
       increase_allowance: {
         amount: "69000000",
-        spender: terraswapPair,
+        spender: astroportPair,
       },
     }),
     new MsgExecuteContract(
       user.key.accAddress,
-      terraswapPair,
+      astroportPair,
       {
         provide_liquidity: {
           assets: [
@@ -127,7 +127,7 @@ async function testBond() {
   process.stdout.write("Should bond LP tokens... ");
 
   await sendTransaction(terra, user, [
-    new MsgExecuteContract(user.key.accAddress, terraswapLpToken, {
+    new MsgExecuteContract(user.key.accAddress, astroportLpToken, {
       send: {
         contract: anchorStaking,
         amount: "170235131",
@@ -141,14 +141,14 @@ async function testBond() {
   const userLpTokenBalance = await queryTokenBalance(
     terra,
     user.key.accAddress,
-    terraswapLpToken
+    astroportLpToken
   );
   expect(userLpTokenBalance).to.equal("0");
 
   const contractLpTokenBalance = await queryTokenBalance(
     terra,
     anchorStaking,
-    terraswapLpToken
+    astroportLpToken
   );
   expect(contractLpTokenBalance).to.equal("170235131");
 
@@ -240,7 +240,7 @@ async function testUnbond() {
   const userLpTokenBalance = await queryTokenBalance(
     terra,
     user.key.accAddress,
-    terraswapLpToken
+    astroportLpToken
   );
   expect(userLpTokenBalance).to.equal("123456789");
 
@@ -248,7 +248,7 @@ async function testUnbond() {
   const contractLpTokenBalance = await queryTokenBalance(
     terra,
     anchorStaking,
-    terraswapLpToken
+    astroportLpToken
   );
   expect(contractLpTokenBalance).to.equal("46778342");
 
