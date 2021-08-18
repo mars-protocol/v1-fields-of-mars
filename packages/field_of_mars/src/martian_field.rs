@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_binary, Addr, Decimal, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
+    to_binary, Addr, CosmosMsg, Decimal, StdResult, Timestamp, Uint128, WasmMsg,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -156,8 +156,8 @@ pub enum CallbackMsg {
 // Modified from
 // https://github.com/CosmWasm/cosmwasm-plus/blob/v0.2.3/packages/cw20/src/receiver.rs#L15
 impl CallbackMsg {
-    pub fn to_submsg(&self, contract_addr: &Addr) -> StdResult<SubMsg> {
-        Ok(SubMsg::new(WasmMsg::Execute {
+    pub fn to_cosmos_msg(&self, contract_addr: &Addr) -> StdResult<CosmosMsg> {
+        Ok(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: String::from(contract_addr),
             msg: to_binary(&ExecuteMsg::Callback(self.clone()))?,
             funds: vec![],

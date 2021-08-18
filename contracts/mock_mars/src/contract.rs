@@ -100,23 +100,20 @@ fn borrow(
     position.borrowed_amount += amount;
     POSITION.save(deps.storage, (&info.sender, denom), &position)?;
 
-    Ok(Response {
-        messages: vec![SubMsg::new(BankMsg::Send {
+    Ok(Response::new()
+        .add_submessage(SubMsg::new(BankMsg::Send {
             to_address: String::from(&info.sender),
             amount: vec![Coin {
                 denom: denom.to_string(),
                 amount: deduct_tax(deps.as_ref(), denom, amount.into())?,
             }],
-        })],
-        attributes: vec![
+        }))
+        .add_attributes(vec![
             attr("user", info.sender),
             attr("denom", denom),
             attr("amount", amount),
             attr("borrowed_amount", position.borrowed_amount),
-        ],
-        events: vec![],
-        data: None,
-    })
+        ]))
 }
 
 fn repay(
@@ -130,17 +127,12 @@ fn repay(
     position.borrowed_amount = position.borrowed_amount - amount;
     POSITION.save(deps.storage, (&info.sender, denom), &position)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
-            attr("user", info.sender),
-            attr("denom", denom),
-            attr("amount", amount),
-            attr("borrowed_amount", position.borrowed_amount),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("user", info.sender),
+        attr("denom", denom),
+        attr("amount", amount),
+        attr("borrowed_amount", position.borrowed_amount),
+    ]))
 }
 
 fn set_debt(

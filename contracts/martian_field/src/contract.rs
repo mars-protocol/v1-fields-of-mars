@@ -2,8 +2,8 @@
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    attr, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, SubMsg, Uint128,
+    to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, StdError, StdResult, Uint128,
 };
 use field_of_mars::{
     asset::{Asset, AssetInfo},
@@ -185,7 +185,7 @@ fn increase_position(
     POSITION.save(deps.storage, &info.sender, &position)?;
 
     // Prepare messages
-    let mut messages: Vec<SubMsg> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
 
     // For each deposit,
     // If it's a CW20, we transfer it from the user's wallet (must have allowance)
@@ -207,7 +207,7 @@ fn increase_position(
         }
     }
 
-    // Note: callback messages need to be converted to SubMsg type
+    // Note: callback messages need to be converted to CosmosMsg type
     let callbacks = [
         CallbackMsg::Borrow {
             user: info.sender.clone(),
@@ -228,20 +228,15 @@ fn increase_position(
     ];
 
     messages.extend(
-        callbacks.iter().map(|msg| msg.to_submsg(&env.contract.address).unwrap()),
+        callbacks.iter().map(|msg| msg.to_cosmos_msg(&env.contract.address).unwrap()),
     );
 
-    Ok(Response {
-        messages,
-        attributes: vec![
-            attr("action", "martian_field::ExecuteMsg::IncreasePosition"),
-            attr("user", info.sender),
-            attr("long_deposited", long_deposited),
-            attr("short_deposited", short_deposited),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("action", "martian_field::ExecuteMsg::IncreasePosition")
+        .add_attribute("user", info.sender)
+        .add_attribute("long_deposited", long_deposited)
+        .add_attribute("short_deposited", short_deposited))
 }
 
 fn reduce_position(
@@ -283,20 +278,15 @@ fn reduce_position(
         },
     ]);
 
-    let messages = callbacks
+    let messages: Vec<CosmosMsg> = callbacks
         .iter()
-        .map(|msg| msg.to_submsg(&env.contract.address).unwrap())
+        .map(|msg| msg.to_cosmos_msg(&env.contract.address).unwrap())
         .collect();
 
-    Ok(Response {
-        messages,
-        attributes: vec![
-            attr("action", "martian_field::ExecuteMsg::ReducePosition"),
-            attr("user", info.sender),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("action", "martian_field::ExecuteMsg::ReducePosition")
+        .add_attribute("user", info.sender))
 }
 
 fn pay_debt(
@@ -327,7 +317,7 @@ fn pay_debt(
     position.unlocked_assets[1].amount += deposit.amount;
     POSITION.save(deps.storage, &user_addr, &position)?;
 
-    let mut messages: Vec<SubMsg> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
 
     // Receive the deposit
     match &deposit.info {
@@ -353,20 +343,15 @@ fn pay_debt(
     ];
 
     messages.extend(
-        callbacks.iter().map(|msg| msg.to_submsg(&env.contract.address).unwrap()),
+        callbacks.iter().map(|msg| msg.to_cosmos_msg(&env.contract.address).unwrap()),
     );
 
-    Ok(Response {
-        messages,
-        attributes: vec![
-            attr("action", "martian_field::ExecuteMsg::PayDebt"),
-            attr("payer", info.sender),
-            attr("user", String::from(user_addr)),
-            attr("short_deposited", deposit.amount),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("action", "martian_field::ExecuteMsg::PayDebt")
+        .add_attribute("payer", info.sender)
+        .add_attribute("user", String::from(user_addr))
+        .add_attribute("short_deposited", deposit.amount))
 }
 
 fn harvest(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
@@ -403,18 +388,13 @@ fn harvest(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     ];
 
     messages.extend(
-        callbacks.iter().map(|msg| msg.to_submsg(&env.contract.address).unwrap()),
+        callbacks.iter().map(|msg| msg.to_cosmos_msg(&env.contract.address).unwrap()),
     );
 
-    Ok(Response {
-        messages,
-        attributes: vec![
-            attr("action", "martian_field::ExecuteMsg::Harvest"),
-            attr("reward_amount", reward_amount),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("action", "martian_field::ExecuteMsg::Harvest")
+        .add_attribute("reward_amount", reward_amount))
 }
 
 fn close_position(
@@ -454,22 +434,17 @@ fn close_position(
         },
     ];
 
-    let messages = callbacks
+    let messages: Vec<CosmosMsg> = callbacks
         .iter()
-        .map(|msg| msg.to_submsg(&env.contract.address).unwrap())
+        .map(|msg| msg.to_cosmos_msg(&env.contract.address).unwrap())
         .collect();
 
-    Ok(Response {
-        messages,
-        attributes: vec![
-            attr("action", "martian_field::ExecuteMsg::ClosePosition"),
-            attr("user", user),
-            attr("ltv", ltv),
-            attr("liquidator", info.sender),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("action", "martian_field::ExecuteMsg::ClosePosition")
+        .add_attribute("user", user)
+        .add_attribute("ltv", ltv.to_string())
+        .add_attribute("liquidator", info.sender))
 }
 
 fn liquidate(
@@ -517,7 +492,7 @@ fn liquidate(
     position.unlocked_assets[1].amount += deposit.amount;
     POSITION.save(deps.storage, &user_addr, &position)?;
 
-    let mut messages: Vec<SubMsg> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
 
     // Receive the deposit
     match &deposit.info {
@@ -545,20 +520,15 @@ fn liquidate(
     ];
 
     messages.extend(
-        callbacks.iter().map(|msg| msg.to_submsg(&env.contract.address).unwrap()),
+        callbacks.iter().map(|msg| msg.to_cosmos_msg(&env.contract.address).unwrap()),
     );
 
-    Ok(Response {
-        messages,
-        attributes: vec![
-            attr("action", "martian_field::ExecuteMsg::Liquidate"),
-            attr("user", user),
-            attr("liquidator", info.sender),
-            attr("short_deposited", deposit.amount),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("action", "martian_field::ExecuteMsg::Liquidate")
+        .add_attribute("user", user)
+        .add_attribute("liquidator", info.sender)
+        .add_attribute("short_deposited", deposit.amount))
 }
 
 fn update_config(
@@ -575,12 +545,7 @@ fn update_config(
 
     CONFIG.save(deps.storage, &new_config)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "martian_field::ExecuteMsg::UpdateConfig")],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attribute("action", "martian_field::ExecuteMsg::UpdateConfig"))
 }
 
 //----------------------------------------------------------------------------------------
@@ -613,18 +578,13 @@ fn _provide_liquidity(deps: DepsMut, _env: Env, user: Addr) -> StdResult<Respons
     position.unlocked_assets[2].amount += shares; // share tokens
     POSITION.save(deps.storage, &user, &position)?;
 
-    Ok(Response {
-        messages: config.swap.provide_msgs(&deposits)?,
-        attributes: vec![
-            attr("action", "martian_field::CallbackMsg::ProvideLiquidity"),
-            attr("user", user),
-            attr("long_provided", deposits[0].amount),
-            attr("short_provided", deposits[1].amount),
-            attr("shares_received", shares),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new()
+        .add_messages(config.swap.provide_msgs(&deposits)?)
+        .add_attribute("action", "martian_field::CallbackMsg::ProvideLiquidity")
+        .add_attribute("user", user)
+        .add_attribute("long_provided", deposits[0].amount)
+        .add_attribute("short_provided", deposits[1].amount)
+        .add_attribute("shares_received", shares))
 }
 
 fn _remove_liquidity(deps: DepsMut, _env: Env, user: Addr) -> StdResult<Response> {
@@ -649,17 +609,12 @@ fn _remove_liquidity(deps: DepsMut, _env: Env, user: Addr) -> StdResult<Response
     position.unlocked_assets[2].amount -= shares;
     POSITION.save(deps.storage, &user, &position)?;
 
-    Ok(Response {
-        messages: vec![config.swap.withdraw_msg(shares)?],
-        attributes: vec![
-            attr("action", "field_of_mars::CallbackMsg::RemoveLiquidity"),
-            attr("shares_burned", shares),
-            attr("long_received", return_amounts[0]),
-            attr("short_received", return_amounts[1]),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new()
+        .add_message(config.swap.withdraw_msg(shares)?)
+        .add_attribute("action", "field_of_mars::CallbackMsg::RemoveLiquidity")
+        .add_attribute("shares_burned", shares)
+        .add_attribute("long_received", return_amounts[0])
+        .add_attribute("short_received", return_amounts[1]))
 }
 
 fn _bond(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
@@ -700,21 +655,17 @@ fn _bond(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
     position.unlocked_assets[2].amount = Uint128::zero();
     POSITION.save(deps.storage, &user, &position)?;
 
-    Ok(Response {
-        messages: if let Some(staking) = &config.staking {
-            vec![staking.bond_msg(bond_amount)?]
-        } else {
-            vec![]
-        },
-        attributes: vec![
-            attr("action", "martian_field::CallbackMsg::Bond"),
-            attr("user", user),
-            attr("bond_amount", bond_amount),
-            attr("bond_units_added", bond_units_to_add),
-        ],
-        events: vec![],
-        data: None,
-    })
+    let response = if let Some(staking) = &config.staking {
+        Response::new().add_message(staking.bond_msg(bond_amount)?)
+    } else {
+        Response::new()
+    };
+
+    Ok(response
+        .add_attribute("action", "martian_field::CallbackMsg::Bond")
+        .add_attribute("user", user)
+        .add_attribute("bond_amount", bond_amount)
+        .add_attribute("bond_units_added", bond_units_to_add))
 }
 
 fn _unbond(
@@ -750,21 +701,17 @@ fn _unbond(
     position.unlocked_assets[2].amount += unbond_amount;
     POSITION.save(deps.storage, &user, &position)?;
 
-    Ok(Response {
-        messages: if let Some(staking) = &config.staking {
-            vec![staking.unbond_msg(unbond_amount)?]
-        } else {
-            vec![]
-        },
-        attributes: vec![
-            attr("action", "martian_field::CallbackMsg::Unbond"),
-            attr("user", user),
-            attr("unbond_amount", unbond_amount),
-            attr("bond_units_reduced", bond_units_to_reduce),
-        ],
-        events: vec![],
-        data: None,
-    })
+    let response = if let Some(staking) = &config.staking {
+        Response::new().add_message(staking.unbond_msg(unbond_amount)?)
+    } else {
+        Response::new()
+    };
+
+    Ok(response
+        .add_attribute("action", "martian_field::CallbackMsg::Unbond")
+        .add_attribute("user", user)
+        .add_attribute("unbond_amount", unbond_amount)
+        .add_attribute("bond_units_reduced", bond_units_to_reduce))
 }
 
 fn _borrow(deps: DepsMut, env: Env, user: Addr, amount: Uint128) -> StdResult<Response> {
@@ -800,34 +747,20 @@ fn _borrow(deps: DepsMut, env: Env, user: Addr, amount: Uint128) -> StdResult<Re
         position.unlocked_assets[1].amount += amount_after_tax;
         POSITION.save(deps.storage, &user, &position)?;
 
-        // Generate message
-        let borrow_message = config.red_bank.borrow_msg(&Asset {
-            info: config.short_asset.clone(),
-            amount,
-        })?;
-
-        Response {
-            messages: vec![borrow_message],
-            attributes: vec![
-                attr("action", "martial_field::CallbackMsg::Borrow"),
-                attr("user", user),
-                attr("amount", amount),
-                attr("amount_after_tax", amount_after_tax),
-                attr("debt_units_added", debt_units_to_add),
-            ],
-            events: vec![],
-            data: None,
-        }
+        Response::new()
+            .add_message(config.red_bank.borrow_msg(&Asset {
+                info: config.short_asset.clone(),
+                amount,
+            })?)
+            .add_attribute("action", "martial_field::CallbackMsg::Borrow")
+            .add_attribute("user", user)
+            .add_attribute("amount", amount)
+            .add_attribute("amount_after_tax", amount_after_tax)
+            .add_attribute("debt_units_added", debt_units_to_add)
     } else {
-        Response {
-            messages: vec![],
-            attributes: vec![
-                attr("action", "martian_field::CallbackMsg::Borrow"),
-                attr("warning", "skipped: borrow amount is zero!"),
-            ],
-            events: vec![],
-            data: None,
-        }
+        Response::new()
+            .add_attribute("action", "martian_field::CallbackMsg::Borrow")
+            .add_attribute("warning", "skipped: borrow amount is zero!")
     };
 
     Ok(response)
@@ -882,34 +815,20 @@ fn _repay(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
         position.unlocked_assets[1].amount -= repay_cost;
         POSITION.save(deps.storage, &user, &position)?;
 
-        // Generate message
-        let repay_message = config.red_bank.repay_msg(&Asset {
-            info: config.short_asset.clone(),
-            amount: repay_amount,
-        })?;
-
-        Response {
-            messages: vec![repay_message],
-            attributes: vec![
-                attr("action", "martian_field::CallbackMsg::Repay"),
-                attr("user", user),
-                attr("repay_amount", repay_amount),
-                attr("repay_cost", repay_cost),
-                attr("debt_units_reduced", debt_units_to_reduce),
-            ],
-            events: vec![],
-            data: None,
-        }
+        Response::new()
+            .add_message(config.red_bank.repay_msg(&Asset {
+                info: config.short_asset.clone(),
+                amount: repay_amount,
+            })?)
+            .add_attribute("action", "martian_field::CallbackMsg::Repay")
+            .add_attribute("user", user)
+            .add_attribute("repay_amount", repay_amount)
+            .add_attribute("repay_cost", repay_cost)
+            .add_attribute("debt_units_reduced", debt_units_to_reduce)
     } else {
-        Response {
-            messages: vec![],
-            attributes: vec![
-                attr("action", "martian_field::CallbackMsg::Repay"),
-                attr("warning", "skipped: repay amount is zero!"),
-            ],
-            events: vec![],
-            data: None,
-        }
+        Response::new()
+            .add_attribute("action", "martian_field::CallbackMsg::Repay")
+            .add_attribute("warning", "skipped: repay amount is zero!")
     };
 
     Ok(response)
@@ -952,29 +871,24 @@ fn _refund(
     // Notes:
     // 1. Must filter off assets whose amounts are zero
     // 2. `asset.transfer_message` does tax deduction so no need to do it here
-    let messages = assets
+    let messages: Vec<CosmosMsg> = assets
         .iter()
         .filter(|asset| !asset.amount.is_zero())
         .map(|asset| asset.transfer_msg(&recipient).unwrap())
         .collect();
 
-    Ok(Response {
-        messages,
-        attributes: vec![
-            attr("action", "martian_field::CallbackMsg::Refund"),
-            attr("user", user),
-            attr("recipient", recipient),
-            attr("percentage", percentage),
-            attr("long_refunded", assets[0].amount),
-            attr("long_remaining", position.unlocked_assets[0].amount),
-            attr("short_refunded", assets[1].amount),
-            attr("short_remaining", position.unlocked_assets[1].amount),
-            attr("shares_refunded", assets[2].amount),
-            attr("shares_remaining", position.unlocked_assets[2].amount),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("action", "martian_field::CallbackMsg::Refund")
+        .add_attribute("user", user)
+        .add_attribute("recipient", recipient)
+        .add_attribute("percentage", percentage.to_string())
+        .add_attribute("long_refunded", assets[0].amount)
+        .add_attribute("long_remaining", position.unlocked_assets[0].amount)
+        .add_attribute("short_refunded", assets[1].amount)
+        .add_attribute("short_remaining", position.unlocked_assets[1].amount)
+        .add_attribute("shares_refunded", assets[2].amount)
+        .add_attribute("shares_remaining", position.unlocked_assets[2].amount))
 }
 
 fn _reinvest(deps: DepsMut, env: Env, amount: Uint128) -> StdResult<Response> {
@@ -1015,24 +929,17 @@ fn _reinvest(deps: DepsMut, env: Env, amount: Uint128) -> StdResult<Response> {
     position.unlocked_assets[1].amount += return_after_tax;
     POSITION.save(deps.storage, &env.contract.address, &position)?;
 
-    Ok(Response {
-        messages: vec![
-            config.long_asset.transfer_msg(&treasury, fee)?,
-            config.swap.swap_msg(&offer_asset)?,
-        ],
-        attributes: vec![
-            attr("action", "martian_field::CallbackMsg::Reinvest"),
-            attr("amount", amount),
-            attr("fee_amount", fee),
-            attr("retain_amount", retain_amount),
-            attr("offer_amount", offer_amount),
-            attr("offer_after_tax", offer_after_tax),
-            attr("return_amount", return_amount),
-            attr("return_after_tax", return_after_tax),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new()
+        .add_message(config.long_asset.transfer_msg(&treasury, fee)?)
+        .add_message(config.swap.swap_msg(&offer_asset)?)
+        .add_attribute("action", "martian_field::CallbackMsg::Reinvest")
+        .add_attribute("amount", amount)
+        .add_attribute("fee_amount", fee)
+        .add_attribute("retain_amount", retain_amount)
+        .add_attribute("offer_amount", offer_amount)
+        .add_attribute("offer_after_tax", offer_after_tax)
+        .add_attribute("return_amount", return_amount)
+        .add_attribute("return_after_tax", return_after_tax))
 }
 
 fn _snapshot(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
@@ -1047,15 +954,9 @@ fn _snapshot(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
 
     SNAPSHOT.save(deps.storage, &user, &snapshot)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
-            attr("action", "martian_field::CallbackMsg::Snapshot"),
-            attr("user", user),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new()
+        .add_attribute("action", "martian_field::CallbackMsg::Snapshot")
+        .add_attribute("user", user))
 }
 
 fn _assert_health(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
@@ -1089,16 +990,10 @@ fn _assert_health(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
     };
 
     if healthy {
-        Ok(Response {
-            messages: vec![],
-            attributes: vec![
-                attr("action", "martian_field::CallbackMsg::AssertHealth"),
-                attr("user", user),
-                attr("ltv", ltv_str),
-            ],
-            events: vec![],
-            data: None,
-        })
+        Ok(Response::new()
+            .add_attribute("action", "martian_field::CallbackMsg::AssertHealth")
+            .add_attribute("user", user)
+            .add_attribute("ltv", ltv_str))
     } else {
         Err(StdError::generic_err(format!("ltv is greater than threshold: {}", ltv_str)))
     }

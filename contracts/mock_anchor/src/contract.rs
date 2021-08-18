@@ -103,36 +103,26 @@ fn unbond(
     position.bond_amount = position.bond_amount.checked_sub(amount)?;
     POSITION.save(deps.storage, &info.sender, &position)?;
 
-    Ok(Response {
-        messages: vec![SubMsg::new(WasmMsg::Execute {
-            contract_addr: config.staking_token,
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: String::from(info.sender),
-                amount,
-            })?,
-            funds: vec![],
-        })],
-        attributes: vec![],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_submessage(SubMsg::new(WasmMsg::Execute {
+        contract_addr: config.staking_token,
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: String::from(info.sender),
+            amount,
+        })?,
+        funds: vec![],
+    })))
 }
 
 fn withdraw(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
-    Ok(Response {
-        messages: vec![SubMsg::new(WasmMsg::Execute {
-            contract_addr: config.anchor_token,
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: String::from(info.sender),
-                amount: Uint128::new(1000000u128), // 1.0 ANC
-            })?,
-            funds: vec![],
-        })],
-        attributes: vec![],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_submessage(SubMsg::new(WasmMsg::Execute {
+        contract_addr: config.anchor_token,
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: String::from(info.sender),
+            amount: Uint128::new(1000000u128), // 1.0 ANC
+        })?,
+        funds: vec![],
+    })))
 }
 
 //----------------------------------------------------------------------------------------

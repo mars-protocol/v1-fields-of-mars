@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_binary, Addr, Coin, Decimal, QuerierWrapper, QueryRequest, StdResult, SubMsg,
+    to_binary, Addr, Coin, CosmosMsg, Decimal, QuerierWrapper, QueryRequest, StdResult,
     Uint128, WasmMsg, WasmQuery,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -76,15 +76,15 @@ pub struct Swap {
 
 impl Swap {
     /// @notice Generate messages for providing specified assets
-    pub fn provide_msgs(&self, assets: &[Asset; 2]) -> StdResult<Vec<SubMsg>> {
-        let mut messages: Vec<SubMsg> = vec![];
+    pub fn provide_msgs(&self, assets: &[Asset; 2]) -> StdResult<Vec<CosmosMsg>> {
+        let mut messages: Vec<CosmosMsg> = vec![];
         let mut funds: Vec<Coin> = vec![];
 
         for asset in assets.iter() {
             match &asset.info {
                 AssetInfo::Token {
                     contract_addr,
-                } => messages.push(SubMsg::new(WasmMsg::Execute {
+                } => messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: contract_addr.clone(),
                     msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
                         spender: self.pair.clone(),
@@ -102,7 +102,7 @@ impl Swap {
             }
         }
 
-        messages.push(SubMsg::new(WasmMsg::Execute {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.pair.clone(),
             msg: to_binary(&HandleMsg::ProvideLiquidity {
                 assets: [assets[0].clone(), assets[1].clone()],
@@ -116,8 +116,8 @@ impl Swap {
 
     /// @notice Generate msg for removing liquidity by burning specified amount of shares
     /// @param shares Amount of shares to burn
-    pub fn withdraw_msg(&self, shares: Uint128) -> StdResult<SubMsg> {
-        Ok(SubMsg::new(WasmMsg::Execute {
+    pub fn withdraw_msg(&self, shares: Uint128) -> StdResult<CosmosMsg> {
+        Ok(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.share_token.clone(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: self.pair.clone(),
@@ -129,11 +129,11 @@ impl Swap {
     }
 
     /// @notice Generate msg for swapping specified asset
-    pub fn swap_msg(&self, asset: &Asset) -> StdResult<SubMsg> {
+    pub fn swap_msg(&self, asset: &Asset) -> StdResult<CosmosMsg> {
         match &asset.info {
             AssetInfo::Token {
                 contract_addr,
-            } => Ok(SubMsg::new(WasmMsg::Execute {
+            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.clone(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: self.pair.clone(),
@@ -148,7 +148,7 @@ impl Swap {
             })),
             AssetInfo::NativeToken {
                 denom,
-            } => Ok(SubMsg::new(WasmMsg::Execute {
+            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: self.pair.clone(),
                 msg: to_binary(&HandleMsg::Swap {
                     offer_asset: asset.clone(),

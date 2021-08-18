@@ -1,6 +1,6 @@
 [package]
 name = "field-of-mars"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["larry_0x <larry@delphidigital.io>"]
 edition = "2018"
 license = "UNLICENSED"
@@ -8,8 +8,8 @@ repository = "https://github.com/mars-protocol/field-of-mars"
 
 [dependencies]
 cosmwasm-bignumber = "2.1.0"
-cosmwasm-std = "0.15.0"
-cw20 = "0.7.0"
+cosmwasm-std = "0.16.0"
+cw20 = "0.8.0"
 integer-sqrt = "0.1.5"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }

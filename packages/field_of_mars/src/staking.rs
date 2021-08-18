@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, Addr, Decimal, QuerierWrapper, QueryRequest, StdResult, SubMsg, Uint128,
-    WasmMsg, WasmQuery,
+    to_binary, Addr, CosmosMsg, Decimal, QuerierWrapper, QueryRequest, StdResult,
+    Uint128, WasmMsg, WasmQuery,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use schemars::JsonSchema;
@@ -164,9 +164,9 @@ impl Staking {
     }
 
     /// @notice Generate a message for bonding LP tokens
-    pub fn bond_msg(&self, amount: Uint128) -> StdResult<SubMsg> {
+    pub fn bond_msg(&self, amount: Uint128) -> StdResult<CosmosMsg> {
         match self {
-            Self::Anchor(config) => Ok(SubMsg::new(WasmMsg::Execute {
+            Self::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.staking_token.clone(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: config.contract_addr.clone(),
@@ -175,7 +175,7 @@ impl Staking {
                 })?,
                 funds: vec![],
             })),
-            Self::Mirror(config) => Ok(SubMsg::new(WasmMsg::Execute {
+            Self::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.staking_token.clone(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: config.contract_addr.clone(),
@@ -190,16 +190,16 @@ impl Staking {
     }
 
     /// @notice Generate a message for unbonding LP tokens
-    pub fn unbond_msg(&self, amount: Uint128) -> StdResult<SubMsg> {
+    pub fn unbond_msg(&self, amount: Uint128) -> StdResult<CosmosMsg> {
         match self {
-            Self::Anchor(config) => Ok(SubMsg::new(WasmMsg::Execute {
+            Self::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.contract_addr.clone(),
                 msg: to_binary(&anchor_staking::ExecuteMsg::Unbond {
                     amount,
                 })?,
                 funds: vec![],
             })),
-            Self::Mirror(config) => Ok(SubMsg::new(WasmMsg::Execute {
+            Self::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.contract_addr.clone(),
                 msg: to_binary(&mirror_staking::ExecuteMsg::Unbond {
                     asset_token: config.asset_token.clone(),
@@ -211,14 +211,14 @@ impl Staking {
     }
 
     /// @notice Generate a message for claiming staking rewards
-    pub fn withdraw_msg(&self) -> StdResult<SubMsg> {
+    pub fn withdraw_msg(&self) -> StdResult<CosmosMsg> {
         match self {
-            Self::Anchor(config) => Ok(SubMsg::new(WasmMsg::Execute {
+            Self::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.contract_addr.clone(),
                 msg: to_binary(&anchor_staking::ExecuteMsg::Withdraw {})?,
                 funds: vec![],
             })),
-            Self::Mirror(config) => Ok(SubMsg::new(WasmMsg::Execute {
+            Self::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.contract_addr.clone(),
                 msg: to_binary(&mirror_staking::ExecuteMsg::Withdraw {
                     asset_token: Some(config.asset_token.clone()),

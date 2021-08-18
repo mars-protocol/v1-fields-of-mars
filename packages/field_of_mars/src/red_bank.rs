@@ -1,6 +1,6 @@
 use cosmwasm_bignumber::Uint256;
 use cosmwasm_std::{
-    to_binary, Addr, Coin, QuerierWrapper, QueryRequest, StdResult, SubMsg, Uint128,
+    to_binary, Addr, Coin, CosmosMsg, QuerierWrapper, QueryRequest, StdResult, Uint128,
     WasmMsg, WasmQuery,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -119,8 +119,8 @@ pub struct RedBank {
 
 impl RedBank {
     /// @notice Generate message for borrowing a specified amount of asset
-    pub fn borrow_msg(&self, asset: &Asset) -> StdResult<SubMsg> {
-        Ok(SubMsg::new(WasmMsg::Execute {
+    pub fn borrow_msg(&self, asset: &Asset) -> StdResult<CosmosMsg> {
+        Ok(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.contract_addr.clone(),
             msg: to_binary(&ExecuteMsg::Borrow {
                 asset: RedBankAsset::from(asset),
@@ -132,11 +132,11 @@ impl RedBank {
 
     /// @notice Generate message for repaying a specified amount of asset
     /// @dev Note: we do not deduct tax here
-    pub fn repay_msg(&self, asset: &Asset) -> StdResult<SubMsg> {
+    pub fn repay_msg(&self, asset: &Asset) -> StdResult<CosmosMsg> {
         match &asset.info {
             AssetInfo::Token {
                 contract_addr,
-            } => Ok(SubMsg::new(WasmMsg::Execute {
+            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.clone(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Send {
@@ -147,7 +147,7 @@ impl RedBank {
             })),
             AssetInfo::NativeToken {
                 denom,
-            } => Ok(SubMsg::new(WasmMsg::Execute {
+            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: self.contract_addr.clone(),
                 msg: to_binary(&ExecuteMsg::RepayNative {
                     denom: denom.clone(),
