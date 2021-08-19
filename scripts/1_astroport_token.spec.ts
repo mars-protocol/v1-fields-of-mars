@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
-import { deployAstroportToken } from "./fixture";
+import { deployAstroport } from "./fixture";
 import { queryTokenBalance, sendTransaction } from "./helpers";
 
 //----------------------------------------------------------------------------------------
@@ -13,14 +13,14 @@ const deployer = terra.wallets.test1;
 const user1 = terra.wallets.test2;
 const user2 = terra.wallets.test3;
 
-let cw20Token: string;
+let astroportToken: string;
 
 //----------------------------------------------------------------------------------------
 // Setup
 //----------------------------------------------------------------------------------------
 
 async function setupTest() {
-  ({ cw20Token } = await deployAstroportToken(terra, deployer, "Test Token", "TST"));
+  ({ astroportToken } = await deployAstroport(terra, deployer, false));
 }
 
 //----------------------------------------------------------------------------------------
@@ -30,17 +30,17 @@ async function setupTest() {
 async function testConfig() {
   process.stdout.write("Should store correct config info... ");
 
-  const tokenInfoResponse = await terra.wasm.contractQuery(cw20Token, {
+  const tokenInfoResponse = await terra.wasm.contractQuery(astroportToken, {
     token_info: {},
   });
   expect(tokenInfoResponse).to.deep.equal({
     name: "Test Token",
-    symbol: "TST",
+    symbol: "TEST",
     decimals: 6,
     total_supply: "0",
   });
 
-  const minterResponse = await terra.wasm.contractQuery(cw20Token, {
+  const minterResponse = await terra.wasm.contractQuery(astroportToken, {
     minter: {},
   });
   expect(minterResponse).to.deep.equal({
@@ -60,7 +60,7 @@ async function testMint() {
 
   // Mint 88888 tokens to user1. The transaction needs to be sent by Minter
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, cw20Token, {
+    new MsgExecuteContract(deployer.key.accAddress, astroportToken, {
       mint: {
         recipient: user1.key.accAddress,
         amount: "88888000000",
@@ -69,7 +69,7 @@ async function testMint() {
   ]);
 
   // Check if user1 has the correct balance
-  const balance = await queryTokenBalance(terra, user1.key.accAddress, cw20Token);
+  const balance = await queryTokenBalance(terra, user1.key.accAddress, astroportToken);
   expect(balance).to.equal("88888000000");
 
   console.log(chalk.green("Passed!"));
@@ -84,7 +84,7 @@ async function testTransfer() {
 
   // Transfer 69420 tokens from user1 to user2
   await sendTransaction(terra, user1, [
-    new MsgExecuteContract(user1.key.accAddress, cw20Token, {
+    new MsgExecuteContract(user1.key.accAddress, astroportToken, {
       transfer: {
         recipient: user2.key.accAddress,
         amount: "69420000000",
@@ -93,11 +93,19 @@ async function testTransfer() {
   ]);
 
   // Check user1's balance. Should be 88888 - 69420 = 19468
-  const user1balance = await queryTokenBalance(terra, user1.key.accAddress, cw20Token);
+  const user1balance = await queryTokenBalance(
+    terra,
+    user1.key.accAddress,
+    astroportToken
+  );
   expect(user1balance).to.equal("19468000000");
 
   // Check user2's balance. Should be 69420
-  const user2balance = await queryTokenBalance(terra, user2.key.accAddress, cw20Token);
+  const user2balance = await queryTokenBalance(
+    terra,
+    user2.key.accAddress,
+    astroportToken
+  );
   expect(user2balance).to.equal("69420000000");
 
   console.log(chalk.green("Passed!"));

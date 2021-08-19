@@ -5,8 +5,7 @@ import {
   deployMartianField,
   deployMockMirror,
   deployMockMars,
-  deployAstroportPair,
-  deployAstroportToken,
+  deployAstroport,
 } from "./fixture";
 import { Checker, Config } from "./check";
 
@@ -45,21 +44,13 @@ let checker: Checker;
 
 async function setupTest() {
   // Part 1. Deploy mock contracts
-  let { cw20CodeId, cw20Token } = await deployAstroportToken(
+  let astroportToken: string;
+  ({ astroportToken, astroportPair, astroportLpToken } = await deployAstroport(
     terra,
     deployer,
-    "Mock Mirror Token",
-    "MIR"
-  );
-  mirrorToken = cw20Token;
-
-  ({ astroportPair, astroportLpToken } = await deployAstroportPair(terra, deployer, {
-    asset_infos: [
-      { native_token: { denom: "uusd" } },
-      { token: { contract_addr: mirrorToken } },
-    ],
-    token_code_id: cw20CodeId,
-  }));
+    false
+  ));
+  mirrorToken = astroportToken;
 
   mirrorStaking = await deployMockMirror(
     terra,

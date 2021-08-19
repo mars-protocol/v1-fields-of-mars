@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
-import { deployMockMirror, deployAstroportPair, deployAstroportToken } from "./fixture";
+import { deployMockMirror, deployAstroport } from "./fixture";
 import { queryTokenBalance, sendTransaction, toEncodedBinary } from "./helpers";
 
 //----------------------------------------------------------------------------------------
@@ -23,39 +23,19 @@ let mirrorStaking: string;
 //----------------------------------------------------------------------------------------
 
 async function setupTest() {
-  let { cw20CodeId, cw20Token } = await deployAstroportToken(
-    terra,
-    deployer,
-    "Mock Mirror Token",
-    "MIR"
-  );
-  mirrorToken = cw20Token;
+  let astroportToken: string;
 
-  ({ cw20Token } = await deployAstroportToken(
+  // deploy mAsset token + mAsset-UST pair
+  ({ astroportToken, astroportPair, astroportLpToken } = await deployAstroport(
     terra,
     deployer,
-    "Mock mAsset Token",
-    "mASSET",
-    6,
-    cw20CodeId
+    false
   ));
-  mAssetToken = cw20Token;
+  mAssetToken = astroportToken;
 
-  ({ astroportPair, astroportLpToken } = await deployAstroportPair(terra, deployer, {
-    asset_infos: [
-      {
-        native_token: {
-          denom: "uusd",
-        },
-      },
-      {
-        token: {
-          contract_addr: mAssetToken,
-        },
-      },
-    ],
-    token_code_id: cw20CodeId,
-  }));
+  // deploy MIR token
+  ({ astroportToken } = await deployAstroport(terra, deployer, false));
+  mirrorToken = astroportToken;
 
   mirrorStaking = await deployMockMirror(
     terra,

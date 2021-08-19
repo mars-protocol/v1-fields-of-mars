@@ -1,105 +1,124 @@
 import * as path from "path";
 import chalk from "chalk";
-import { LocalTerra, Wallet } from "@terra-money/terra.js";
-import { storeCode, instantiateContract } from "./helpers";
+import { LocalTerra, MsgExecuteContract, Wallet } from "@terra-money/terra.js";
+import { storeCode, instantiateContract, sendTransaction } from "./helpers";
 
 //----------------------------------------------------------------------------------------
-// CW20 token
+// Astroport token + pair
 //----------------------------------------------------------------------------------------
 
-export async function deployAstroportToken(
+export async function deployAstroport(
   terra: LocalTerra,
   deployer: Wallet,
-  name: string,
-  symbol: string,
-  decimals?: number,
-  cw20CodeId?: number
+  stable = false, // whether to deploy `astroport_pair` or `astroport_pair_stable`
+  nativeAsset = "uusd" // the native asset to be paired with the token
 ) {
-  if (!cw20CodeId) {
-    process.stdout.write("CW20 code ID not given! Uploading CW20 code... ");
+  // upload binaries
+  // 1. token
+  process.stdout.write("Uploading Astroport token code... ");
 
-    cw20CodeId = await storeCode(
-      terra,
-      deployer,
-      path.resolve(__dirname, "../artifacts/astroport_token.wasm")
-    );
-
-    console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${cw20CodeId}`);
-  }
-
-  process.stdout.write(`Instantiating ${symbol} token contract... `);
-
-  const result = await instantiateContract(terra, deployer, deployer, cw20CodeId, {
-    name: name,
-    symbol: symbol,
-    decimals: decimals ? decimals : 6,
-    initial_balances: [],
-    mint: {
-      minter: deployer.key.accAddress,
-    },
-  });
-
-  const contractAddress = result.logs[0].events[0].attributes[3].value;
-
-  console.log(
-    chalk.green("Done!"),
-    `${chalk.blue("contractAddress")}=${contractAddress}`
+  const tokenCodeId = await storeCode(
+    terra,
+    deployer,
+    path.resolve(__dirname, "../artifacts/astroport_token.wasm")
   );
 
-  return {
-    cw20CodeId,
-    cw20Token: contractAddress,
-  };
-}
+  console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${tokenCodeId}`);
 
-//----------------------------------------------------------------------------------------
-// Astroport Pair
-//----------------------------------------------------------------------------------------
+  // 2. factory
+  process.stdout.write("Uploading Astroport factory code... ");
 
-export async function deployAstroportPair(
-  terra: LocalTerra,
-  deployer: Wallet,
-  instantiateMsg: object,
-  stable = false // whether to deploy `astroport_pair` or `astroport_pair_stable`
-) {
+  const factoryCodeId = await storeCode(
+    terra,
+    deployer,
+    path.resolve(__dirname, "../artifacts/astroport_factory.wasm")
+  );
+
+  console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${factoryCodeId}`);
+
+  // 3. pair
   process.stdout.write("Uploading Astroport pair code... ");
 
   const codePath = stable
     ? "../artifacts/astroport_pair_stable.wasm"
     : "../artifacts/astroport_pair.wasm";
 
-  const codeId = await storeCode(terra, deployer, path.resolve(__dirname, codePath));
+  const pairCodeId = await storeCode(terra, deployer, path.resolve(__dirname, codePath));
 
-  console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
+  console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${pairCodeId}`);
 
-  process.stdout.write("Instantiating Astroport pair contract... ");
+  // instantiate token contract
+  process.stdout.write("Instantiating Astroport token contract... ");
 
-  const result = await instantiateContract(
+  const tokenResult = await instantiateContract(terra, deployer, deployer, tokenCodeId, {
+    name: "Test Token",
+    symbol: "TEST",
+    decimals: 6,
+    initial_balances: [],
+    mint: {
+      minter: deployer.key.accAddress,
+    },
+  });
+
+  const tokenAddress = tokenResult.logs[0].events[0].attributes[3].value;
+
+  console.log(chalk.green("Done!"), `${chalk.blue("contractAddress")}=${tokenAddress}`);
+
+  // instantiate factory contract
+  process.stdout.write("Instantiating Astroport factory contract... ");
+
+  const factoryResult = await instantiateContract(
     terra,
     deployer,
     deployer,
-    codeId,
-    instantiateMsg
+    factoryCodeId,
+    {
+      pair_code_ids: [pairCodeId],
+      token_code_id: tokenCodeId,
+      init_hook: undefined,
+      fee_address: undefined,
+    }
   );
 
-  const event = result.logs[0].events.find((event) => {
-    return event.type == "instantiate_contract";
-  });
+  const factoryAddress = factoryResult.logs[0].events[0].attributes[3].value;
 
-  const astroportPair = event?.attributes[3].value;
-  const astroportLpToken = event?.attributes[7].value;
+  console.log(chalk.green("Done!"), `${chalk.blue("contractAddress")}=${factoryAddress}`);
 
-  if (!astroportPair || !astroportLpToken) {
-    throw "failed to parse instantiation event log";
-  }
+  // create pair
+  process.stdout.write("Creating Astroport pair... ");
 
-  console.log(
-    chalk.green("Done!"),
-    `${chalk.blue("astroportPair")}=${astroportPair}`,
-    `${chalk.blue("astroportLpToken")}=${astroportLpToken}`
-  );
+  const pairResult = await sendTransaction(terra, deployer, [
+    new MsgExecuteContract(deployer.key.accAddress, factoryAddress, {
+      create_pair: {
+        pair_code_id: pairCodeId,
+        asset_infos: [
+          {
+            native_token: {
+              denom: nativeAsset,
+            },
+          },
+          {
+            token: {
+              contract_addr: tokenAddress,
+            },
+          },
+        ],
+        init_hook: undefined,
+      },
+    }),
+  ]);
 
-  return { astroportPair, astroportLpToken };
+  const pairAddress = pairResult.logs[0].events[2].attributes[3].value;
+  const lpTokenAddress = pairResult.logs[0].events[2].attributes[7].value;
+
+  console.log(chalk.green("Done!"), `${chalk.blue("contractAddress")}=${pairAddress}`);
+
+  return {
+    astroportToken: tokenAddress,
+    astroportFactory: factoryAddress,
+    astroportPair: pairAddress,
+    astroportLpToken: lpTokenAddress,
+  };
 }
 
 //----------------------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
-import { deployMockAnchor, deployAstroportPair, deployAstroportToken } from "./fixture";
+import { deployMockAnchor, deployAstroport } from "./fixture";
 import { queryTokenBalance, sendTransaction, toEncodedBinary } from "./helpers";
 
 //----------------------------------------------------------------------------------------
@@ -22,29 +22,13 @@ let astroportLpToken: string;
 //----------------------------------------------------------------------------------------
 
 async function setupTest() {
-  let { cw20CodeId, cw20Token } = await deployAstroportToken(
+  let astroportToken: string;
+  ({ astroportToken, astroportPair, astroportLpToken } = await deployAstroport(
     terra,
     deployer,
-    "Mock Anchor Token",
-    "ANC"
-  );
-  anchorToken = cw20Token;
-
-  ({ astroportPair, astroportLpToken } = await deployAstroportPair(terra, deployer, {
-    asset_infos: [
-      {
-        native_token: {
-          denom: "uusd",
-        },
-      },
-      {
-        token: {
-          contract_addr: anchorToken,
-        },
-      },
-    ],
-    token_code_id: cw20CodeId,
-  }));
+    false
+  ));
+  anchorToken = astroportToken;
 
   anchorStaking = await deployMockAnchor(terra, deployer, anchorToken, astroportLpToken);
 

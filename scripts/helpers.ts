@@ -18,7 +18,7 @@ export const GAS_LIMIT = 30000000;
 export const GAS_AMOUNT = 4500000;
 
 // Related to calculation of tax
-export const DECIMAL_FRACTION = new BN("1_000_000_000_000_000_000");
+export const DECIMAL_FRACTION = new BN("1000000000000000000");
 
 // Related to calculation of commissions
 export const THREE = new BN("3");

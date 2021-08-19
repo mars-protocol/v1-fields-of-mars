@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
-import { deployAstroportPair, deployAstroportToken } from "./fixture";
+import { deployAstroport } from "./fixture";
 import {
   queryNativeTokenBalance,
   queryTokenBalance,
@@ -27,35 +27,14 @@ let astroportLpToken: string;
 //----------------------------------------------------------------------------------------
 
 async function setupTest() {
-  let { cw20CodeId, cw20Token } = await deployAstroportToken(
+  let astroportToken: string;
+  ({ astroportToken, astroportPair, astroportLpToken } = await deployAstroport(
     terra,
     deployer,
-    "Mock Bonded Luna",
-    "bLUNA"
-  );
-  bLunaToken = cw20Token;
-
-  // Note: assets[0] = bLuna, assets[1] = Luna
-  ({ astroportPair, astroportLpToken } = await deployAstroportPair(
-    terra,
-    deployer,
-    {
-      asset_infos: [
-        {
-          token: {
-            contract_addr: bLunaToken,
-          },
-        },
-        {
-          native_token: {
-            denom: "uluna",
-          },
-        },
-      ],
-      token_code_id: cw20CodeId,
-    },
-    true // deploy stable pair
+    true, // stable = true
+    "uluna" // nativeAsset
   ));
+  bLunaToken = astroportToken;
 
   process.stdout.write("Fund user1 with bLUNA... ");
 

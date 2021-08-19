@@ -145,7 +145,7 @@ if (!process.env.MNEMONIC) {
   // Deploy the contract
   process.stdout.write("Instantiating Martian Field... ");
 
-  const initMsg = {
+  const instantiateMsg = {
     long_asset: {
       token: {
         contract_addr:
@@ -198,7 +198,7 @@ if (!process.env.MNEMONIC) {
     deployer, // deployer
     deployer, // admin
     argv["code-id"],
-    initMsg
+    instantiateMsg
   );
 
   console.log(
@@ -206,5 +206,5 @@ if (!process.env.MNEMONIC) {
     `${chalk.blue("contractAddress")}=${result.logs[0].events[0].attributes[3].value}\n`
   );
 
-  console.log("InitMsg =", initMsg, "\n");
+  console.log("instantiateMsg =", instantiateMsg, "\n");
 })();

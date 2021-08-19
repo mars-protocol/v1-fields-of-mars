@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
-import { deployAstroportPair, deployAstroportToken } from "./fixture";
+import { deployAstroport } from "./fixture";
 import {
   queryNativeTokenBalance,
   queryTokenBalance,
@@ -27,26 +27,18 @@ let astroportLpToken: string;
 //----------------------------------------------------------------------------------------
 
 async function setupTest() {
-  let { cw20CodeId, cw20Token } = await deployAstroportToken(
+  let astroportToken: string;
+  ({ astroportToken, astroportPair, astroportLpToken } = await deployAstroport(
     terra,
     deployer,
-    "Mock Mirror Token",
-    "MIR"
-  );
-  mirrorToken = cw20Token;
-
-  ({ astroportPair, astroportLpToken } = await deployAstroportPair(terra, deployer, {
-    asset_infos: [
-      { native_token: { denom: "uusd" } },
-      { token: { contract_addr: cw20Token } },
-    ],
-    token_code_id: cw20CodeId,
-  }));
+    false
+  ));
+  mirrorToken = astroportToken;
 
   process.stdout.write("Fund user1 with MIR... ");
 
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, cw20Token, {
+    new MsgExecuteContract(deployer.key.accAddress, mirrorToken, {
       mint: {
         recipient: user1.key.accAddress,
         amount: "10000000000",
@@ -56,10 +48,10 @@ async function setupTest() {
 
   console.log(chalk.green("Done!"));
 
-  process.stdout.write("Fund user1 with MIR... ");
+  process.stdout.write("Fund user2 with MIR... ");
 
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, cw20Token, {
+    new MsgExecuteContract(deployer.key.accAddress, mirrorToken, {
       mint: {
         recipient: user2.key.accAddress,
         amount: "10000000000",
