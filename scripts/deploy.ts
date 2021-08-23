@@ -41,7 +41,7 @@ const BOMBAY_CONTRACTS = {
     astroportLpToken: "terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j",
   },
   mars: {
-    redBank: "terra1knxh6cd43jswu3ahyx2cd9mzchynmpcqzpa65x",
+    redBank: "", // deploy with empty string first, edit this later
   },
 };
 
@@ -79,7 +79,7 @@ let terra: LCDClient;
 let contracts: { [key: string]: { [key: string]: string } };
 
 if (!["columbus", "bombay"].includes(argv.network)) {
-  console.log(chalk.red("Error!"), "Invalid network: must be 'columbus' or 'bombay'");
+  console.log(chalk.red("Error!"), "invalid network: must be 'columbus' or 'bombay'");
   process.exit(0);
 } else {
   terra =
@@ -90,25 +90,25 @@ if (!["columbus", "bombay"].includes(argv.network)) {
         })
       : new LCDClient({
           URL: "https://bombay-lcd.terra.dev",
-          chainID: "bombay-0008",
+          chainID: "bombay-10",
         });
 
   contracts = argv.network == "columbus" ? COLUMBUS_CONTRACTS : BOMBAY_CONTRACTS;
 
-  console.log(`\nNetwork  : ${chalk.cyan(argv.network)}`);
+  console.log(`\nnetwork  : ${chalk.cyan(argv.network)}`);
 }
 
 if (!["anchor", "mirror"].includes(argv.strategy)) {
   console.log(chalk.red("Error!"), "Invalid strategy: must be 'anchor' or 'mirror'");
   process.exit(0);
 } else {
-  console.log(`Strategy : ${chalk.cyan(argv.strategy)}`);
+  console.log(`strategy : ${chalk.cyan(argv.strategy)}`);
 }
 
 if (argv["code-id"] == 0) {
-  console.log(`Code ID  : ${chalk.yellow("unspecified")}`);
+  console.log(`code     : ${chalk.yellow("unspecified")}`);
 } else {
-  console.log(`Code     : ${chalk.cyan(argv["code-id"])}`);
+  console.log(`code     : ${chalk.cyan(argv["code-id"])}`);
 }
 
 if (!process.env.MNEMONIC) {
@@ -120,14 +120,16 @@ if (!process.env.MNEMONIC) {
       mnemonic: process.env.MNEMONIC,
     })
   );
-  console.log(`Deployer : ${chalk.cyan(deployer.key.accAddress)}\n`);
+  console.log(`deployer : ${chalk.cyan(deployer.key.accAddress)}\n`);
 }
 
 //----------------------------------------------------------------------------------------
 // Deploy Martian Field
 //----------------------------------------------------------------------------------------
 
-(async () => {
+console.log("about to deploy to Kovan; press any key to continue, CTRL+C to abort...");
+
+process.stdin.once("data", async function () {
   // If CODE_ID is not provided, we upload the code first
   if (!argv["code-id"]) {
     process.stdout.write("Uploading contract code... ");
@@ -143,7 +145,7 @@ if (!process.env.MNEMONIC) {
   }
 
   // Deploy the contract
-  process.stdout.write("Instantiating Martian Field... ");
+  process.stdout.write("instantiating Martian Field... ");
 
   const instantiateMsg = {
     long_asset: {
@@ -207,4 +209,5 @@ if (!process.env.MNEMONIC) {
   );
 
   console.log("instantiateMsg =", instantiateMsg, "\n");
-})();
+  process.exit(0);
+});
