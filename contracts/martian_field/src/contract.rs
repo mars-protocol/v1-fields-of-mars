@@ -64,11 +64,11 @@ pub fn execute(
         ExecuteMsg::UpdateConfig {
             new_config,
         } => update_config(deps, env, info, new_config),
-        ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
+        ExecuteMsg::Callback(msg) => _execute_callback(deps, env, info, msg),
     }
 }
 
-fn _handle_callback(
+fn _execute_callback(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -135,11 +135,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Err(StdError::generic_err("unimplemented"))
+    Ok(Response::new()) // do nothing
 }
 
 //----------------------------------------------------------------------------------------
-// Handle Functions
+// Execute Functions
 //----------------------------------------------------------------------------------------
 
 fn increase_position(
@@ -628,10 +628,11 @@ fn _bond(deps: DepsMut, env: Env, user: Addr) -> StdResult<Response> {
     // Total amount of bonded shares the contract currently has
     // If staking contract is available, we query the staking contract
     // Otherwise, the "bonded" amount is simply the AMM LP token held by the contract
+    // minus what we're attempting to bond this time
     let total_bond = if let Some(staking) = &config.staking {
         staking.query_bond(&deps.querier, &env.contract.address)?
     } else {
-        config.swap.query_share(&deps.querier, &env.contract.address)?
+        config.swap.query_share(&deps.querier, &env.contract.address)? - bond_amount
     };
 
     // Calculate how many bond units the user should be accredited
