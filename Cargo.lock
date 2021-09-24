@@ -3,12 +3,6 @@
 version = 3
 
 [[package]]
-name = "autocfg"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
-
-[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -272,10 +266,8 @@ dependencies = [
 name = "field-of-mars"
 version = "0.4.1"
 dependencies = [
- "cosmwasm-bignumber",
  "cosmwasm-std",
  "cw20",
- "integer-sqrt",
  "schemars",
  "serde",
  "terra-cosmwasm",
@@ -338,15 +330,6 @@ checksum = "2a2a2320eb7ec0ebe8da8f744d7812d9fc4cb4d09344ac01898dbcb6a20ae69b"
 dependencies = [
  "crypto-mac",
  "digest",
-]
-
-[[package]]
-name = "integer-sqrt"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "276ec31bcb4a9ee45f58bec6f9ec700ae4cf4f4f8f2fa7e06cb406bd5ffdd770"
-dependencies = [
- "num-traits",
 ]
 
 [[package]]
@@ -423,12 +406,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "num-traits"
-version = "0.2.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a64b1ec5cda2586e284722486d802acf1f7dbdc623e2bfc57e65ca1cd099290"
+name = "mock-oracle"
+version = "0.4.1"
 dependencies = [
- "autocfg",
+ "cosmwasm-bignumber",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "field-of-mars",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
 ]
 
 [[package]]

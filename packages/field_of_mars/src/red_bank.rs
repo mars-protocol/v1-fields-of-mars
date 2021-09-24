@@ -1,130 +1,44 @@
-use cosmwasm_bignumber::Uint256;
 use cosmwasm_std::{
-    to_binary, Addr, Coin, CosmosMsg, QuerierWrapper, QueryRequest, StdResult, Uint128,
+    to_binary, Addr, Api, Coin, CosmosMsg, QuerierWrapper, QueryRequest, StdResult, Uint128,
     WasmMsg, WasmQuery,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::asset::{Asset, AssetInfo};
 
-//----------------------------------------------------------------------------------------
-// Message Types
-//----------------------------------------------------------------------------------------
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MockInstantiateMsg {}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ExecuteMsg {
-    Receive(Cw20ReceiveMsg),
-    Borrow {
-        asset: RedBankAsset,
-        amount: Uint256,
-    },
-    RepayNative {
-        denom: String,
-    },
-    /// @notice Forcibly resets a user's debt amount. Used in tests to simulate the accrual
-    /// of debts. The actual Red Bank doesn't have this message type
-    SetDebt {
-        user: String,
-        denom: String,
-        amount: Uint256,
-    },
+pub struct RedBankBase<T> {
+    pub contract_addr: T,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ReceiveMsg {
-    RepayCw20 {},
-}
+pub type RedBankUnchecked = RedBankBase<String>;
+pub type RedBank = RedBankBase<Addr>;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum QueryMsg {
-    Debt {
-        address: String,
-    },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct DebtResponse {
-    pub debts: Vec<DebtInfo>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct DebtInfo {
-    pub denom: String,
-    pub amount: Uint256,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum RedBankAsset {
-    Cw20 {
-        contract_addr: String,
-    },
-    Native {
-        denom: String,
-    },
-}
-
-impl From<Asset> for RedBankAsset {
-    fn from(asset: Asset) -> Self {
-        Self::from(&asset)
-    }
-}
-
-impl From<&Asset> for RedBankAsset {
-    fn from(asset: &Asset) -> Self {
-        Self::from(&asset.info)
-    }
-}
-
-impl From<AssetInfo> for RedBankAsset {
-    fn from(info: AssetInfo) -> Self {
-        Self::from(&info)
-    }
-}
-
-impl From<&AssetInfo> for RedBankAsset {
-    fn from(info: &AssetInfo) -> Self {
-        match info {
-            AssetInfo::Token {
-                contract_addr,
-            } => Self::Cw20 {
-                contract_addr: contract_addr.clone(),
-            },
-            AssetInfo::NativeToken {
-                denom,
-            } => Self::Native {
-                denom: denom.clone(),
-            },
+impl From<RedBank> for RedBankUnchecked {
+    fn from(red_bank: RedBank) -> Self {
+        RedBankUnchecked {
+            contract_addr: red_bank.contract_addr.to_string(),
         }
     }
 }
 
-//----------------------------------------------------------------------------------------
-// Adapter
-//----------------------------------------------------------------------------------------
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct RedBank {
-    /// Address of Mars liquidity pool
-    pub contract_addr: String,
-}
-
 impl RedBank {
-    /// @notice Generate message for borrowing a specified amount of asset
+    pub fn from_unchecked(api: &dyn Api, red_bank_unchecked: RedBankUnchecked) -> StdResult<Self> {
+        Ok(RedBank {
+            contract_addr: api.addr_validate(&red_bank_unchecked.contract_addr)?,
+        })
+    }
+
+    /// Generate message for borrowing a specified amount of asset
     pub fn borrow_msg(&self, asset: &Asset) -> StdResult<CosmosMsg> {
         Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: self.contract_addr.clone(),
-            msg: to_binary(&ExecuteMsg::Borrow {
-                asset: RedBankAsset::from(asset),
-                amount: Uint256::from(asset.amount),
+            contract_addr: self.contract_addr.to_string(),
+            msg: to_binary(&msg::ExecuteMsg::Borrow {
+                asset: (&asset.info).into(), // Convert Astroport Asset to Red Bank Asset
+                amount: asset.amount,
             })?,
             funds: vec![],
         }))
@@ -134,22 +48,18 @@ impl RedBank {
     /// @dev Note: we do not deduct tax here
     pub fn repay_msg(&self, asset: &Asset) -> StdResult<CosmosMsg> {
         match &asset.info {
-            AssetInfo::Token {
-                contract_addr,
-            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: contract_addr.clone(),
+            AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: contract_addr.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: self.contract_addr.clone(),
+                    contract: self.contract_addr.to_string(),
                     amount: asset.amount,
-                    msg: to_binary(&ReceiveMsg::RepayCw20 {})?,
+                    msg: to_binary(&msg::ReceiveMsg::RepayCw20 {})?,
                 })?,
             })),
-            AssetInfo::NativeToken {
-                denom,
-            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: self.contract_addr.clone(),
-                msg: to_binary(&ExecuteMsg::RepayNative {
+            AssetInfo::NativeToken { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: self.contract_addr.to_string(),
+                msg: to_binary(&msg::ExecuteMsg::RepayNative {
                     denom: denom.clone(),
                 })?,
                 funds: vec![Coin {
@@ -160,28 +70,100 @@ impl RedBank {
         }
     }
 
-    /// @notice Query the amount of debt a borrower owes to Red Bank
     pub fn query_debt(
         &self,
         querier: &QuerierWrapper,
         borrower: &Addr,
         info: &AssetInfo,
     ) -> StdResult<Uint128> {
-        let response: DebtResponse =
-            querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: self.contract_addr.clone(),
-                msg: to_binary(&QueryMsg::Debt {
-                    address: String::from(borrower),
-                })?,
-            }))?;
+        let response: msg::DebtResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: self.contract_addr.to_string(),
+            msg: to_binary(&msg::QueryMsg::Debt {
+                address: String::from(borrower),
+            })?,
+        }))?;
 
-        match response
+        let amount = match response
             .debts
             .iter()
-            .find(|debt| debt.denom == info.query_denom(querier).unwrap())
+            .find(|debt| debt.denom == info.get_label())
         {
-            Some(debt) => Ok(debt.amount.into()),
-            None => Ok(Uint128::zero()),
+            Some(debt) => debt.amount,
+            None => Uint128::zero(),
+        };
+
+        Ok(amount)
+    }
+}
+
+pub mod msg {
+    use super::*;
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct MockInstantiateMsg {}
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    #[serde(rename_all = "snake_case")]
+    pub enum ExecuteMsg {
+        Receive(Cw20ReceiveMsg),
+        Borrow {
+            asset: RedBankAsset,
+            amount: Uint128,
+        },
+        RepayNative {
+            denom: String,
+        },
+        /// NOTE: Only used in mock contract! Not present in actual Red Bank contract
+        /// Forcibly set a user's debt amount. Used in tests to simulate the accrual of debts
+        MockSetDebt {
+            user: String,
+            denom: String,
+            amount: Uint128,
+        },
+    }
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    #[serde(rename_all = "snake_case")]
+    pub enum ReceiveMsg {
+        RepayCw20 {},
+    }
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    #[serde(rename_all = "snake_case")]
+    pub enum QueryMsg {
+        Debt { address: String },
+    }
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct DebtResponse {
+        pub debts: Vec<DebtInfo>,
+    }
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct DebtInfo {
+        pub denom: String,
+        pub amount: Uint128,
+    }
+
+    /// @dev Mars uses a different `Asset` type from that used by TerraSwap & Astroport
+    /// We implement methods to allow easy conversion between these two
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    #[serde(rename_all = "snake_case")]
+    pub enum RedBankAsset {
+        Cw20 { contract_addr: String },
+        Native { denom: String },
+    }
+
+    impl From<&AssetInfo> for RedBankAsset {
+        fn from(info: &AssetInfo) -> Self {
+            match info {
+                AssetInfo::Token { contract_addr } => Self::Cw20 {
+                    contract_addr: contract_addr.to_string(),
+                },
+                AssetInfo::NativeToken { denom } => Self::Native {
+                    denom: denom.clone(),
+                },
+            }
         }
     }
 }
