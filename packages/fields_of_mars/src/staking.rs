@@ -196,12 +196,6 @@ pub mod anchor_msg {
     use super::*;
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct MockInstantiateMsg {
-        pub anchor_token: String,
-        pub staking_token: String,
-    }
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum ExecuteMsg {
         Receive(Cw20ReceiveMsg),
@@ -232,15 +226,18 @@ pub mod anchor_msg {
     }
 }
 
-pub mod mirror_msg {
+pub mod anchor_mock_msg {
     use super::*;
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct MockInstantiateMsg {
-        pub mirror_token: String,
-        pub asset_token: String,
+    pub struct InstantiateMsg {
+        pub anchor_token: String,
         pub staking_token: String,
     }
+}
+
+pub mod mirror_msg {
+    use super::*;
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
@@ -282,5 +279,16 @@ pub mod mirror_msg {
         pub bond_amount: Uint128,
         pub pending_reward: Uint128,
         pub is_short: bool,
+    }
+}
+
+pub mod mirror_mock_msg {
+    use super::*;
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct MockInstantiateMsg {
+        pub mirror_token: String,
+        pub asset_token: String,
+        pub staking_token: String,
     }
 }

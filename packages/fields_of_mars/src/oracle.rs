@@ -75,3 +75,13 @@ pub mod msg {
         pub last_updated: u64,
     }
 }
+
+pub mod mock_msg {
+    use super::*;
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct InstantiateMsg {
+        pub token_address: String,
+        pub pair_address: String,
+    }
+}

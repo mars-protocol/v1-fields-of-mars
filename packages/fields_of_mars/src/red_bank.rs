@@ -100,9 +100,6 @@ pub mod msg {
     use super::*;
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct MockInstantiateMsg {}
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum ExecuteMsg {
         Receive(Cw20ReceiveMsg),
@@ -112,13 +109,6 @@ pub mod msg {
         },
         RepayNative {
             denom: String,
-        },
-        /// NOTE: Only used in mock contract! Not present in actual Red Bank contract
-        /// Forcibly set a user's debt amount. Used in tests to simulate the accrual of debts
-        MockSetDebt {
-            user: String,
-            denom: String,
-            amount: Uint128,
         },
     }
 
@@ -165,5 +155,32 @@ pub mod msg {
                 },
             }
         }
+    }
+}
+
+pub mod mock_msg {
+    use super::*;
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct InstantiateMsg {}
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    #[serde(rename_all = "snake_case")]
+    pub enum ExecuteMsg {
+        Receive(Cw20ReceiveMsg),
+        Borrow {
+            asset: RedBankAsset,
+            amount: Uint128,
+        },
+        RepayNative {
+            denom: String,
+        },
+        /// NOTE: Only used in mock contract! Not present in actual Red Bank contract
+        /// Forcibly set a user's debt amount. Used in tests to simulate the accrual of debts
+        SetDebt {
+            user: String,
+            denom: String,
+            amount: Uint128,
+        },
     }
 }
