@@ -9,6 +9,8 @@ repository = "https://github.com/mars-protocol/field-of-mars"
 [dependencies]
 cosmwasm-std = "0.16"
 cw20 = "0.8"
+
+terra-cosmwasm = "2.1.0"
+
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-terra-cosmwasm = "2.1.0"
