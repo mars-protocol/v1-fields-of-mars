@@ -51,7 +51,9 @@ impl StakingConfigUnchecked {
 pub enum StakingBase<T> {
     /// Anchor staking contract, or those forked from it, e.g. Pylon
     Anchor(T),
-    /// Mars staking contract, a fork of Anchor staking but uses timestamp instead of block height
+    /// Mars staking contract, a fork of Anchor staking but
+    /// 1) uses `cosmwasm_bignumber::Uint256` instead of `cosmwasm_std::Uint128`
+    /// 2) uses timestamp instead of block height
     Mars(T),
     /// Mirror V2 staking contract
     Mirror(T),
