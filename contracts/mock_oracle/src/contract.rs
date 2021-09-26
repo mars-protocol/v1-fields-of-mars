@@ -10,6 +10,8 @@ use fields_of_mars::pool::msg::{QueryMsg as AstroportQueryMsg, SimulationRespons
 
 use crate::state::{Config, CONFIG};
 
+// INIT
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -27,6 +29,8 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
+// EXECUTE
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     _deps: DepsMut,
@@ -34,8 +38,11 @@ pub fn execute(
     _info: MessageInfo,
     _msg: ExecuteMsg,
 ) -> StdResult<Response> {
+    // Do nothing
     Ok(Response::default())
 }
+
+// QUERIES
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
