@@ -7,32 +7,32 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::asset::{AssetChecked, AssetInfoChecked};
+use crate::adapters::{Asset, AssetInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Pool<T> {
-    /// Address of the Astroport pair contract
-    pub pair: T,
+pub struct PairBase<T> {
+    /// Address of the Astroport contract_addr contract
+    pub contract_addr: T,
     /// Address of the Astroport LP token
     pub share_token: T,
 }
 
-pub type PoolUnchecked = Pool<String>;
-pub type PoolChecked = Pool<Addr>;
+pub type PairUnchecked = PairBase<String>;
+pub type Pair = PairBase<Addr>;
 
-impl From<PoolChecked> for PoolUnchecked {
-    fn from(checked: PoolChecked) -> Self {
-        PoolUnchecked {
-            pair: checked.pair.to_string(),
+impl From<Pair> for PairUnchecked {
+    fn from(checked: Pair) -> Self {
+        PairUnchecked {
+            contract_addr: checked.contract_addr.to_string(),
             share_token: checked.share_token.to_string(),
         }
     }
 }
 
-impl PoolUnchecked {
-    pub fn check(&self, api: &dyn Api) -> StdResult<PoolChecked> {
-        let checked = PoolChecked {
-            pair: api.addr_validate(&self.pair)?,
+impl PairUnchecked {
+    pub fn check(&self, api: &dyn Api) -> StdResult<Pair> {
+        let checked = Pair {
+            contract_addr: api.addr_validate(&self.contract_addr)?,
             share_token: api.addr_validate(&self.share_token)?,
         };
 
@@ -40,27 +40,27 @@ impl PoolUnchecked {
     }
 }
 
-impl PoolChecked {
+impl Pair {
     /// Generate messages for providing specified assets
     /// NOTE: For now, we don't specify a slippage tolerance
-    pub fn provide_msgs(&self, assets: &[AssetChecked; 2]) -> StdResult<Vec<CosmosMsg>> {
+    pub fn provide_msgs(&self, assets: &[Asset; 2]) -> StdResult<Vec<CosmosMsg>> {
         let mut messages: Vec<CosmosMsg> = vec![];
         let mut funds: Vec<Coin> = vec![];
 
         for asset in assets.iter() {
             match &asset.info {
-                AssetInfoChecked::Token { contract_addr } => {
+                AssetInfo::Cw20 { contract_addr } => {
                     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                         contract_addr: contract_addr.to_string(),
                         msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                            spender: self.pair.to_string(),
+                            spender: self.contract_addr.to_string(),
                             amount: asset.amount,
                             expires: None,
                         })?,
                         funds: vec![],
                     }))
                 }
-                AssetInfoChecked::NativeToken { denom } => funds.push(Coin {
+                AssetInfo::Native { denom } => funds.push(Coin {
                     denom: denom.clone(),
                     amount: asset.amount,
                 }),
@@ -68,9 +68,9 @@ impl PoolChecked {
         }
 
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: self.pair.to_string(),
-            msg: to_binary(&msg::HandleMsg::ProvideLiquidity {
-                assets: [assets[0].clone(), assets[1].clone()],
+            contract_addr: self.contract_addr.to_string(),
+            msg: to_binary(&msg::ExecuteMsg::ProvideLiquidity {
+                assets: [(&assets[0]).into(), (&assets[1]).into()],
                 slippage_tolerance: None, // to be added in a future version
             })?,
             funds,
@@ -84,7 +84,7 @@ impl PoolChecked {
         Ok(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.share_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: self.pair.to_string(),
+                contract: self.contract_addr.to_string(),
                 amount: shares,
                 msg: to_binary(&msg::Cw20HookMsg::WithdrawLiquidity {})?,
             })?,
@@ -94,12 +94,12 @@ impl PoolChecked {
 
     /// @notice Generate msg for swapping specified asset
     /// NOTE: For now, we don't specify a slippage tolerance
-    pub fn swap_msg(&self, asset: &AssetChecked) -> StdResult<CosmosMsg> {
+    pub fn swap_msg(&self, asset: &Asset) -> StdResult<CosmosMsg> {
         match &asset.info {
-            AssetInfoChecked::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfo::Cw20 { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: self.pair.to_string(),
+                    contract: self.contract_addr.to_string(),
                     amount: asset.amount,
                     msg: to_binary(&msg::Cw20HookMsg::Swap {
                         belief_price: None,
@@ -110,10 +110,10 @@ impl PoolChecked {
                 funds: vec![],
             })),
 
-            AssetInfoChecked::NativeToken { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: self.pair.to_string(),
-                msg: to_binary(&msg::HandleMsg::Swap {
-                    offer_asset: asset.clone(),
+            AssetInfo::Native { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: self.contract_addr.to_string(),
+                msg: to_binary(&msg::ExecuteMsg::Swap {
+                    offer_asset: asset.into(),
                     belief_price: None,
                     max_spread: None,
                     to: None,
@@ -126,41 +126,45 @@ impl PoolChecked {
         }
     }
 
+    /// Query the Astroport pool, parse response, and return the following 3-tuple:
+    /// 1. depth of the primary asset
+    /// 2. depth of the secondary asset
+    /// 3. total supply of the share token
     pub fn query_pool(
         &self,
         querier: &QuerierWrapper,
-        primary_asset_info: &AssetInfoChecked,
-        secondary_asset_info: &AssetInfoChecked,
-    ) -> StdResult<msg::PoolResponseParsed> {
-        let response: msg::PoolResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: self.pair.to_string(),
-            msg: to_binary(&msg::QueryMsg::Pool {})?,
+        primary_asset_info: &AssetInfo,
+        secondary_asset_info: &AssetInfo,
+    ) -> StdResult<(Uint128, Uint128, Uint128)> {
+        let response: msg::PairResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: self.contract_addr.to_string(),
+            msg: to_binary(&msg::QueryMsg::PairBase {})?,
         }))?;
 
         let primary_asset_depth = response
             .assets
             .iter()
-            .find(|asset| &asset.info == primary_asset_info)
+            .find(|asset| asset.info == primary_asset_info)
             .ok_or_else(|| StdError::generic_err("Cannot find primary asset in pool response"))?
             .amount;
 
         let secondary_asset_depth = response
             .assets
             .iter()
-            .find(|asset| &asset.info == secondary_asset_info)
+            .find(|asset| asset.info == secondary_asset_info)
             .ok_or_else(|| StdError::generic_err("Cannot find secondary asset in pool response"))?
             .amount;
 
-        Ok(msg::PoolResponseParsed {
+        Ok((
             primary_asset_depth,
             secondary_asset_depth,
-            share_token_supply: response.total_share,
-        })
+            response.total_share,
+        ))
     }
 
     /// @notice Query an account's balance of the pool's share token
     pub fn query_share(&self, querier: &QuerierWrapper, account: &Addr) -> StdResult<Uint128> {
-        let share_token = AssetInfoChecked::Token {
+        let share_token = AssetInfo::Cw20 {
             contract_addr: self.share_token.clone(),
         };
 
@@ -168,19 +172,96 @@ impl PoolChecked {
     }
 }
 
-pub mod msg {
+// Astroport's implementation of AssetInfo and Asset are different from that used by Fields of Mars
+// We need to implement methods for conversion and comparison between the two
+pub mod asset {
     use super::*;
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
-    pub enum HandleMsg {
+    pub enum AstroportAssetInfo {
+        Token { contract_addr: Addr },
+        NativeToken { denom: String },
+    }
+
+    impl From<AssetInfo> for AstroportAssetInfo {
+        fn from(asset_info: AssetInfo) -> Self {
+            (&asset_info).into()
+        }
+    }
+
+    impl From<&AssetInfo> for AstroportAssetInfo {
+        fn from(asset_info: &AssetInfo) -> Self {
+            match &asset_info {
+                AssetInfo::Cw20 { contract_addr } => AstroportAssetInfo::Token {
+                    contract_addr: contract_addr.clone(),
+                },
+                AssetInfo::Native { denom } => AstroportAssetInfo::NativeToken {
+                    denom: denom.clone(),
+                },
+            }
+        }
+    }
+
+    impl PartialEq<&AssetInfo> for AstroportAssetInfo {
+        fn eq(&self, other: &&AssetInfo) -> bool {
+            match self {
+                Self::Token { contract_addr } => {
+                    let self_contract_addr = contract_addr;
+                    if let AssetInfo::Cw20 { contract_addr } = other {
+                        self_contract_addr == contract_addr
+                    } else {
+                        false
+                    }
+                }
+                Self::NativeToken { denom } => {
+                    let self_denom = denom;
+                    if let AssetInfo::Native { denom } = other {
+                        self_denom == denom
+                    } else {
+                        false
+                    }
+                }
+            }
+        }
+    }
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct AstroportAsset {
+        pub info: AstroportAssetInfo,
+        pub amount: Uint128,
+    }
+
+    impl From<Asset> for AstroportAsset {
+        fn from(asset: Asset) -> Self {
+            (&asset).into()
+        }
+    }
+
+    impl From<&Asset> for AstroportAsset {
+        fn from(asset: &Asset) -> Self {
+            AstroportAsset {
+                info: (&asset.info).into(),
+                amount: asset.amount,
+            }
+        }
+    }
+}
+
+pub mod msg {
+    use super::asset::AstroportAsset;
+    use super::*;
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    #[serde(rename_all = "snake_case")]
+    pub enum ExecuteMsg {
         Receive(Cw20ReceiveMsg),
         ProvideLiquidity {
-            assets: [AssetChecked; 2],
+            assets: [AstroportAsset; 2],
             slippage_tolerance: Option<Decimal>,
         },
         Swap {
-            offer_asset: AssetChecked,
+            offer_asset: AstroportAsset,
             belief_price: Option<Decimal>,
             max_spread: Option<Decimal>,
             to: Option<String>,
@@ -201,13 +282,13 @@ pub mod msg {
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum QueryMsg {
-        Pool {},
-        Simulation { offer_asset: AssetChecked },
+        PairBase {},
+        Simulation { offer_asset: AstroportAsset },
     }
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct PoolResponse {
-        pub assets: [AssetChecked; 2],
+    pub struct PairResponse {
+        pub assets: [AstroportAsset; 2],
         pub total_share: Uint128,
     }
 
@@ -216,16 +297,5 @@ pub mod msg {
         pub return_amount: Uint128,
         pub spread_amount: Uint128,
         pub commission_amount: Uint128,
-    }
-
-    /// This message type is not part of Astroport
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct PoolResponseParsed {
-        /// Amount of primary asset in the pool
-        pub primary_asset_depth: Uint128,
-        /// Amount of secondary asset in the pool
-        pub secondary_asset_depth: Uint128,
-        /// Total supply of the LP token
-        pub share_token_supply: Uint128,
     }
 }

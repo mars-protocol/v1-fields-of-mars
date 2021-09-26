@@ -5,18 +5,18 @@ use cosmwasm_std::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::asset::{AssetInfoChecked, AssetInfoUnchecked};
+use crate::adapters::{AssetInfo, AssetInfoUnchecked};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Oracle<T> {
+pub struct OracleBase<T> {
     pub contract_addr: T,
 }
 
-pub type OracleUnchecked = Oracle<String>;
-pub type OracleChecked = Oracle<Addr>;
+pub type OracleUnchecked = OracleBase<String>;
+pub type Oracle = OracleBase<Addr>;
 
-impl From<OracleChecked> for OracleUnchecked {
-    fn from(checked: OracleChecked) -> Self {
+impl From<Oracle> for OracleUnchecked {
+    fn from(checked: Oracle) -> Self {
         OracleUnchecked {
             contract_addr: checked.contract_addr.to_string(),
         }
@@ -24,8 +24,8 @@ impl From<OracleChecked> for OracleUnchecked {
 }
 
 impl OracleUnchecked {
-    pub fn check(&self, api: &dyn Api) -> StdResult<OracleChecked> {
-        let checked = OracleChecked {
+    pub fn check(&self, api: &dyn Api) -> StdResult<Oracle> {
+        let checked = Oracle {
             contract_addr: api.addr_validate(&self.contract_addr)?,
         };
 
@@ -33,13 +33,13 @@ impl OracleUnchecked {
     }
 }
 
-impl OracleChecked {
+impl Oracle {
     /// NOTE: For now, we don't check whether the price data is too old by verifying `last_updated`.
     /// We might want to do this in a future version
     pub fn query_price(
         &self,
         querier: &QuerierWrapper,
-        asset_info: &AssetInfoChecked,
+        asset_info: &AssetInfo,
     ) -> StdResult<Decimal> {
         let response: msg::AssetPriceResponse =
             querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -55,7 +55,7 @@ impl OracleChecked {
     pub fn query_prices(
         &self,
         querier: &QuerierWrapper,
-        asset_infos: &[AssetInfoChecked],
+        asset_infos: &[AssetInfo],
     ) -> StdResult<Vec<Decimal>> {
         Ok(asset_infos
             .iter()
@@ -85,13 +85,12 @@ pub mod mock_msg {
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
-    pub enum PriceSource<T> {
+    pub enum PriceSourceBase<T> {
         Fixed { price: Decimal },
         AstroportSpot { pair_address: T, asset_address: T },
     }
 
-    pub type PriceSourceUnchecked = PriceSource<String>;
-    pub type PriceSourceChecked = PriceSource<Addr>;
+    pub type PriceSourceUnchecked = PriceSourceBase<String>;
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct InstantiateMsg {}

@@ -7,18 +7,18 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::asset::{AssetChecked, AssetInfoChecked};
+use crate::adapters::{Asset, AssetInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct RedBank<T> {
+pub struct RedBankBase<T> {
     pub contract_addr: T,
 }
 
-pub type RedBankUnchecked = RedBank<String>;
-pub type RedBankChecked = RedBank<Addr>;
+pub type RedBankUnchecked = RedBankBase<String>;
+pub type RedBank = RedBankBase<Addr>;
 
-impl From<RedBankChecked> for RedBankUnchecked {
-    fn from(checked: RedBankChecked) -> Self {
+impl From<RedBank> for RedBankUnchecked {
+    fn from(checked: RedBank) -> Self {
         RedBankUnchecked {
             contract_addr: checked.contract_addr.to_string(),
         }
@@ -26,8 +26,8 @@ impl From<RedBankChecked> for RedBankUnchecked {
 }
 
 impl RedBankUnchecked {
-    pub fn check(&self, api: &dyn Api) -> StdResult<RedBankChecked> {
-        let checked = RedBankChecked {
+    pub fn check(&self, api: &dyn Api) -> StdResult<RedBank> {
+        let checked = RedBank {
             contract_addr: api.addr_validate(&self.contract_addr)?,
         };
 
@@ -35,13 +35,13 @@ impl RedBankUnchecked {
     }
 }
 
-impl RedBankChecked {
+impl RedBank {
     /// Generate message for borrowing a specified amount of asset
-    pub fn borrow_msg(&self, asset: &AssetChecked) -> StdResult<CosmosMsg> {
+    pub fn borrow_msg(&self, asset: &Asset) -> StdResult<CosmosMsg> {
         Ok(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.contract_addr.to_string(),
             msg: to_binary(&msg::ExecuteMsg::Borrow {
-                asset: (&asset.info).into(), // Convert Astroport Asset to Red Bank Asset
+                asset: asset.info.clone(),
                 amount: asset.amount,
             })?,
             funds: vec![],
@@ -50,9 +50,9 @@ impl RedBankChecked {
 
     /// @notice Generate message for repaying a specified amount of asset
     /// @dev Note: we do not deduct tax here
-    pub fn repay_msg(&self, asset: &AssetChecked) -> StdResult<CosmosMsg> {
+    pub fn repay_msg(&self, asset: &Asset) -> StdResult<CosmosMsg> {
         match &asset.info {
-            AssetInfoChecked::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfo::Cw20 { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Send {
@@ -61,7 +61,7 @@ impl RedBankChecked {
                     msg: to_binary(&msg::ReceiveMsg::RepayCw20 {})?,
                 })?,
             })),
-            AssetInfoChecked::NativeToken { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfo::Native { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: self.contract_addr.to_string(),
                 msg: to_binary(&msg::ExecuteMsg::RepayNative {
                     denom: denom.clone(),
@@ -78,7 +78,7 @@ impl RedBankChecked {
         &self,
         querier: &QuerierWrapper,
         user_address: &Addr,
-        asset_info: &AssetInfoChecked,
+        asset_info: &AssetInfo,
     ) -> StdResult<Uint128> {
         let response: msg::DebtResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: self.contract_addr.to_string(),
@@ -105,13 +105,8 @@ pub mod msg {
     #[serde(rename_all = "snake_case")]
     pub enum ExecuteMsg {
         Receive(Cw20ReceiveMsg),
-        Borrow {
-            asset: RedBankAsset,
-            amount: Uint128,
-        },
-        RepayNative {
-            denom: String,
-        },
+        Borrow { asset: AssetInfo, amount: Uint128 },
+        RepayNative { denom: String },
     }
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -136,28 +131,6 @@ pub mod msg {
         pub denom: String,
         pub amount: Uint128,
     }
-
-    /// @dev Mars uses a different `Asset` type from that used by TerraSwap & Astroport
-    /// We implement methods to allow easy conversion between these two
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
-    pub enum RedBankAsset {
-        Cw20 { contract_addr: String },
-        Native { denom: String },
-    }
-
-    impl From<&AssetInfoChecked> for RedBankAsset {
-        fn from(info: &AssetInfoChecked) -> Self {
-            match info {
-                AssetInfoChecked::Token { contract_addr } => Self::Cw20 {
-                    contract_addr: contract_addr.to_string(),
-                },
-                AssetInfoChecked::NativeToken { denom } => Self::Native {
-                    denom: denom.clone(),
-                },
-            }
-        }
-    }
 }
 
 pub mod mock_msg {
@@ -171,7 +144,7 @@ pub mod mock_msg {
     pub enum ExecuteMsg {
         Receive(Cw20ReceiveMsg),
         Borrow {
-            asset: msg::RedBankAsset,
+            asset: AssetInfo,
             amount: Uint128,
         },
         RepayNative {

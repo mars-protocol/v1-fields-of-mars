@@ -13,21 +13,21 @@ static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum AssetInfo<T> {
-    Token { contract_addr: T },
-    NativeToken { denom: String },
+pub enum AssetInfoBase<T> {
+    Cw20 { contract_addr: T },
+    Native { denom: String },
 }
 
-pub type AssetInfoUnchecked = AssetInfo<String>;
-pub type AssetInfoChecked = AssetInfo<Addr>;
+pub type AssetInfoUnchecked = AssetInfoBase<String>;
+pub type AssetInfo = AssetInfoBase<Addr>;
 
-impl From<AssetInfoChecked> for AssetInfoUnchecked {
-    fn from(asset_info: AssetInfoChecked) -> Self {
+impl From<AssetInfo> for AssetInfoUnchecked {
+    fn from(asset_info: AssetInfo) -> Self {
         match &asset_info {
-            AssetInfoChecked::Token { contract_addr } => AssetInfoUnchecked::Token {
+            AssetInfo::Cw20 { contract_addr } => AssetInfoUnchecked::Cw20 {
                 contract_addr: contract_addr.to_string(),
             },
-            AssetInfoChecked::NativeToken { denom } => AssetInfoUnchecked::NativeToken {
+            AssetInfo::Native { denom } => AssetInfoUnchecked::Native {
                 denom: denom.clone(),
             },
         }
@@ -35,12 +35,12 @@ impl From<AssetInfoChecked> for AssetInfoUnchecked {
 }
 
 impl AssetInfoUnchecked {
-    pub fn check(&self, api: &dyn Api) -> StdResult<AssetInfoChecked> {
+    pub fn check(&self, api: &dyn Api) -> StdResult<AssetInfo> {
         let checked = match self {
-            AssetInfoUnchecked::Token { contract_addr } => AssetInfoChecked::Token {
+            AssetInfoUnchecked::Cw20 { contract_addr } => AssetInfo::Cw20 {
                 contract_addr: api.addr_validate(contract_addr)?,
             },
-            AssetInfoUnchecked::NativeToken { denom } => AssetInfoChecked::NativeToken {
+            AssetInfoUnchecked::Native { denom } => AssetInfo::Native {
                 denom: denom.clone(),
             },
         };
@@ -49,14 +49,26 @@ impl AssetInfoUnchecked {
     }
 }
 
-impl AssetInfoChecked {
+impl AssetInfo {
+    pub fn cw20(contract_addr: &Addr) -> Self {
+        Self::Cw20 {
+            contract_addr: contract_addr.clone(),
+        }
+    }
+
+    pub fn native(denom: &dyn ToString) -> Self {
+        Self::Native {
+            denom: denom.to_string(),
+        }
+    }
+
     /// Get the asset's label, which is used in `red_bank::msg::DebtResponse`
     /// For native tokens, it's the denom, e.g. uusd, uluna
     /// For CW20 tokens, it's the contract address
     pub fn get_denom(&self) -> String {
         match self {
-            AssetInfo::Token { contract_addr } => contract_addr.to_string(),
-            AssetInfo::NativeToken { denom } => denom.clone(),
+            AssetInfo::Cw20 { contract_addr } => contract_addr.to_string(),
+            AssetInfo::Native { denom } => denom.clone(),
         }
     }
 
@@ -68,7 +80,7 @@ impl AssetInfoChecked {
     /// @notice Query an account's balance of the specified asset
     pub fn query_balance(&self, querier: &QuerierWrapper, account: &Addr) -> StdResult<Uint128> {
         match self {
-            AssetInfoChecked::Token { contract_addr } => {
+            AssetInfo::Cw20 { contract_addr } => {
                 let response: Cw20BalanceResponse =
                     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                         contract_addr: contract_addr.to_string(),
@@ -78,7 +90,7 @@ impl AssetInfoChecked {
                     }))?;
                 Ok(response.balance)
             }
-            AssetInfoChecked::NativeToken { denom } => {
+            AssetInfo::Native { denom } => {
                 let response: BalanceResponse =
                     querier.query(&QueryRequest::Bank(BankQuery::Balance {
                         address: account.to_string(),
@@ -91,16 +103,16 @@ impl AssetInfoChecked {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Asset<T> {
+pub struct AssetBase<T> {
     pub info: T,
     pub amount: Uint128,
 }
 
-pub type AssetUnchecked = Asset<AssetInfoUnchecked>;
-pub type AssetChecked = Asset<AssetInfoChecked>;
+pub type AssetUnchecked = AssetBase<AssetInfoUnchecked>;
+pub type Asset = AssetBase<AssetInfo>;
 
-impl From<AssetChecked> for AssetUnchecked {
-    fn from(asset: AssetChecked) -> Self {
+impl From<Asset> for AssetUnchecked {
+    fn from(asset: Asset) -> Self {
         AssetUnchecked {
             info: asset.info.into(),
             amount: asset.amount,
@@ -109,8 +121,8 @@ impl From<AssetChecked> for AssetUnchecked {
 }
 
 impl AssetUnchecked {
-    pub fn check(&self, api: &dyn Api) -> StdResult<AssetChecked> {
-        let checked = AssetChecked {
+    pub fn check(&self, api: &dyn Api) -> StdResult<Asset> {
+        let checked = Asset {
             info: self.info.check(api)?,
             amount: self.amount,
         };
@@ -119,15 +131,29 @@ impl AssetUnchecked {
     }
 }
 
-impl AssetChecked {
+impl Asset {
+    pub fn cw20(contract_addr: &Addr, amount: Uint128) -> Self {
+        Asset {
+            info: AssetInfo::cw20(contract_addr),
+            amount,
+        }
+    }
+
+    pub fn native(denom: &dyn ToString, amount: Uint128) -> Self {
+        Asset {
+            info: AssetInfo::native(denom),
+            amount,
+        }
+    }
+
     /// Check if native token of specified amount was sent along a message
     /// Skip if asset if CW20
     pub fn assert_sent_fund(&self, message: &MessageInfo) -> StdResult<()> {
         let denom = match &self.info {
-            AssetInfoChecked::Token { .. } => {
+            AssetInfo::Cw20 { .. } => {
                 return Ok(());
             }
-            AssetInfoChecked::NativeToken { denom } => denom,
+            AssetInfo::Native { denom } => denom,
         };
 
         let sent_amount = match message.funds.iter().find(|fund| &fund.denom == denom) {
@@ -154,7 +180,7 @@ impl AssetChecked {
     /// let msg = asset.deduct_tax(deps.querier)?.transfer_msg(to, amount)?;
     pub fn transfer_msg(&self, to: &Addr) -> StdResult<CosmosMsg> {
         match &self.info {
-            AssetInfoChecked::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfo::Cw20 { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: to.to_string(),
@@ -162,7 +188,7 @@ impl AssetChecked {
                 })?,
                 funds: vec![],
             })),
-            AssetInfoChecked::NativeToken { denom } => Ok(CosmosMsg::Bank(BankMsg::Send {
+            AssetInfo::Native { denom } => Ok(CosmosMsg::Bank(BankMsg::Send {
                 to_address: to.to_string(),
                 amount: vec![Coin {
                     denom: denom.clone(),
@@ -178,7 +204,7 @@ impl AssetChecked {
     /// NOTE: Must have allowance
     pub fn transfer_from_msg(&self, from: &Addr, to: &Addr) -> StdResult<CosmosMsg> {
         match &self.info {
-            AssetInfoChecked::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfo::Cw20 { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
                     owner: from.to_string(),
@@ -187,7 +213,7 @@ impl AssetChecked {
                 })?,
                 funds: vec![],
             })),
-            AssetInfoChecked::NativeToken { .. } => Err(StdError::generic_err(
+            AssetInfo::Native { .. } => Err(StdError::generic_err(
                 "`TransferFrom` does not apply to native tokens",
             )),
         }
@@ -199,8 +225,8 @@ impl AssetChecked {
     /// This is the total amount that will be deducted from the sender's account.
     pub fn add_tax(&self, querier: &QuerierWrapper, amount: Uint128) -> StdResult<Self> {
         let tax = match &self.info {
-            AssetInfoChecked::Token { .. } => Uint128::zero(),
-            AssetInfoChecked::NativeToken { denom } => {
+            AssetInfo::Cw20 { .. } => Uint128::zero(),
+            AssetInfo::Native { denom } => {
                 if denom == "luna" {
                     Uint128::zero()
                 } else {
@@ -212,7 +238,7 @@ impl AssetChecked {
             }
         };
 
-        Ok(AssetChecked {
+        Ok(Asset {
             info: self.info.clone(),
             amount: self.amount + tax,
         })
@@ -224,8 +250,8 @@ impl AssetChecked {
     /// https://github.com/terraswap/terraswap/blob/master/packages/terraswap/src/asset.rs#L58
     pub fn deduct_tax(&self, querier: &QuerierWrapper, amount: Uint128) -> StdResult<Self> {
         let tax = match &self.info {
-            AssetInfoChecked::Token { .. } => Uint128::zero(),
-            AssetInfoChecked::NativeToken { denom } => {
+            AssetInfo::Cw20 { .. } => Uint128::zero(),
+            AssetInfo::Native { denom } => {
                 if denom == "luna" {
                     Uint128::zero()
                 } else {
@@ -243,7 +269,7 @@ impl AssetChecked {
             }
         };
 
-        Ok(AssetChecked {
+        Ok(Asset {
             info: self.info.clone(),
             amount: self.amount - tax, // `tax` is guaranteed to be smaller than `amount` so no need to handle underflow
         })

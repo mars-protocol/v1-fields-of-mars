@@ -8,117 +8,93 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum Staking<T> {
-    /// Anchor staking contract, or those forked from it, e.g. Pylon and Mars
-    Anchor {
-        /// Address of the staking contract
-        contract_addr: T,
-        /// Address of Astroport ANC-UST LP token
-        share_token: T,
-    },
-    /// Mirror V2 staking contract
-    Mirror {
-        /// Address of the staking contract
-        contract_addr: T,
-        /// Address of either MIR or mAsset token; refer to Mirror contract for definition
-        asset_token: T,
-        /// Address of MIR-UST or mAsset-UST LP token
-        share_token: T,
-    },
+pub struct StakingConfigBase<T> {
+    /// Address of the staking contract
+    contract_addr: T,
+    /// Address of ANC, MIR, or mAsset token; refer to Mirror contract for definition
+    asset_token: T,
+    /// Address of ANC-UST, MIR-UST, or mAsset-UST LP token
+    staking_token: T,
 }
 
-pub type StakingUnchecked = Staking<String>;
-pub type StakingChecked = Staking<Addr>;
+pub type StakingConfigUnchecked = StakingConfigBase<String>;
+pub type StakingConfig = StakingConfigBase<Addr>;
 
-impl From<StakingChecked> for StakingUnchecked {
-    fn from(checked: StakingChecked) -> Self {
-        match checked {
-            StakingChecked::Anchor {
-                contract_addr,
-                share_token,
-            } => StakingUnchecked::Anchor {
-                contract_addr: contract_addr.to_string(),
-                share_token: share_token.to_string(),
-            },
-            StakingChecked::Mirror {
-                contract_addr,
-                asset_token,
-                share_token,
-            } => StakingUnchecked::Mirror {
-                contract_addr: contract_addr.to_string(),
-                asset_token: asset_token.to_string(),
-                share_token: share_token.to_string(),
-            },
+impl From<StakingConfig> for StakingConfigUnchecked {
+    fn from(checked: StakingConfig) -> Self {
+        StakingConfigUnchecked {
+            contract_addr: checked.contract_addr.to_string(),
+            asset_token: checked.asset_token.to_string(),
+            staking_token: checked.staking_token.to_string(),
         }
     }
 }
 
-impl StakingUnchecked {
-    pub fn check(&self, api: &dyn Api) -> StdResult<StakingChecked> {
-        let checked = match self {
-            StakingUnchecked::Anchor {
-                contract_addr,
-                share_token,
-            } => StakingChecked::Anchor {
-                contract_addr: api.addr_validate(contract_addr)?,
-                share_token: api.addr_validate(share_token)?,
-            },
-            StakingUnchecked::Mirror {
-                contract_addr,
-                asset_token,
-                share_token,
-            } => StakingChecked::Mirror {
-                contract_addr: api.addr_validate(contract_addr)?,
-                asset_token: api.addr_validate(asset_token)?,
-                share_token: api.addr_validate(share_token)?,
-            },
+impl StakingConfigUnchecked {
+    pub fn check(&self, api: &dyn Api) -> StdResult<StakingConfig> {
+        let checked = StakingConfig {
+            contract_addr: api.addr_validate(&self.contract_addr)?,
+            asset_token: api.addr_validate(&self.asset_token)?,
+            staking_token: api.addr_validate(&self.staking_token)?,
         };
 
         Ok(checked)
     }
 }
 
-impl StakingChecked {
-    /// Query the amount of LP tokens bonded to the staking contract
-    pub fn query_bond(&self, querier: &QuerierWrapper, staker: &Addr) -> StdResult<Uint128> {
-        let (bond_amount, _) = self._query_reward_info(querier, staker)?;
-        Ok(bond_amount)
-    }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StakingBase<T> {
+    /// Anchor staking contract, or those forked from it, e.g. Pylon and Mars
+    Anchor(T),
+    /// Mirror V2 staking contract
+    Mirror(T),
+}
 
-    /// Query the amount of claimable reward
-    pub fn query_reward(&self, querier: &QuerierWrapper, staker: &Addr) -> StdResult<Uint128> {
-        let (_, pending_reward) = self._query_reward_info(querier, staker)?;
-        Ok(pending_reward)
-    }
+pub type StakingUnchecked = StakingBase<StakingConfigUnchecked>;
+pub type Staking = StakingBase<StakingConfig>;
 
+impl From<Staking> for StakingUnchecked {
+    fn from(checked: Staking) -> Self {
+        match checked {
+            Staking::Anchor(config) => StakingUnchecked::Anchor(config.into()),
+            Staking::Mirror(config) => StakingUnchecked::Mirror(config.into()),
+        }
+    }
+}
+
+impl StakingUnchecked {
+    pub fn check(&self, api: &dyn Api) -> StdResult<Staking> {
+        let checked = match self {
+            StakingUnchecked::Anchor(config) => Staking::Anchor(config.check(api)?),
+            StakingUnchecked::Mirror(config) => Staking::Mirror(config.check(api)?),
+        };
+
+        Ok(checked)
+    }
+}
+
+impl Staking {
     /// Generate a message for bonding LP tokens
     pub fn bond_msg(&self, amount: Uint128) -> StdResult<CosmosMsg> {
         match self {
-            StakingChecked::Anchor {
-                contract_addr,
-                share_token,
-            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: share_token.to_string(),
+            Staking::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: config.staking_token.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: contract_addr.to_string(),
+                    contract: config.contract_addr.to_string(),
                     amount,
                     msg: to_binary(&anchor_msg::Cw20HookMsg::Bond {})?,
                 })?,
                 funds: vec![],
             })),
 
-            StakingChecked::Mirror {
-                contract_addr,
-                asset_token,
-                share_token,
-            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: share_token.to_string(),
+            Staking::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: config.staking_token.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: contract_addr.to_string(),
+                    contract: config.contract_addr.to_string(),
                     amount,
                     msg: to_binary(&mirror_msg::Cw20HookMsg::Bond {
-                        asset_token: asset_token.to_string(),
+                        asset_token: config.asset_token.to_string(),
                     })?,
                 })?,
                 funds: vec![],
@@ -129,20 +105,16 @@ impl StakingChecked {
     /// Generate a message for unbonding LP tokens
     pub fn unbond_msg(&self, amount: Uint128) -> StdResult<CosmosMsg> {
         match self {
-            StakingChecked::Anchor { contract_addr, .. } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: contract_addr.to_string(),
+            Staking::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: config.contract_addr.to_string(),
                 msg: to_binary(&anchor_msg::ExecuteMsg::Unbond { amount })?,
                 funds: vec![],
             })),
 
-            StakingChecked::Mirror {
-                contract_addr,
-                asset_token,
-                ..
-            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: contract_addr.to_string(),
+            Staking::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: config.contract_addr.to_string(),
                 msg: to_binary(&mirror_msg::ExecuteMsg::Unbond {
-                    asset_token: asset_token.to_string(),
+                    asset_token: config.asset_token.to_string(),
                     amount,
                 })?,
                 funds: vec![],
@@ -153,20 +125,16 @@ impl StakingChecked {
     /// Generate a message for claiming staking rewards
     pub fn withdraw_msg(&self) -> StdResult<CosmosMsg> {
         match self {
-            StakingChecked::Anchor { contract_addr, .. } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: contract_addr.to_string(),
+            Staking::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: config.contract_addr.to_string(),
                 msg: to_binary(&anchor_msg::ExecuteMsg::Withdraw {})?,
                 funds: vec![],
             })),
 
-            StakingChecked::Mirror {
-                contract_addr,
-                asset_token,
-                ..
-            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: contract_addr.to_string(),
+            Staking::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: config.contract_addr.to_string(),
                 msg: to_binary(&mirror_msg::ExecuteMsg::Withdraw {
-                    asset_token: Some(asset_token.to_string()),
+                    asset_token: Some(config.asset_token.to_string()),
                 })?,
                 funds: vec![],
             })),
@@ -174,45 +142,44 @@ impl StakingChecked {
     }
 
     /// Return the amounts of 1) bonded `staking_tokens` and 2) claimable reward
-    fn _query_reward_info(
+    pub fn query_reward_info(
         &self,
         querier: &QuerierWrapper,
-        staker: &Addr,
+        staker_addr: &Addr,
     ) -> StdResult<(Uint128, Uint128)> {
-        match self {
-            StakingChecked::Anchor { contract_addr, .. } => {
+        let (bonded_amount, pending_reward_amount) = match self {
+            Staking::Anchor(config) => {
                 let response: anchor_msg::StakerInfoResponse =
                     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                        contract_addr: contract_addr.to_string(),
+                        contract_addr: config.contract_addr.to_string(),
                         msg: to_binary(&anchor_msg::QueryMsg::StakerInfo {
-                            staker: staker.to_string(),
+                            staker: staker_addr.to_string(),
                         })?,
                     }))?;
-                Ok((response.bond_amount, response.pending_reward))
+
+                (response.bond_amount, response.pending_reward)
             }
 
-            StakingChecked::Mirror {
-                contract_addr,
-                asset_token,
-                ..
-            } => {
+            Staking::Mirror(config) => {
                 let response: mirror_msg::RewardInfoResponse =
                     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                        contract_addr: contract_addr.to_string(),
+                        contract_addr: config.contract_addr.to_string(),
                         msg: to_binary(&mirror_msg::QueryMsg::RewardInfo {
-                            staker_addr: staker.to_string(),
-                            asset_token: Some(asset_token.to_string()),
+                            staker_addr: staker_addr.to_string(),
+                            asset_token: Some(config.asset_token.to_string()),
                         })?,
                     }))?;
 
                 if response.reward_infos.is_empty() {
-                    Ok((Uint128::zero(), Uint128::zero()))
+                    (Uint128::zero(), Uint128::zero())
                 } else {
                     let reward_info = &response.reward_infos[0];
-                    Ok((reward_info.bond_amount, reward_info.pending_reward))
+                    (reward_info.bond_amount, reward_info.pending_reward)
                 }
             }
-        }
+        };
+
+        Ok((bonded_amount, pending_reward_amount))
     }
 }
 
@@ -312,7 +279,6 @@ pub mod mirror_mock_msg {
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct MockInstantiateMsg {
         pub mirror_token: String,
-        pub asset_token: String,
-        pub staking_token: String,
+        pub asset_and_staking_tokens: Vec<(String, String)>,
     }
 }
