@@ -52,7 +52,7 @@ impl AssetInfo {
     /// Get the asset's label, which is used in `red_bank::msg::DebtResponse`
     /// For native tokens, it's the denom, e.g. uusd, uluna
     /// For CW20 tokens, it's the contract address
-    pub fn get_label(&self) -> String {
+    pub fn get_denom(&self) -> String {
         match self {
             AssetInfo::Token { contract_addr } => contract_addr.to_string(),
             AssetInfo::NativeToken { denom } => denom.clone(),
@@ -61,7 +61,7 @@ impl AssetInfo {
 
     /// Get the asset's reference, used in `oracle::msg::QueryMsg::AssetPriceByReference`
     pub fn get_reference(&self) -> Vec<u8> {
-        self.get_label().as_bytes().to_vec()
+        self.get_denom().as_bytes().to_vec()
     }
 
     /// @notice Query an account's balance of the specified asset
@@ -147,13 +147,13 @@ impl Asset {
     ///
     /// Usage:
     /// let msg = asset.deduct_tax(deps.querier)?.transfer_msg(to, amount)?;
-    pub fn transfer_msg(&self, to: &Addr, amount: Uint128) -> StdResult<CosmosMsg> {
+    pub fn transfer_msg(&self, to: &Addr) -> StdResult<CosmosMsg> {
         match &self.info {
             AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: to.to_string(),
-                    amount,
+                    amount: self.amount,
                 })?,
                 funds: vec![],
             })),
@@ -161,7 +161,7 @@ impl Asset {
                 to_address: to.to_string(),
                 amount: vec![Coin {
                     denom: denom.clone(),
-                    amount,
+                    amount: self.amount,
                 }],
             })),
         }
@@ -171,19 +171,14 @@ impl Asset {
     /// to another using the `Cw20HandleMsg::TransferFrom` message type
     ///
     /// NOTE: Must have allowance
-    pub fn transfer_from_msg(
-        &self,
-        from: &Addr,
-        to: &Addr,
-        amount: Uint128,
-    ) -> StdResult<CosmosMsg> {
+    pub fn transfer_from_msg(&self, from: &Addr, to: &Addr) -> StdResult<CosmosMsg> {
         match &self.info {
             AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
                     owner: from.to_string(),
                     recipient: to.to_string(),
-                    amount,
+                    amount: self.amount,
                 })?,
                 funds: vec![],
             })),

@@ -70,27 +70,25 @@ impl RedBank {
         }
     }
 
-    pub fn query_debt(
+    pub fn query_user_debt(
         &self,
         querier: &QuerierWrapper,
-        borrower: &Addr,
-        info: &AssetInfo,
+        user_address: &Addr,
+        asset_info: &AssetInfo,
     ) -> StdResult<Uint128> {
         let response: msg::DebtResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: self.contract_addr.to_string(),
-            msg: to_binary(&msg::QueryMsg::Debt {
-                address: String::from(borrower),
+            msg: to_binary(&msg::QueryMsg::UserDebt {
+                user_address: user_address.to_string(),
             })?,
         }))?;
 
-        let amount = match response
+        let amount = response
             .debts
             .iter()
-            .find(|debt| debt.denom == info.get_label())
-        {
-            Some(debt) => debt.amount,
-            None => Uint128::zero(),
-        };
+            .find(|debt| debt.denom == asset_info.get_denom())
+            .map(|debt| debt.amount)
+            .unwrap_or_else(Uint128::zero);
 
         Ok(amount)
     }
@@ -121,7 +119,7 @@ pub mod msg {
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum QueryMsg {
-        Debt { address: String },
+        UserDebt { user_address: String },
     }
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -169,7 +167,7 @@ pub mod mock_msg {
     pub enum ExecuteMsg {
         Receive(Cw20ReceiveMsg),
         Borrow {
-            asset: RedBankAsset,
+            asset: msg::RedBankAsset,
             amount: Uint128,
         },
         RepayNative {
@@ -177,8 +175,8 @@ pub mod mock_msg {
         },
         /// NOTE: Only used in mock contract! Not present in actual Red Bank contract
         /// Forcibly set a user's debt amount. Used in tests to simulate the accrual of debts
-        SetDebt {
-            user: String,
+        SetUserDebt {
+            user_address: String,
             denom: String,
             amount: Uint128,
         },
