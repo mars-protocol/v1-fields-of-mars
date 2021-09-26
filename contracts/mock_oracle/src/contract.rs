@@ -38,8 +38,7 @@ pub fn execute(
     _info: MessageInfo,
     _msg: ExecuteMsg,
 ) -> StdResult<Response> {
-    // Do nothing
-    Ok(Response::default())
+    Ok(Response::default()) // do nothing
 }
 
 // QUERIES

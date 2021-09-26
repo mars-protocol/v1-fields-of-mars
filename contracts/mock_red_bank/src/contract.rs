@@ -23,8 +23,7 @@ pub fn instantiate(
     _info: MessageInfo,
     _msg: InstantiateMsg,
 ) -> StdResult<Response> {
-    // do nothing
-    Ok(Response::default())
+    Ok(Response::default()) // do nothing
 }
 
 // EXECUTE
