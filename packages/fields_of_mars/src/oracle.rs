@@ -5,37 +5,41 @@ use cosmwasm_std::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::asset::AssetInfo;
+use crate::asset::{AssetInfoChecked, AssetInfoUnchecked};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct OracleBase<T> {
+pub struct Oracle<T> {
     pub contract_addr: T,
 }
 
-pub type OracleUnchecked = OracleBase<String>;
-pub type Oracle = OracleBase<Addr>;
+pub type OracleUnchecked = Oracle<String>;
+pub type OracleChecked = Oracle<Addr>;
 
-impl From<Oracle> for OracleUnchecked {
-    fn from(oracle: Oracle) -> Self {
+impl From<OracleChecked> for OracleUnchecked {
+    fn from(checked: OracleChecked) -> Self {
         OracleUnchecked {
-            contract_addr: oracle.contract_addr.to_string(),
+            contract_addr: checked.contract_addr.to_string(),
         }
     }
 }
 
-impl Oracle {
-    pub fn from_unchecked(api: &dyn Api, oracle_unchecked: OracleUnchecked) -> StdResult<Self> {
-        Ok(Oracle {
-            contract_addr: api.addr_validate(&oracle_unchecked.contract_addr)?,
-        })
-    }
+impl OracleUnchecked {
+    pub fn check(&self, api: &dyn Api) -> StdResult<OracleChecked> {
+        let checked = OracleChecked {
+            contract_addr: api.addr_validate(&self.contract_addr)?,
+        };
 
+        Ok(checked)
+    }
+}
+
+impl OracleChecked {
     /// NOTE: For now, we don't check whether the price data is too old by verifying `last_updated`.
     /// We might want to do this in a future version
     pub fn query_price(
         &self,
         querier: &QuerierWrapper,
-        asset_info: &AssetInfo,
+        asset_info: &AssetInfoChecked,
     ) -> StdResult<Decimal> {
         let response: msg::AssetPriceResponse =
             querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -51,7 +55,7 @@ impl Oracle {
     pub fn query_prices(
         &self,
         querier: &QuerierWrapper,
-        asset_infos: &[AssetInfo],
+        asset_infos: &[AssetInfoChecked],
     ) -> StdResult<Vec<Decimal>> {
         Ok(asset_infos
             .iter()
@@ -96,7 +100,7 @@ pub mod mock_msg {
     #[serde(rename_all = "snake_case")]
     pub enum ExecuteMsg {
         SetAsset {
-            asset_info: AssetInfo,
+            asset_info: AssetInfoUnchecked,
             price_source: PriceSourceUnchecked,
         },
     }

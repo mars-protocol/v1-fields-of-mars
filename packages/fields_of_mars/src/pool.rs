@@ -7,45 +7,49 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::asset::{Asset, AssetInfo};
+use crate::asset::{AssetChecked, AssetInfoChecked};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct PoolBase<T> {
+pub struct Pool<T> {
     /// Address of the Astroport pair contract
     pub pair: T,
     /// Address of the Astroport LP token
     pub share_token: T,
 }
 
-pub type PoolUnchecked = PoolBase<String>;
-pub type Pool = PoolBase<Addr>;
+pub type PoolUnchecked = Pool<String>;
+pub type PoolChecked = Pool<Addr>;
 
-impl From<Pool> for PoolUnchecked {
-    fn from(pool: Pool) -> Self {
+impl From<PoolChecked> for PoolUnchecked {
+    fn from(checked: PoolChecked) -> Self {
         PoolUnchecked {
-            pair: pool.pair.to_string(),
-            share_token: pool.share_token.to_string(),
+            pair: checked.pair.to_string(),
+            share_token: checked.share_token.to_string(),
         }
     }
 }
 
-impl Pool {
-    pub fn from_unchecked(api: &dyn Api, pool_unchecked: PoolUnchecked) -> StdResult<Self> {
-        Ok(Pool {
-            pair: api.addr_validate(&pool_unchecked.pair)?,
-            share_token: api.addr_validate(&pool_unchecked.share_token)?,
-        })
-    }
+impl PoolUnchecked {
+    pub fn check(&self, api: &dyn Api) -> StdResult<PoolChecked> {
+        let checked = PoolChecked {
+            pair: api.addr_validate(&self.pair)?,
+            share_token: api.addr_validate(&self.share_token)?,
+        };
 
+        Ok(checked)
+    }
+}
+
+impl PoolChecked {
     /// Generate messages for providing specified assets
     /// NOTE: For now, we don't specify a slippage tolerance
-    pub fn provide_msgs(&self, assets: &[Asset; 2]) -> StdResult<Vec<CosmosMsg>> {
+    pub fn provide_msgs(&self, assets: &[AssetChecked; 2]) -> StdResult<Vec<CosmosMsg>> {
         let mut messages: Vec<CosmosMsg> = vec![];
         let mut funds: Vec<Coin> = vec![];
 
         for asset in assets.iter() {
             match &asset.info {
-                AssetInfo::Token { contract_addr } => {
+                AssetInfoChecked::Token { contract_addr } => {
                     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                         contract_addr: contract_addr.to_string(),
                         msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
@@ -56,7 +60,7 @@ impl Pool {
                         funds: vec![],
                     }))
                 }
-                AssetInfo::NativeToken { denom } => funds.push(Coin {
+                AssetInfoChecked::NativeToken { denom } => funds.push(Coin {
                     denom: denom.clone(),
                     amount: asset.amount,
                 }),
@@ -90,9 +94,9 @@ impl Pool {
 
     /// @notice Generate msg for swapping specified asset
     /// NOTE: For now, we don't specify a slippage tolerance
-    pub fn swap_msg(&self, asset: &Asset) -> StdResult<CosmosMsg> {
+    pub fn swap_msg(&self, asset: &AssetChecked) -> StdResult<CosmosMsg> {
         match &asset.info {
-            AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfoChecked::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: self.pair.to_string(),
@@ -106,7 +110,7 @@ impl Pool {
                 funds: vec![],
             })),
 
-            AssetInfo::NativeToken { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfoChecked::NativeToken { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: self.pair.to_string(),
                 msg: to_binary(&msg::HandleMsg::Swap {
                     offer_asset: asset.clone(),
@@ -125,8 +129,8 @@ impl Pool {
     pub fn query_pool(
         &self,
         querier: &QuerierWrapper,
-        primary_asset_info: &AssetInfo,
-        secondary_asset_info: &AssetInfo,
+        primary_asset_info: &AssetInfoChecked,
+        secondary_asset_info: &AssetInfoChecked,
     ) -> StdResult<msg::PoolResponseParsed> {
         let response: msg::PoolResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: self.pair.to_string(),
@@ -156,7 +160,7 @@ impl Pool {
 
     /// @notice Query an account's balance of the pool's share token
     pub fn query_share(&self, querier: &QuerierWrapper, account: &Addr) -> StdResult<Uint128> {
-        let share_token = AssetInfo::Token {
+        let share_token = AssetInfoChecked::Token {
             contract_addr: self.share_token.clone(),
         };
 
@@ -172,11 +176,11 @@ pub mod msg {
     pub enum HandleMsg {
         Receive(Cw20ReceiveMsg),
         ProvideLiquidity {
-            assets: [Asset; 2],
+            assets: [AssetChecked; 2],
             slippage_tolerance: Option<Decimal>,
         },
         Swap {
-            offer_asset: Asset,
+            offer_asset: AssetChecked,
             belief_price: Option<Decimal>,
             max_spread: Option<Decimal>,
             to: Option<String>,
@@ -198,12 +202,12 @@ pub mod msg {
     #[serde(rename_all = "snake_case")]
     pub enum QueryMsg {
         Pool {},
-        Simulation { offer_asset: Asset },
+        Simulation { offer_asset: AssetChecked },
     }
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct PoolResponse {
-        pub assets: [Asset; 2],
+        pub assets: [AssetChecked; 2],
         pub total_share: Uint128,
     }
 

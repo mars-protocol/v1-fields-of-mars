@@ -3,7 +3,7 @@ use cosmwasm_std::{
     Response, StdResult, Uint128, WasmQuery,
 };
 
-use fields_of_mars::asset::{Asset, AssetInfo};
+use fields_of_mars::asset::{AssetChecked, AssetInfoChecked, AssetInfoUnchecked};
 use fields_of_mars::oracle::mock_msg::{
     ExecuteMsg, InstantiateMsg, PriceSourceChecked, PriceSourceUnchecked,
 };
@@ -40,10 +40,12 @@ fn execute_set_asset(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    asset: AssetInfo,
-    price_source_unchecked: PriceSourceUnchecked,
+    asset_info: AssetInfoUnchecked,
+    price_source: PriceSourceUnchecked,
 ) -> StdResult<Response> {
-    let price_source = match price_source_unchecked {
+    let asset_reference = asset_info.check(deps.api)?.get_reference();
+
+    let price_source_checked = match price_source {
         PriceSourceUnchecked::Fixed { price } => PriceSourceChecked::Fixed { price },
         PriceSourceUnchecked::AstroportSpot {
             pair_address,
@@ -54,7 +56,7 @@ fn execute_set_asset(
         },
     };
 
-    PRICE_SOURCE.save(deps.storage, &asset.get_reference(), &price_source)?;
+    PRICE_SOURCE.save(deps.storage, &asset_reference, &price_source_checked)?;
 
     Ok(Response::default())
 }
@@ -84,17 +86,17 @@ fn query_asset_price(
             pair_address,
             asset_address,
         } => {
+            let offer_asset = AssetChecked {
+                info: AssetInfoChecked::Token {
+                    contract_addr: asset_address,
+                },
+                amount: Uint128::new(1000000),
+            };
+
             let response: SimulationResponse =
                 deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                     contract_addr: pair_address.to_string(),
-                    msg: to_binary(&AstroportQueryMsg::Simulation {
-                        offer_asset: Asset {
-                            info: AssetInfo::Token {
-                                contract_addr: asset_address,
-                            },
-                            amount: Uint128::new(1000000),
-                        },
-                    })?,
+                    msg: to_binary(&AstroportQueryMsg::Simulation { offer_asset })?,
                 }))?;
 
             Decimal::from_ratio(

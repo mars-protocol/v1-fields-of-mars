@@ -7,33 +7,37 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::asset::{Asset, AssetInfo};
+use crate::asset::{AssetChecked, AssetInfoChecked};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct RedBankBase<T> {
+pub struct RedBank<T> {
     pub contract_addr: T,
 }
 
-pub type RedBankUnchecked = RedBankBase<String>;
-pub type RedBank = RedBankBase<Addr>;
+pub type RedBankUnchecked = RedBank<String>;
+pub type RedBankChecked = RedBank<Addr>;
 
-impl From<RedBank> for RedBankUnchecked {
-    fn from(red_bank: RedBank) -> Self {
+impl From<RedBankChecked> for RedBankUnchecked {
+    fn from(checked: RedBankChecked) -> Self {
         RedBankUnchecked {
-            contract_addr: red_bank.contract_addr.to_string(),
+            contract_addr: checked.contract_addr.to_string(),
         }
     }
 }
 
-impl RedBank {
-    pub fn from_unchecked(api: &dyn Api, red_bank_unchecked: RedBankUnchecked) -> StdResult<Self> {
-        Ok(RedBank {
-            contract_addr: api.addr_validate(&red_bank_unchecked.contract_addr)?,
-        })
-    }
+impl RedBankUnchecked {
+    pub fn check(&self, api: &dyn Api) -> StdResult<RedBankChecked> {
+        let checked = RedBankChecked {
+            contract_addr: api.addr_validate(&self.contract_addr)?,
+        };
 
+        Ok(checked)
+    }
+}
+
+impl RedBankChecked {
     /// Generate message for borrowing a specified amount of asset
-    pub fn borrow_msg(&self, asset: &Asset) -> StdResult<CosmosMsg> {
+    pub fn borrow_msg(&self, asset: &AssetChecked) -> StdResult<CosmosMsg> {
         Ok(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.contract_addr.to_string(),
             msg: to_binary(&msg::ExecuteMsg::Borrow {
@@ -46,9 +50,9 @@ impl RedBank {
 
     /// @notice Generate message for repaying a specified amount of asset
     /// @dev Note: we do not deduct tax here
-    pub fn repay_msg(&self, asset: &Asset) -> StdResult<CosmosMsg> {
+    pub fn repay_msg(&self, asset: &AssetChecked) -> StdResult<CosmosMsg> {
         match &asset.info {
-            AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfoChecked::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Send {
@@ -57,7 +61,7 @@ impl RedBank {
                     msg: to_binary(&msg::ReceiveMsg::RepayCw20 {})?,
                 })?,
             })),
-            AssetInfo::NativeToken { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfoChecked::NativeToken { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: self.contract_addr.to_string(),
                 msg: to_binary(&msg::ExecuteMsg::RepayNative {
                     denom: denom.clone(),
@@ -74,7 +78,7 @@ impl RedBank {
         &self,
         querier: &QuerierWrapper,
         user_address: &Addr,
-        asset_info: &AssetInfo,
+        asset_info: &AssetInfoChecked,
     ) -> StdResult<Uint128> {
         let response: msg::DebtResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: self.contract_addr.to_string(),
@@ -142,13 +146,13 @@ pub mod msg {
         Native { denom: String },
     }
 
-    impl From<&AssetInfo> for RedBankAsset {
-        fn from(info: &AssetInfo) -> Self {
+    impl From<&AssetInfoChecked> for RedBankAsset {
+        fn from(info: &AssetInfoChecked) -> Self {
             match info {
-                AssetInfo::Token { contract_addr } => Self::Cw20 {
+                AssetInfoChecked::Token { contract_addr } => Self::Cw20 {
                     contract_addr: contract_addr.to_string(),
                 },
-                AssetInfo::NativeToken { denom } => Self::Native {
+                AssetInfoChecked::NativeToken { denom } => Self::Native {
                     denom: denom.clone(),
                 },
             }
