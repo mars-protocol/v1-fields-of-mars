@@ -1,8 +1,10 @@
 use cosmwasm_std::{
-    to_binary, Addr, Api, Coin, CosmosMsg, Decimal, QuerierWrapper, QueryRequest, StdError,
-    StdResult, Uint128, WasmMsg, WasmQuery,
+    to_binary, Addr, Api, Coin, CosmosMsg, QuerierWrapper, QueryRequest, StdError, StdResult,
+    Uint128, WasmMsg, WasmQuery,
 };
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw20::Cw20ExecuteMsg;
+
+use astroport::pair::{Cw20HookMsg, ExecuteMsg, PoolResponse, QueryMsg};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -41,6 +43,17 @@ impl PairUnchecked {
 }
 
 impl Pair {
+    // INSTANCE CREATION
+
+    pub fn new(contract_addr: &Addr, share_token: &Addr) -> Self {
+        Self {
+            contract_addr: contract_addr.clone(),
+            share_token: share_token.clone(),
+        }
+    }
+
+    // MESSAGES
+
     /// Generate messages for providing specified assets
     /// NOTE: For now, we don't specify a slippage tolerance
     pub fn provide_msgs(&self, assets: &[Asset; 2]) -> StdResult<Vec<CosmosMsg>> {
@@ -69,7 +82,7 @@ impl Pair {
 
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.contract_addr.to_string(),
-            msg: to_binary(&msg::ExecuteMsg::ProvideLiquidity {
+            msg: to_binary(&ExecuteMsg::ProvideLiquidity {
                 assets: [(&assets[0]).into(), (&assets[1]).into()],
                 slippage_tolerance: None, // to be added in a future version
             })?,
@@ -86,7 +99,7 @@ impl Pair {
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: self.contract_addr.to_string(),
                 amount: shares,
-                msg: to_binary(&msg::Cw20HookMsg::WithdrawLiquidity {})?,
+                msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {})?,
             })?,
             funds: vec![],
         }))
@@ -101,7 +114,7 @@ impl Pair {
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: self.contract_addr.to_string(),
                     amount: asset.amount,
-                    msg: to_binary(&msg::Cw20HookMsg::Swap {
+                    msg: to_binary(&Cw20HookMsg::Swap {
                         belief_price: None,
                         max_spread: None,
                         to: None,
@@ -112,7 +125,7 @@ impl Pair {
 
             AssetInfo::Native { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: self.contract_addr.to_string(),
-                msg: to_binary(&msg::ExecuteMsg::Swap {
+                msg: to_binary(&ExecuteMsg::Swap {
                     offer_asset: asset.into(),
                     belief_price: None,
                     max_spread: None,
@@ -136,9 +149,9 @@ impl Pair {
         primary_asset_info: &AssetInfo,
         secondary_asset_info: &AssetInfo,
     ) -> StdResult<(Uint128, Uint128, Uint128)> {
-        let response: msg::PairResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        let response: PoolResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: self.contract_addr.to_string(),
-            msg: to_binary(&msg::QueryMsg::PairBase {})?,
+            msg: to_binary(&QueryMsg::Pool {})?,
         }))?;
 
         let primary_asset_depth = response
@@ -169,133 +182,5 @@ impl Pair {
         };
 
         share_token.query_balance(querier, account)
-    }
-}
-
-// Astroport's implementation of AssetInfo and Asset are different from that used by Fields of Mars
-// We need to implement methods for conversion and comparison between the two
-pub mod asset {
-    use super::*;
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
-    pub enum AstroportAssetInfo {
-        Token { contract_addr: Addr },
-        NativeToken { denom: String },
-    }
-
-    impl From<AssetInfo> for AstroportAssetInfo {
-        fn from(asset_info: AssetInfo) -> Self {
-            (&asset_info).into()
-        }
-    }
-
-    impl From<&AssetInfo> for AstroportAssetInfo {
-        fn from(asset_info: &AssetInfo) -> Self {
-            match &asset_info {
-                AssetInfo::Cw20 { contract_addr } => AstroportAssetInfo::Token {
-                    contract_addr: contract_addr.clone(),
-                },
-                AssetInfo::Native { denom } => AstroportAssetInfo::NativeToken {
-                    denom: denom.clone(),
-                },
-            }
-        }
-    }
-
-    impl PartialEq<&AssetInfo> for AstroportAssetInfo {
-        fn eq(&self, other: &&AssetInfo) -> bool {
-            match self {
-                Self::Token { contract_addr } => {
-                    let self_contract_addr = contract_addr;
-                    if let AssetInfo::Cw20 { contract_addr } = other {
-                        self_contract_addr == contract_addr
-                    } else {
-                        false
-                    }
-                }
-                Self::NativeToken { denom } => {
-                    let self_denom = denom;
-                    if let AssetInfo::Native { denom } = other {
-                        self_denom == denom
-                    } else {
-                        false
-                    }
-                }
-            }
-        }
-    }
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct AstroportAsset {
-        pub info: AstroportAssetInfo,
-        pub amount: Uint128,
-    }
-
-    impl From<Asset> for AstroportAsset {
-        fn from(asset: Asset) -> Self {
-            (&asset).into()
-        }
-    }
-
-    impl From<&Asset> for AstroportAsset {
-        fn from(asset: &Asset) -> Self {
-            AstroportAsset {
-                info: (&asset.info).into(),
-                amount: asset.amount,
-            }
-        }
-    }
-}
-
-pub mod msg {
-    use super::asset::AstroportAsset;
-    use super::*;
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
-    pub enum ExecuteMsg {
-        Receive(Cw20ReceiveMsg),
-        ProvideLiquidity {
-            assets: [AstroportAsset; 2],
-            slippage_tolerance: Option<Decimal>,
-        },
-        Swap {
-            offer_asset: AstroportAsset,
-            belief_price: Option<Decimal>,
-            max_spread: Option<Decimal>,
-            to: Option<String>,
-        },
-    }
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
-    pub enum Cw20HookMsg {
-        Swap {
-            belief_price: Option<Decimal>,
-            max_spread: Option<Decimal>,
-            to: Option<String>,
-        },
-        WithdrawLiquidity {},
-    }
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
-    pub enum QueryMsg {
-        PairBase {},
-        Simulation { offer_asset: AstroportAsset },
-    }
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct PairResponse {
-        pub assets: [AstroportAsset; 2],
-        pub total_share: Uint128,
-    }
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct SimulationResponse {
-        pub return_amount: Uint128,
-        pub spread_amount: Uint128,
-        pub commission_amount: Uint128,
     }
 }

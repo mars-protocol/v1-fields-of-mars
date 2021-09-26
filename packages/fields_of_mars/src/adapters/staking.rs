@@ -1,11 +1,15 @@
 use cosmwasm_std::{
-    to_binary, Addr, Api, CosmosMsg, Decimal, QuerierWrapper, QueryRequest, StdResult, Uint128,
-    WasmMsg, WasmQuery,
+    to_binary, Addr, Api, CosmosMsg, QuerierWrapper, QueryRequest, StdResult, Uint128, WasmMsg,
+    WasmQuery,
 };
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw20::Cw20ExecuteMsg;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use anchor_token::staking as anchor_msg;
+use mirror_protocol::staking as mirror_msg;
+use staking::msg as mars_msg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StakingConfigBase<T> {
@@ -45,8 +49,10 @@ impl StakingConfigUnchecked {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum StakingBase<T> {
-    /// Anchor staking contract, or those forked from it, e.g. Pylon and Mars
+    /// Anchor staking contract, or those forked from it, e.g. Pylon
     Anchor(T),
+    /// Mars staking contract, a fork of Anchor staking but uses timestamp instead of block height
+    Mars(T),
     /// Mirror V2 staking contract
     Mirror(T),
 }
@@ -58,6 +64,7 @@ impl From<Staking> for StakingUnchecked {
     fn from(checked: Staking) -> Self {
         match checked {
             Staking::Anchor(config) => StakingUnchecked::Anchor(config.into()),
+            Staking::Mars(config) => StakingUnchecked::Mars(config.into()),
             Staking::Mirror(config) => StakingUnchecked::Mirror(config.into()),
         }
     }
@@ -67,6 +74,7 @@ impl StakingUnchecked {
     pub fn check(&self, api: &dyn Api) -> StdResult<Staking> {
         let checked = match self {
             StakingUnchecked::Anchor(config) => Staking::Anchor(config.check(api)?),
+            StakingUnchecked::Mars(config) => Staking::Mars(config.check(api)?),
             StakingUnchecked::Mirror(config) => Staking::Mirror(config.check(api)?),
         };
 
@@ -75,70 +83,79 @@ impl StakingUnchecked {
 }
 
 impl Staking {
+    pub fn get_config(&self) -> StakingConfig {
+        let config = match self {
+            Staking::Anchor(config) => config,
+            Staking::Mars(config) => config,
+            Staking::Mirror(config) => config,
+        };
+
+        config.clone()
+    }
+
     /// Generate a message for bonding LP tokens
     pub fn bond_msg(&self, amount: Uint128) -> StdResult<CosmosMsg> {
-        match self {
-            Staking::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: config.staking_token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: config.contract_addr.to_string(),
-                    amount,
-                    msg: to_binary(&anchor_msg::Cw20HookMsg::Bond {})?,
-                })?,
-                funds: vec![],
-            })),
+        let config = self.get_config();
 
-            Staking::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: config.staking_token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: config.contract_addr.to_string(),
-                    amount,
-                    msg: to_binary(&mirror_msg::Cw20HookMsg::Bond {
-                        asset_token: config.asset_token.to_string(),
-                    })?,
-                })?,
-                funds: vec![],
-            })),
-        }
+        let msg = match self {
+            Staking::Anchor(..) => to_binary(&anchor_msg::Cw20HookMsg::Bond {})?,
+            Staking::Mars(..) => to_binary(&mars_msg::Cw20HookMsg::Bond {})?,
+            Staking::Mirror(config) => to_binary(&mirror_msg::Cw20HookMsg::Bond {
+                asset_token: config.asset_token.to_string(),
+            })?,
+        };
+
+        Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: config.staking_token.to_string(),
+            msg: to_binary(&&Cw20ExecuteMsg::Send {
+                contract: config.contract_addr.to_string(),
+                amount,
+                msg,
+            })?,
+            funds: vec![],
+        }))
     }
 
     /// Generate a message for unbonding LP tokens
     pub fn unbond_msg(&self, amount: Uint128) -> StdResult<CosmosMsg> {
-        match self {
-            Staking::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: config.contract_addr.to_string(),
-                msg: to_binary(&anchor_msg::ExecuteMsg::Unbond { amount })?,
-                funds: vec![],
-            })),
+        let config = self.get_config();
 
-            Staking::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: config.contract_addr.to_string(),
-                msg: to_binary(&mirror_msg::ExecuteMsg::Unbond {
-                    asset_token: config.asset_token.to_string(),
-                    amount,
-                })?,
-                funds: vec![],
-            })),
-        }
+        let msg = match self {
+            Staking::Anchor(..) => to_binary(&anchor_msg::ExecuteMsg::Unbond { amount })?,
+            Staking::Mars(..) => to_binary(&mars_msg::ExecuteMsg::Unbond {
+                amount: amount.into(),
+                withdraw_pending_reward: Some(false),
+            })?,
+            Staking::Mirror(config) => to_binary(&mirror_msg::ExecuteMsg::Unbond {
+                asset_token: config.asset_token.to_string(),
+                amount,
+            })?,
+        };
+
+        Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: config.contract_addr.to_string(),
+            msg,
+            funds: vec![],
+        }))
     }
 
     /// Generate a message for claiming staking rewards
     pub fn withdraw_msg(&self) -> StdResult<CosmosMsg> {
-        match self {
-            Staking::Anchor(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: config.contract_addr.to_string(),
-                msg: to_binary(&anchor_msg::ExecuteMsg::Withdraw {})?,
-                funds: vec![],
-            })),
+        let config = self.get_config();
 
-            Staking::Mirror(config) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: config.contract_addr.to_string(),
-                msg: to_binary(&mirror_msg::ExecuteMsg::Withdraw {
-                    asset_token: Some(config.asset_token.to_string()),
-                })?,
-                funds: vec![],
-            })),
-        }
+        let msg = match self {
+            Staking::Anchor(..) => to_binary(&anchor_msg::ExecuteMsg::Withdraw {})?,
+            Staking::Mars(..) => to_binary(&anchor_msg::ExecuteMsg::Withdraw {})?,
+            Staking::Mirror(config) => to_binary(&mirror_msg::ExecuteMsg::Withdraw {
+                asset_token: Some(config.asset_token.to_string()),
+            })?,
+        };
+
+        Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: config.contract_addr.to_string(),
+            msg,
+            funds: vec![],
+        }))
     }
 
     /// Return the amounts of 1) bonded `staking_tokens` and 2) claimable reward
@@ -154,10 +171,24 @@ impl Staking {
                         contract_addr: config.contract_addr.to_string(),
                         msg: to_binary(&anchor_msg::QueryMsg::StakerInfo {
                             staker: staker_addr.to_string(),
+                            block_height: None,
                         })?,
                     }))?;
 
                 (response.bond_amount, response.pending_reward)
+            }
+
+            Staking::Mars(config) => {
+                let response: mars_msg::StakerInfoResponse =
+                    querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                        contract_addr: config.contract_addr.to_string(),
+                        msg: to_binary(&mars_msg::QueryMsg::StakerInfo {
+                            staker: staker_addr.to_string(),
+                            timestamp: None,
+                        })?,
+                    }))?;
+
+                (response.bond_amount.into(), response.pending_reward.into()) // need to cast Uint256 to Uint128 here
             }
 
             Staking::Mirror(config) => {
@@ -180,105 +211,5 @@ impl Staking {
         };
 
         Ok((bonded_amount, pending_reward_amount))
-    }
-}
-
-pub mod anchor_msg {
-    use super::*;
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
-    pub enum ExecuteMsg {
-        Receive(Cw20ReceiveMsg),
-        Unbond { amount: Uint128 },
-        Withdraw {},
-    }
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
-    pub enum Cw20HookMsg {
-        Bond {},
-    }
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
-    pub enum QueryMsg {
-        /// Anchor staking uses optional parameter `block_height`, while Mars uses `block_timestamp`.
-        /// Here we simply omits both so that this message type can work with both variants
-        StakerInfo { staker: String },
-    }
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct StakerInfoResponse {
-        pub staker: String,
-        pub reward_index: Decimal,
-        pub bond_amount: Uint128,
-        pub pending_reward: Uint128,
-    }
-}
-
-pub mod anchor_mock_msg {
-    use super::*;
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct InstantiateMsg {
-        pub anchor_token: String,
-        pub staking_token: String,
-    }
-}
-
-pub mod mirror_msg {
-    use super::*;
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
-    pub enum ExecuteMsg {
-        Receive(Cw20ReceiveMsg),
-        Unbond {
-            asset_token: String,
-            amount: Uint128,
-        },
-        Withdraw {
-            asset_token: Option<String>,
-        },
-    }
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
-    pub enum Cw20HookMsg {
-        Bond { asset_token: String },
-    }
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
-    pub enum QueryMsg {
-        RewardInfo {
-            staker_addr: String,
-            asset_token: Option<String>,
-        },
-    }
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct RewardInfoResponse {
-        pub staker_addr: String,
-        pub reward_infos: Vec<RewardInfoResponseItem>,
-    }
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct RewardInfoResponseItem {
-        pub asset_token: String,
-        pub bond_amount: Uint128,
-        pub pending_reward: Uint128,
-        pub is_short: bool,
-    }
-}
-
-pub mod mirror_mock_msg {
-    use super::*;
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct MockInstantiateMsg {
-        pub mirror_token: String,
-        pub asset_and_staking_tokens: Vec<(String, String)>,
     }
 }

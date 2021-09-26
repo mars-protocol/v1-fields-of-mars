@@ -5,7 +5,9 @@ use cosmwasm_std::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::adapters::{AssetInfo, AssetInfoUnchecked};
+use mars::oracle::msg::{AssetPriceResponse, QueryMsg};
+
+use crate::adapters::AssetInfo;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OracleBase<T> {
@@ -41,10 +43,10 @@ impl Oracle {
         querier: &QuerierWrapper,
         asset_info: &AssetInfo,
     ) -> StdResult<Decimal> {
-        let response: msg::AssetPriceResponse =
+        let response: AssetPriceResponse =
             querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: self.contract_addr.to_string(),
-                msg: to_binary(&msg::QueryMsg::AssetPriceByReference {
+                msg: to_binary(&QueryMsg::AssetPriceByReference {
                     asset_reference: asset_info.get_reference(),
                 })?,
             }))?;
@@ -61,46 +63,5 @@ impl Oracle {
             .iter()
             .map(|asset_info| self.query_price(querier, asset_info).unwrap())
             .collect())
-    }
-}
-
-pub mod msg {
-    use super::*;
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
-    pub enum QueryMsg {
-        AssetPriceByReference { asset_reference: Vec<u8> },
-    }
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct AssetPriceResponse {
-        pub price: Decimal,
-        pub last_updated: u64,
-    }
-}
-
-pub mod mock_msg {
-    use super::*;
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
-    pub enum PriceSourceBase<T> {
-        Fixed { price: Decimal },
-        AstroportSpot { pair_address: T, asset_address: T },
-    }
-
-    pub type PriceSourceUnchecked = PriceSourceBase<String>;
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct InstantiateMsg {}
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
-    pub enum ExecuteMsg {
-        SetAsset {
-            asset_info: AssetInfoUnchecked,
-            price_source: PriceSourceUnchecked,
-        },
     }
 }

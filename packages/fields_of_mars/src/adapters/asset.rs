@@ -4,10 +4,13 @@ use cosmwasm_std::{
 };
 use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
 
+use terra_cosmwasm::TerraQuerier;
+
+use astroport::asset::{Asset as AstroportAsset, AssetInfo as AstroportAssetInfo};
+use mars::asset::Asset as MarsAsset;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use terra_cosmwasm::TerraQuerier;
 
 static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 
@@ -49,7 +52,58 @@ impl AssetInfoUnchecked {
     }
 }
 
+impl From<&AssetInfo> for AstroportAssetInfo {
+    fn from(asset_info: &AssetInfo) -> Self {
+        match asset_info {
+            AssetInfo::Cw20 { contract_addr } => AstroportAssetInfo::Token {
+                contract_addr: contract_addr.clone(),
+            },
+            AssetInfo::Native { denom } => AstroportAssetInfo::NativeToken {
+                denom: denom.clone(),
+            },
+        }
+    }
+}
+
+impl PartialEq<&AssetInfo> for AstroportAssetInfo {
+    fn eq(&self, other: &&AssetInfo) -> bool {
+        match self {
+            Self::Token { contract_addr } => {
+                let self_contract_addr = contract_addr;
+                if let AssetInfo::Cw20 { contract_addr } = other {
+                    self_contract_addr == contract_addr
+                } else {
+                    false
+                }
+            }
+            Self::NativeToken { denom } => {
+                let self_denom = denom;
+                if let AssetInfo::Native { denom } = other {
+                    self_denom == denom
+                } else {
+                    false
+                }
+            }
+        }
+    }
+}
+
+impl From<&AssetInfo> for MarsAsset {
+    fn from(asset_info: &AssetInfo) -> Self {
+        match asset_info {
+            AssetInfo::Cw20 { contract_addr } => MarsAsset::Cw20 {
+                contract_addr: contract_addr.to_string(),
+            },
+            AssetInfo::Native { denom } => MarsAsset::Native {
+                denom: denom.clone(),
+            },
+        }
+    }
+}
+
 impl AssetInfo {
+    // INSTANCE CREATION
+
     pub fn cw20(contract_addr: &Addr) -> Self {
         Self::Cw20 {
             contract_addr: contract_addr.clone(),
@@ -61,6 +115,8 @@ impl AssetInfo {
             denom: denom.to_string(),
         }
     }
+
+    // UTILITIES
 
     /// Get the asset's label, which is used in `red_bank::msg::DebtResponse`
     /// For native tokens, it's the denom, e.g. uusd, uluna
@@ -77,7 +133,9 @@ impl AssetInfo {
         self.get_denom().as_bytes().to_vec()
     }
 
-    /// @notice Query an account's balance of the specified asset
+    // QUERIES
+
+    /// Query an account's balance of the specified asset
     pub fn query_balance(&self, querier: &QuerierWrapper, account: &Addr) -> StdResult<Uint128> {
         match self {
             AssetInfo::Cw20 { contract_addr } => {
@@ -131,7 +189,18 @@ impl AssetUnchecked {
     }
 }
 
+impl From<&Asset> for AstroportAsset {
+    fn from(asset: &Asset) -> Self {
+        AstroportAsset {
+            info: (&asset.info).into(),
+            amount: asset.amount,
+        }
+    }
+}
+
 impl Asset {
+    // INSTANCE CREATION
+
     pub fn cw20(contract_addr: &Addr, amount: Uint128) -> Self {
         Asset {
             info: AssetInfo::cw20(contract_addr),
@@ -146,30 +215,7 @@ impl Asset {
         }
     }
 
-    /// Check if native token of specified amount was sent along a message
-    /// Skip if asset if CW20
-    pub fn assert_sent_fund(&self, message: &MessageInfo) -> StdResult<()> {
-        let denom = match &self.info {
-            AssetInfo::Cw20 { .. } => {
-                return Ok(());
-            }
-            AssetInfo::Native { denom } => denom,
-        };
-
-        let sent_amount = match message.funds.iter().find(|fund| &fund.denom == denom) {
-            Some(fund) => fund.amount,
-            None => Uint128::zero(),
-        };
-
-        if sent_amount != self.amount {
-            return Err(StdError::generic_err(format!(
-                "Sent fund mismatch! denom: {} expected: {} received: {}",
-                denom, self.amount, sent_amount
-            )));
-        }
-
-        Ok(())
-    }
+    // MESSAGES
 
     /// Generate the message for transferring asset of a specific amount from one account
     /// to another using the `Cw20ExecuteMsg::Transfer` message type
@@ -217,6 +263,33 @@ impl Asset {
                 "`TransferFrom` does not apply to native tokens",
             )),
         }
+    }
+
+    // UTILITIES
+
+    /// Check if native token of specified amount was sent along a message
+    /// Skip if asset if CW20
+    pub fn assert_sent_fund(&self, message: &MessageInfo) -> StdResult<()> {
+        let denom = match &self.info {
+            AssetInfo::Cw20 { .. } => {
+                return Ok(());
+            }
+            AssetInfo::Native { denom } => denom,
+        };
+
+        let sent_amount = match message.funds.iter().find(|fund| &fund.denom == denom) {
+            Some(fund) => fund.amount,
+            None => Uint128::zero(),
+        };
+
+        if sent_amount != self.amount {
+            return Err(StdError::generic_err(format!(
+                "Sent fund mismatch! denom: {} expected: {} received: {}",
+                denom, self.amount, sent_amount
+            )));
+        }
+
+        Ok(())
     }
 
     /// Compute total cost (tax included) for transferring specified amount of asset
