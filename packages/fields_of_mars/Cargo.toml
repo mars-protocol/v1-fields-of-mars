@@ -22,7 +22,7 @@ astroport = { git = "https://github.com/astroport-fi/astroport.git" }
 # Mars
 mars = { git = "https://github.com/mars-protocol/protocol.git" }
 red-bank = { git = "https://github.com/mars-protocol/protocol.git" } 
-staking = { git = "https://github.com/mars-protocol/incentives-contracts.git" }
+mars-periphery = { git = "https://github.com/mars-protocol/mars-periphery.git", branch = "dev" }
 
 # Mirror
 mirror-protocol = { version = "2.1.1", git = "https://github.com/Mirror-Protocol/mirror-contracts.git" }

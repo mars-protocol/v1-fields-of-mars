@@ -7,9 +7,9 @@ use cw20::Cw20ExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use anchor_token::staking as anchor_msg;
-use mirror_protocol::staking as mirror_msg;
-use staking::msg as mars_msg;
+use anchor_token::staking as anchor_staking;
+use mars_periphery::lp_staking as mars_staking;
+use mirror_protocol::staking as mirror_staking;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StakingConfigBase<T> {
@@ -100,9 +100,9 @@ impl Staking {
         let config = self.get_config();
 
         let msg = match self {
-            Staking::Anchor(..) => to_binary(&anchor_msg::Cw20HookMsg::Bond {})?,
-            Staking::Mars(..) => to_binary(&mars_msg::Cw20HookMsg::Bond {})?,
-            Staking::Mirror(config) => to_binary(&mirror_msg::Cw20HookMsg::Bond {
+            Staking::Anchor(..) => to_binary(&anchor_staking::Cw20HookMsg::Bond {})?,
+            Staking::Mars(..) => to_binary(&mars_staking::Cw20HookMsg::Bond {})?,
+            Staking::Mirror(config) => to_binary(&mirror_staking::Cw20HookMsg::Bond {
                 asset_token: config.asset_token.to_string(),
             })?,
         };
@@ -123,12 +123,12 @@ impl Staking {
         let config = self.get_config();
 
         let msg = match self {
-            Staking::Anchor(..) => to_binary(&anchor_msg::ExecuteMsg::Unbond { amount })?,
-            Staking::Mars(..) => to_binary(&mars_msg::ExecuteMsg::Unbond {
+            Staking::Anchor(..) => to_binary(&anchor_staking::ExecuteMsg::Unbond { amount })?,
+            Staking::Mars(..) => to_binary(&mars_staking::ExecuteMsg::Unbond {
                 amount: amount.into(),
                 withdraw_pending_reward: Some(false),
             })?,
-            Staking::Mirror(config) => to_binary(&mirror_msg::ExecuteMsg::Unbond {
+            Staking::Mirror(config) => to_binary(&mirror_staking::ExecuteMsg::Unbond {
                 asset_token: config.asset_token.to_string(),
                 amount,
             })?,
@@ -146,9 +146,9 @@ impl Staking {
         let config = self.get_config();
 
         let msg = match self {
-            Staking::Anchor(..) => to_binary(&anchor_msg::ExecuteMsg::Withdraw {})?,
-            Staking::Mars(..) => to_binary(&anchor_msg::ExecuteMsg::Withdraw {})?,
-            Staking::Mirror(config) => to_binary(&mirror_msg::ExecuteMsg::Withdraw {
+            Staking::Anchor(..) => to_binary(&anchor_staking::ExecuteMsg::Withdraw {})?,
+            Staking::Mars(..) => to_binary(&anchor_staking::ExecuteMsg::Withdraw {})?,
+            Staking::Mirror(config) => to_binary(&mirror_staking::ExecuteMsg::Withdraw {
                 asset_token: Some(config.asset_token.to_string()),
             })?,
         };
@@ -168,10 +168,10 @@ impl Staking {
     ) -> StdResult<(Uint128, Uint128)> {
         let (bonded_amount, pending_reward_amount) = match self {
             Staking::Anchor(config) => {
-                let response: anchor_msg::StakerInfoResponse =
+                let response: anchor_staking::StakerInfoResponse =
                     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                         contract_addr: config.contract_addr.to_string(),
-                        msg: to_binary(&anchor_msg::QueryMsg::StakerInfo {
+                        msg: to_binary(&anchor_staking::QueryMsg::StakerInfo {
                             staker: staker_addr.to_string(),
                             block_height: None,
                         })?,
@@ -181,10 +181,10 @@ impl Staking {
             }
 
             Staking::Mars(config) => {
-                let response: mars_msg::StakerInfoResponse =
+                let response: mars_staking::StakerInfoResponse =
                     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                         contract_addr: config.contract_addr.to_string(),
-                        msg: to_binary(&mars_msg::QueryMsg::StakerInfo {
+                        msg: to_binary(&mars_staking::QueryMsg::StakerInfo {
                             staker: staker_addr.to_string(),
                             timestamp: None,
                         })?,
@@ -194,10 +194,10 @@ impl Staking {
             }
 
             Staking::Mirror(config) => {
-                let response: mirror_msg::RewardInfoResponse =
+                let response: mirror_staking::RewardInfoResponse =
                     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                         contract_addr: config.contract_addr.to_string(),
-                        msg: to_binary(&mirror_msg::QueryMsg::RewardInfo {
+                        msg: to_binary(&mirror_staking::QueryMsg::RewardInfo {
                             staker_addr: staker_addr.to_string(),
                             asset_token: Some(config.asset_token.to_string()),
                         })?,
