@@ -1,13 +1,5 @@
-use cosmwasm_std::Addr;
-use cw_storage_plus::Item;
+use cw_storage_plus::Map;
 
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use fields_of_mars::oracle::mock_msg::PriceSourceChecked;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Config {
-    pub pair_address: Addr,
-    pub token_address: Addr,
-}
-
-pub const CONFIG: Item<Config> = Item::new("config");
+pub const PRICE_SOURCE: Map<&[u8], PriceSourceChecked> = Map::new("price_source");

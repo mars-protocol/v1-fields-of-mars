@@ -80,12 +80,24 @@ pub mod mock_msg {
     use super::*;
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct InstantiateMsg {
-        pub pair_address: String,
-        pub token_address: String,
+    #[serde(rename_all = "snake_case")]
+    pub enum PriceSource<T> {
+        Fixed { price: Decimal },
+        AstroportSpot { pair_address: T, asset_address: T },
     }
+
+    pub type PriceSourceUnchecked = PriceSource<String>;
+    pub type PriceSourceChecked = PriceSource<Addr>;
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct InstantiateMsg {}
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
-    pub enum ExecuteMsg {}
+    pub enum ExecuteMsg {
+        SetAsset {
+            asset_info: AssetInfo,
+            price_source: PriceSourceUnchecked,
+        },
+    }
 }
