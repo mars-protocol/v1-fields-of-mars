@@ -1,0 +1,22 @@
+[package]
+name = "mock-oracle"
+version = "0.5.0"
+authors = ["larry_0x <larry@delphidigital.io>"]
+edition = "2018"
+license = "UNLICENSED"
+repository = "https://github.com/mars-protocol/field-of-mars"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+fields-of-mars = { path = "../../packages/fields_of_mars" }
+
+cosmwasm-std = "0.16"
+cw-storage-plus = "0.8"
+
+schemars = "0.8.1"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }

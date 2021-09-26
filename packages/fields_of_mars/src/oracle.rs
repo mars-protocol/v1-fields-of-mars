@@ -81,7 +81,11 @@ pub mod mock_msg {
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct InstantiateMsg {
-        pub token_address: String,
         pub pair_address: String,
+        pub token_address: String,
     }
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    #[serde(rename_all = "snake_case")]
+    pub enum ExecuteMsg {}
 }
