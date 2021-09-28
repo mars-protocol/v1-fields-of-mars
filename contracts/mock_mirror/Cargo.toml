@@ -13,9 +13,13 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-field-of-mars = { version = "0.4.1", path = "../../packages/field_of_mars" }
+fields-of-mars = { path = "../../packages/fields_of_mars" }
+
+mirror-protocol = { version = "2.1.1", git = "https://github.com/Mirror-Protocol/mirror-contracts.git" }
+
 cosmwasm-std = "0.16.0"
-cw20 = "0.8.0"
-cw-storage-plus = "0.8.0"
+cw20 = "0.8"
+cw-storage-plus = "0.8"
+
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }

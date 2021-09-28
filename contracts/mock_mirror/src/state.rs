@@ -1,24 +1,10 @@
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
-use field_of_mars::staking::mirror_staking::MockInstantiateMsg;
+use crate::msg::ConfigBase;
 
-pub type Config = MockInstantiateMsg;
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Position {
-    pub bond_amount: Uint128,
-}
-
-impl Default for Position {
-    fn default() -> Self {
-        Self {
-            bond_amount: Uint128::zero(),
-        }
-    }
-}
+pub type Config = ConfigBase<Addr>;
 
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const POSITION: Map<&Addr, Position> = Map::new("position");
+pub const STAKING_TOKEN: Map<&Addr, Addr> = Map::new("staking_token");
+pub const BOND_AMOUNT: Map<(&Addr, &Addr), Uint128> = Map::new("bond_amount");

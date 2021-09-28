@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
+    entry_point, from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
     Response, StdError, StdResult, Uint128,
 };
 use cw20::Cw20ReceiveMsg;
@@ -55,21 +55,25 @@ fn execute_receive_cw20(
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::Bond {} => {
-            if info.sender == config.staking_token {
-                execute_bond(deps, env, cw20_msg.sender, cw20_msg.amount)
-            } else {
-                Err(StdError::generic_err("Only ANC-UST LP token can be bonded"))
+            if info.sender != config.staking_token {
+                return Err(StdError::generic_err("unauthorized"));
             }
+
+            execute_bond(deps, env, info, cw20_msg.sender, cw20_msg.amount)
         }
     }
 }
 
-fn execute_bond(deps: DepsMut, _env: Env, staker: String, amount: Uint128) -> StdResult<Response> {
+fn execute_bond(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    staker: String,
+    amount: Uint128,
+) -> StdResult<Response> {
     let staker_addr = deps.api.addr_validate(&staker)?;
 
-    let bond_amount = BOND_AMOUNT
-        .load(deps.storage, &staker_addr)
-        .unwrap_or_else(|_| Uint128::zero());
+    let bond_amount = helpers::load_bond_amount(deps.storage, &staker_addr);
 
     BOND_AMOUNT.save(deps.storage, &staker_addr, &(bond_amount + amount))?;
 
@@ -84,23 +88,23 @@ fn execute_unbond(
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
 
-    let bond_amount = BOND_AMOUNT
-        .load(deps.storage, &info.sender)
-        .unwrap_or_else(|_| Uint128::zero());
+    let bond_amount = helpers::load_bond_amount(deps.storage, &info.sender);
 
     BOND_AMOUNT.save(deps.storage, &info.sender, &(bond_amount - amount))?;
 
     let outbound_asset = Asset::cw20(&config.staking_token, amount);
+    let outbound_msg = outbound_asset.transfer_msg(&info.sender)?;
 
-    Ok(Response::new().add_message(outbound_asset.transfer_msg(&info.sender)?))
+    Ok(Response::new().add_message(outbound_msg))
 }
 
 fn execute_withdraw(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
 
     let outbound_asset = Asset::cw20(&config.anchor_token, MOCK_REWARD_AMOUNT);
+    let outbound_msg = outbound_asset.transfer_msg(&info.sender)?;
 
-    Ok(Response::new().add_message(outbound_asset.transfer_msg(&info.sender)?))
+    Ok(Response::new().add_message(outbound_msg))
 }
 
 // QUERIES
@@ -117,9 +121,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 fn query_staker_info(deps: Deps, _env: Env, staker: String) -> StdResult<StakerInfoResponse> {
     let staker_addr = deps.api.addr_validate(&staker)?;
 
-    let bond_amount = BOND_AMOUNT
-        .load(deps.storage, &staker_addr)
-        .unwrap_or_else(|_| Uint128::zero());
+    let bond_amount = helpers::load_bond_amount(deps.storage, &staker_addr);
 
     Ok(StakerInfoResponse {
         staker,
@@ -127,4 +129,16 @@ fn query_staker_info(deps: Deps, _env: Env, staker: String) -> StdResult<StakerI
         bond_amount,
         pending_reward: Uint128::new(MOCK_REWARD_AMOUNT),
     })
+}
+
+mod helpers {
+    use cosmwasm_std::Storage;
+
+    use super::*;
+
+    pub fn load_bond_amount(storage: &dyn Storage, staker_addr: &Addr) -> Uint128 {
+        BOND_AMOUNT
+            .load(storage, staker_addr)
+            .unwrap_or_else(|_| Uint128::zero())
+    }
 }
