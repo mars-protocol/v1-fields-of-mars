@@ -315,7 +315,7 @@ impl Asset {
     ///
     /// @dev Modified from
     /// https://github.com/terraswap/terraswap/blob/master/packages/terraswap/src/asset.rs#L58
-    pub fn deduct_tax(&self, querier: &QuerierWrapper, amount: Uint128) -> StdResult<Self> {
+    pub fn deduct_tax(&self, querier: &QuerierWrapper) -> StdResult<Self> {
         let tax = match &self.info {
             AssetInfo::Cw20 { .. } => Uint128::zero(),
             AssetInfo::Native { denom } => {
@@ -326,7 +326,7 @@ impl Asset {
                     let tax_rate = terra_querier.query_tax_rate()?.rate;
                     let tax_cap = terra_querier.query_tax_cap(denom.clone())?.cap;
                     std::cmp::min(
-                        amount.checked_sub(amount.multiply_ratio(
+                        self.amount.checked_sub(self.amount.multiply_ratio(
                             DECIMAL_FRACTION,
                             DECIMAL_FRACTION * tax_rate + DECIMAL_FRACTION,
                         ))?,

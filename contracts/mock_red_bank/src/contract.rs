@@ -91,7 +91,11 @@ fn execute_borrow(
         MarsAsset::Native { denom } => Asset::native(denom, amount),
     };
 
-    Ok(Response::new().add_message(outbound_asset.transfer_msg(&info.sender)?))
+    let outbound_msg = outbound_asset
+        .deduct_tax(&deps.querier)?
+        .transfer_msg(&info.sender)?;
+
+    Ok(Response::new().add_message(outbound_msg))
 }
 
 fn execute_repay(
