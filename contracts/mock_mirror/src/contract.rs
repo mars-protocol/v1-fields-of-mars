@@ -193,6 +193,8 @@ fn query_reward_info(
     })
 }
 
+// HELPERS
+
 mod helpers {
     use cosmwasm_std::{Api, Storage};
 
@@ -217,6 +219,7 @@ mod helpers {
         let reward_infos = if let Some(asset_token) = asset_token {
             let asset_token_addr = api.addr_validate(&asset_token)?;
             let bond_amount = helpers::load_bond_amount(storage, staker_addr, &asset_token_addr);
+
             vec![RewardInfoResponseItem {
                 asset_token,
                 bond_amount,
