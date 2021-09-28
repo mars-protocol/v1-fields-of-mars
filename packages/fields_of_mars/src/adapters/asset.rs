@@ -6,8 +6,8 @@ use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg}
 
 use terra_cosmwasm::TerraQuerier;
 
-use astroport::asset::{Asset as AstroportAsset, AssetInfo as AstroportAssetInfo};
-use mars::asset::Asset as MarsAsset;
+use astroport;
+use mars;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -52,21 +52,28 @@ impl AssetInfoUnchecked {
     }
 }
 
-impl From<&AssetInfo> for AstroportAssetInfo {
-    fn from(asset_info: &AssetInfo) -> Self {
+impl From<AssetInfo> for mars::asset::Asset {
+    fn from(asset_info: AssetInfo) -> Self {
         match asset_info {
-            AssetInfo::Cw20 { contract_addr } => AstroportAssetInfo::Token {
-                contract_addr: contract_addr.clone(),
+            AssetInfo::Cw20 { contract_addr } => Self::Cw20 {
+                contract_addr: contract_addr.to_string(),
             },
-            AssetInfo::Native { denom } => AstroportAssetInfo::NativeToken {
-                denom: denom.clone(),
-            },
+            AssetInfo::Native { denom } => Self::Native { denom },
         }
     }
 }
 
-impl PartialEq<&AssetInfo> for AstroportAssetInfo {
-    fn eq(&self, other: &&AssetInfo) -> bool {
+impl From<AssetInfo> for astroport::asset::AssetInfo {
+    fn from(asset_info: AssetInfo) -> Self {
+        match asset_info {
+            AssetInfo::Cw20 { contract_addr } => Self::Token { contract_addr },
+            AssetInfo::Native { denom } => Self::NativeToken { denom },
+        }
+    }
+}
+
+impl PartialEq<AssetInfo> for astroport::asset::AssetInfo {
+    fn eq(&self, other: &AssetInfo) -> bool {
         match self {
             Self::Token { contract_addr } => {
                 let self_contract_addr = contract_addr;
@@ -84,19 +91,6 @@ impl PartialEq<&AssetInfo> for AstroportAssetInfo {
                     false
                 }
             }
-        }
-    }
-}
-
-impl From<&AssetInfo> for MarsAsset {
-    fn from(asset_info: &AssetInfo) -> Self {
-        match asset_info {
-            AssetInfo::Cw20 { contract_addr } => MarsAsset::Cw20 {
-                contract_addr: contract_addr.to_string(),
-            },
-            AssetInfo::Native { denom } => MarsAsset::Native {
-                denom: denom.clone(),
-            },
         }
     }
 }
@@ -189,10 +183,10 @@ impl AssetUnchecked {
     }
 }
 
-impl From<&Asset> for AstroportAsset {
-    fn from(asset: &Asset) -> Self {
-        AstroportAsset {
-            info: (&asset.info).into(),
+impl From<Asset> for astroport::asset::Asset {
+    fn from(asset: Asset) -> Self {
+        Self {
+            info: asset.info.into(),
             amount: asset.amount,
         }
     }
@@ -201,17 +195,17 @@ impl From<&Asset> for AstroportAsset {
 impl Asset {
     // INSTANCE CREATION
 
-    pub fn cw20(contract_addr: &Addr, amount: Uint128) -> Self {
+    pub fn cw20<A: Into<Uint128>>(contract_addr: &Addr, amount: A) -> Self {
         Asset {
             info: AssetInfo::cw20(contract_addr),
-            amount,
+            amount: amount.into(),
         }
     }
 
-    pub fn native(denom: &dyn ToString, amount: Uint128) -> Self {
+    pub fn native<A: Into<Uint128>>(denom: &dyn ToString, amount: A) -> Self {
         Asset {
             info: AssetInfo::native(denom),
-            amount,
+            amount: amount.into(),
         }
     }
 

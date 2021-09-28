@@ -1,6 +1,6 @@
 use cw_storage_plus::Map;
 
-use fields_of_mars::oracle::mock_msg::PriceSourceChecked;
+use mars::oracle::PriceSourceChecked;
 
 // key: asset_reference
 // value: price_source (checked)

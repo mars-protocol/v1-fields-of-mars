@@ -83,7 +83,7 @@ impl Pair {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.contract_addr.to_string(),
             msg: to_binary(&ExecuteMsg::ProvideLiquidity {
-                assets: [(&assets[0]).into(), (&assets[1]).into()],
+                assets: [assets[0].clone().into(), assets[1].clone().into()],
                 slippage_tolerance: None, // to be added in a future version
             })?,
             funds,
@@ -126,7 +126,7 @@ impl Pair {
             AssetInfo::Native { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: self.contract_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::Swap {
-                    offer_asset: asset.into(),
+                    offer_asset: asset.clone().into(),
                     belief_price: None,
                     max_spread: None,
                     to: None,
@@ -157,14 +157,14 @@ impl Pair {
         let primary_asset_depth = response
             .assets
             .iter()
-            .find(|asset| asset.info == primary_asset_info)
+            .find(|asset| &asset.info == primary_asset_info)
             .ok_or_else(|| StdError::generic_err("Cannot find primary asset in pool response"))?
             .amount;
 
         let secondary_asset_depth = response
             .assets
             .iter()
-            .find(|asset| asset.info == secondary_asset_info)
+            .find(|asset| &asset.info == secondary_asset_info)
             .ok_or_else(|| StdError::generic_err("Cannot find secondary asset in pool response"))?
             .amount;
 

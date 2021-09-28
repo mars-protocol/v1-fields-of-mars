@@ -43,7 +43,7 @@ impl RedBank {
         Ok(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.contract_addr.to_string(),
             msg: to_binary(&ExecuteMsg::Borrow {
-                asset: (&asset.info).into(),
+                asset: asset.info.clone().into(),
                 amount: asset.amount,
             })?,
             funds: vec![],

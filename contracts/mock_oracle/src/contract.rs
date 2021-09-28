@@ -1,16 +1,20 @@
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, QueryRequest,
-    Response, StdResult, Uint128, WasmQuery,
+    Response, StdError, StdResult, WasmQuery,
 };
 
-use fields_of_mars::asset::{AssetChecked, AssetInfoChecked, AssetInfoUnchecked};
-use fields_of_mars::oracle::mock_msg::{
-    ExecuteMsg, InstantiateMsg, PriceSourceChecked, PriceSourceUnchecked,
-};
-use fields_of_mars::oracle::msg::{AssetPriceResponse, QueryMsg};
-use fields_of_mars::pool::msg::{QueryMsg as AstroportQueryMsg, SimulationResponse};
+use fields_of_mars::adapters::Asset;
 
+use mars::asset::Asset as MarsAsset;
+use mars::oracle::msg::{AssetPriceResponse, ExecuteMsg, QueryMsg};
+use mars::oracle::{PriceSourceChecked, PriceSourceUnchecked};
+
+use astroport::pair::{QueryMsg as AstroportQueryMsg, SimulationResponse};
+
+use crate::msg::InstantiateMsg;
 use crate::state::PRICE_SOURCE;
+
+static PROBE_AMOUNT: u128 = 1000000;
 
 // INIT
 
@@ -30,9 +34,11 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::SetAsset {
-            asset_info,
+            asset,
             price_source,
-        } => execute_set_asset(deps, env, info, asset_info, price_source),
+        } => execute_set_asset(deps, env, info, asset, price_source),
+
+        _ => Err(StdError::generic_err("Unimplemented")),
     }
 }
 
@@ -40,13 +46,14 @@ fn execute_set_asset(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    asset_info: AssetInfoUnchecked,
+    asset: MarsAsset,
     price_source: PriceSourceUnchecked,
 ) -> StdResult<Response> {
-    let asset_reference = asset_info.check(deps.api)?.get_reference();
+    let asset_reference = asset.get_reference();
 
     let price_source_checked = match price_source {
         PriceSourceUnchecked::Fixed { price } => PriceSourceChecked::Fixed { price },
+
         PriceSourceUnchecked::AstroportSpot {
             pair_address,
             asset_address,
@@ -54,6 +61,10 @@ fn execute_set_asset(
             pair_address: deps.api.addr_validate(&pair_address)?,
             asset_address: deps.api.addr_validate(&asset_address)?,
         },
+
+        _ => {
+            return Err(StdError::generic_err("Unimplemented"));
+        }
     };
 
     PRICE_SOURCE.save(deps.storage, &asset_reference, &price_source_checked)?;
@@ -69,6 +80,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::AssetPriceByReference { asset_reference } => {
             to_binary(&query_asset_price(deps, env, &asset_reference)?)
         }
+
+        _ => Err(StdError::generic_err("Unimplemented")),
     }
 }
 
@@ -86,24 +99,23 @@ fn query_asset_price(
             pair_address,
             asset_address,
         } => {
-            let offer_asset = AssetChecked {
-                info: AssetInfoChecked::Token {
-                    contract_addr: asset_address,
-                },
-                amount: Uint128::new(1000000),
-            };
+            let offer_asset = Asset::cw20(&asset_address, PROBE_AMOUNT);
 
             let response: SimulationResponse =
                 deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                     contract_addr: pair_address.to_string(),
-                    msg: to_binary(&AstroportQueryMsg::Simulation { offer_asset })?,
+                    msg: to_binary(&AstroportQueryMsg::Simulation {
+                        offer_asset: offer_asset.into(),
+                    })?,
                 }))?;
 
             Decimal::from_ratio(
                 response.return_amount + response.commission_amount,
-                1000000u128,
+                PROBE_AMOUNT,
             )
         }
+
+        _ => return Err(StdError::generic_err("Unimplemented")),
     };
 
     Ok(AssetPriceResponse {
