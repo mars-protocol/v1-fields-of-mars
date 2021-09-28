@@ -2,7 +2,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InstantiateMsg {
-    pub anchor_token: String,
-    pub staking_token: String,
+pub struct ConfigBase<T> {
+    pub anchor_token: T,
+    pub staking_token: T,
 }
+
+pub type InstantiateMsg = ConfigBase<String>;
