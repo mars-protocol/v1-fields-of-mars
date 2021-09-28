@@ -18,7 +18,7 @@ fields-of-mars = { path = "../../packages/fields_of_mars" }
 mars = { git = "https://github.com/mars-protocol/protocol.git" }
 astroport = { git = "https://github.com/astroport-fi/astroport.git" }
 
-cosmwasm-std = "0.16"
+cosmwasm-std = "0.16.0"
 cw-storage-plus = "0.8"
 
 schemars = "0.8.1"
