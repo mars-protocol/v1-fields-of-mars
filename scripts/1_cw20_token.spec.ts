@@ -30,6 +30,7 @@ async function testConfig() {
   const tokenInfoResponse = await terra.wasm.contractQuery(cw20Token.address, {
     token_info: {},
   });
+
   expect(tokenInfoResponse).to.deep.equal({
     name: "Test Token",
     symbol: "TEST",
@@ -40,6 +41,7 @@ async function testConfig() {
   const minterResponse = await terra.wasm.contractQuery(cw20Token.address, {
     minter: {},
   });
+
   expect(minterResponse).to.deep.equal({
     minter: deployer.key.accAddress,
     cap: null,

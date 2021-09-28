@@ -174,7 +174,7 @@ async function testSpotPrice() {
 
   await setupTest();
 
-  console.log(chalk.yellow("\nTest: Astroport"));
+  console.log(chalk.yellow("\nTest: Mock Oracle"));
 
   await testFixedPrice();
   await testSpotPrice();

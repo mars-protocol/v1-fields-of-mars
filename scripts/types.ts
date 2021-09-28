@@ -22,6 +22,7 @@ export namespace Protocols {
 
   export type Mirror = {
     token: Contract;
+    mAsset: Contract;
     staking: Contract;
   };
 }

@@ -1,43 +1,33 @@
 import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
-import { deployMockAnchor, deployAstroport } from "./fixture";
-import { queryTokenBalance, sendTransaction, toEncodedBinary } from "./helpers";
-
-//----------------------------------------------------------------------------------------
-// Variables
-//----------------------------------------------------------------------------------------
+import { deployCw20Token, deployAstroport, deployAnchorStaking } from "./fixture";
+import { queryCw20Balance, sendTransaction, toEncodedBinary } from "./helpers";
+import { Contract, Protocols } from "./types";
 
 const terra = new LocalTerra();
 const deployer = terra.wallets.test1;
 const user = terra.wallets.test2;
 
-let anchorToken: string;
-let anchorStaking: string;
-let astroportPair: string;
-let astroportLpToken: string;
+let anchor: Protocols.Anchor;
+let astroport: Protocols.Astroport;
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Setup
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function setupTest() {
-  let astroportToken: string;
-  ({ astroportToken, astroportPair, astroportLpToken } = await deployAstroport(
-    terra,
-    deployer,
-    false
-  ));
-  anchorToken = astroportToken;
-
-  anchorStaking = await deployMockAnchor(terra, deployer, anchorToken, astroportLpToken);
+  const token = await deployCw20Token(terra, deployer);
+  astroport = await deployAstroport(terra, deployer, token);
+  const staking = await deployAnchorStaking(terra, deployer, token, astroport);
+  anchor = { token, staking };
 
   process.stdout.write("Fund staking contract with ANC... ");
 
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, anchorToken, {
+    new MsgExecuteContract(deployer.key.accAddress, anchor.token.address, {
       mint: {
-        recipient: anchorStaking,
+        recipient: anchor.staking.address,
         amount: "100000000",
       },
     }),
@@ -48,7 +38,7 @@ async function setupTest() {
   process.stdout.write("Fund user with ANC... ");
 
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, anchorToken, {
+    new MsgExecuteContract(deployer.key.accAddress, anchor.token.address, {
       mint: {
         recipient: user.key.accAddress,
         amount: "69000000",
@@ -60,18 +50,18 @@ async function setupTest() {
 
   process.stdout.write("Provide liquidity to Astroport Pair... ");
 
-  // Provide 69 mASSET + 420 UST
+  // Provide 69 ANC + 420 UST
   // Should receive sqrt(69 * 420) = 170.235131 LP tokens
   await sendTransaction(terra, user, [
-    new MsgExecuteContract(user.key.accAddress, anchorToken, {
+    new MsgExecuteContract(user.key.accAddress, anchor.token.address, {
       increase_allowance: {
         amount: "69000000",
-        spender: astroportPair,
+        spender: astroport.pair.address,
       },
     }),
     new MsgExecuteContract(
       user.key.accAddress,
-      astroportPair,
+      astroport.pair.address,
       {
         provide_liquidity: {
           assets: [
@@ -86,7 +76,7 @@ async function setupTest() {
             {
               info: {
                 token: {
-                  contract_addr: anchorToken,
+                  contract_addr: anchor.token.address,
                 },
               },
               amount: "69000000",
@@ -103,17 +93,17 @@ async function setupTest() {
   console.log(chalk.green("Done!"));
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 1. Bond
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testBond() {
-  process.stdout.write("Should bond LP tokens... ");
+  process.stdout.write("1. Bond... ");
 
   await sendTransaction(terra, user, [
-    new MsgExecuteContract(user.key.accAddress, astroportLpToken, {
+    new MsgExecuteContract(user.key.accAddress, astroport.shareToken.address, {
       send: {
-        contract: anchorStaking,
+        contract: anchor.staking.address,
         amount: "170235131",
         msg: toEncodedBinary({
           bond: {},
@@ -122,31 +112,31 @@ async function testBond() {
     }),
   ]);
 
-  const userLpTokenBalance = await queryTokenBalance(
+  const userLpTokenBalance = await queryCw20Balance(
     terra,
     user.key.accAddress,
-    astroportLpToken
+    astroport.shareToken.address
   );
   expect(userLpTokenBalance).to.equal("0");
 
-  const contractLpTokenBalance = await queryTokenBalance(
+  const contractLpTokenBalance = await queryCw20Balance(
     terra,
-    anchorStaking,
-    astroportLpToken
+    anchor.staking.address,
+    astroport.shareToken.address
   );
   expect(contractLpTokenBalance).to.equal("170235131");
 
   console.log(chalk.green("Passed!"));
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 1. Query Staker Info, Pt. 1
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testQueryStakerInfo1() {
-  process.stdout.write("Should return correct staker info... ");
+  process.stdout.write("2. Query staker info, part 1... ");
 
-  const stakerInfoResponse = await terra.wasm.contractQuery(anchorStaking, {
+  const stakerInfoResponse = await terra.wasm.contractQuery(anchor.staking.address, {
     staker_info: {
       staker: user.key.accAddress,
       block_height: undefined,
@@ -162,16 +152,16 @@ async function testQueryStakerInfo1() {
   console.log(chalk.green("Passed!"));
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 2. Query Staker Info, Pt. 2
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testQueryStakerInfo2() {
-  process.stdout.write("Should return zero for users who has no stake... ");
+  process.stdout.write("3. Query staker info, part 2... ");
 
   const randomAddress = "terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u";
 
-  const stakerInfoResponse = await terra.wasm.contractQuery(anchorStaking, {
+  const stakerInfoResponse = await terra.wasm.contractQuery(anchor.staking.address, {
     staker_info: {
       staker: randomAddress,
       block_height: undefined,
@@ -187,61 +177,61 @@ async function testQueryStakerInfo2() {
   console.log(chalk.green("Passed!"));
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 3. Withdraw Reward
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testWithdraw() {
-  process.stdout.write("Should withdraw reward... ");
+  process.stdout.write("4. Withdraw reward... ");
 
   await sendTransaction(terra, user, [
-    new MsgExecuteContract(user.key.accAddress, anchorStaking, {
+    new MsgExecuteContract(user.key.accAddress, anchor.staking.address, {
       withdraw: {},
     }),
   ]);
 
-  const userAncBalance = await queryTokenBalance(terra, user.key.accAddress, anchorToken);
+  const userAncBalance = await queryCw20Balance(terra, user.key.accAddress, anchor.token.address);
   expect(userAncBalance).to.equal("1000000");
 
   console.log(chalk.green("Passed!"));
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 4. Unbond
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testUnbond() {
-  process.stdout.write("Should unbond LP tokens... ");
+  process.stdout.write("5. Unbond... ");
 
   await sendTransaction(terra, user, [
-    new MsgExecuteContract(user.key.accAddress, anchorStaking, {
+    new MsgExecuteContract(user.key.accAddress, anchor.staking.address, {
       unbond: {
         amount: "123456789",
       },
     }),
   ]);
 
-  const userLpTokenBalance = await queryTokenBalance(
+  const userLpTokenBalance = await queryCw20Balance(
     terra,
     user.key.accAddress,
-    astroportLpToken
+    astroport.shareToken.address
   );
   expect(userLpTokenBalance).to.equal("123456789");
 
   // 170235131 - 123456789 = 46778342
-  const contractLpTokenBalance = await queryTokenBalance(
+  const contractLpTokenBalance = await queryCw20Balance(
     terra,
-    anchorStaking,
-    astroportLpToken
+    anchor.staking.address,
+    astroport.shareToken.address
   );
   expect(contractLpTokenBalance).to.equal("46778342");
 
   console.log(chalk.green("Passed!"));
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Main
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 (async () => {
   console.log(chalk.yellow("\nTest: Info"));

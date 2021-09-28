@@ -4,16 +4,18 @@ import { LCDClient, MsgExecuteContract, Wallet } from "@terra-money/terra.js";
 import { storeCode, instantiateContract, sendTransaction } from "./helpers";
 import { Contract, Protocols } from "./types";
 
-export async function deployCw20Token(terra: LCDClient, deployer: Wallet) {
-  process.stdout.write("Uploading CW20 code... ");
+export async function deployCw20Token(terra: LCDClient, deployer: Wallet, codeId?: number) {
+  if (!codeId) {
+    process.stdout.write("Uploading CW20 code... ");
 
-  const codeId = await storeCode(
-    terra,
-    deployer,
-    path.resolve(__dirname, "../artifacts/astroport_token.wasm")
-  );
+    codeId = await storeCode(
+      terra,
+      deployer,
+      path.resolve(__dirname, "../artifacts/astroport_token.wasm")
+    );
 
-  console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
+    console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
+  }
 
   process.stdout.write("Instantiating CW20 contract... ");
 
@@ -202,9 +204,7 @@ export async function deployAnchorStaking(
 export async function deployMirrorStaking(
   terra: LCDClient,
   deployer: Wallet,
-  mirrorToken: Contract,
-  assetToken: Contract,
-  astroport: Protocols.Astroport
+  mirrorToken: Contract
 ) {
   process.stdout.write("Uploading Mirror staking code... ");
 
@@ -220,8 +220,6 @@ export async function deployMirrorStaking(
 
   const result = await instantiateContract(terra, deployer, deployer, codeId, {
     mirror_token: mirrorToken.address,
-    asset_token: assetToken.address,
-    staking_token: astroport.shareToken.address,
   });
 
   const address = result.logs[0].events[0].attributes[3].value;

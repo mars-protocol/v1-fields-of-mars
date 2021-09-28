@@ -216,7 +216,7 @@ mod helpers {
         staker_addr: &Addr,
         asset_token: Option<String>,
     ) -> StdResult<Vec<RewardInfoResponseItem>> {
-        let reward_infos = if let Some(asset_token) = asset_token {
+        let mut reward_infos = if let Some(asset_token) = asset_token {
             let asset_token_addr = api.addr_validate(&asset_token)?;
             let bond_amount = helpers::load_bond_amount(storage, staker_addr, &asset_token_addr);
 
@@ -232,25 +232,21 @@ mod helpers {
                 .map(|asset_token_bytes| {
                     let asset_token = String::from_utf8(asset_token_bytes).unwrap();
                     let asset_token_addr = api.addr_validate(&asset_token).unwrap();
-
                     let bond_amount =
                         helpers::load_bond_amount(storage, staker_addr, &asset_token_addr);
-
-                    let pending_reward = if bond_amount.is_zero() {
-                        Uint128::zero()
-                    } else {
-                        Uint128::new(MOCK_REWARD_AMOUNT)
-                    };
 
                     RewardInfoResponseItem {
                         asset_token: asset_token_addr.into(),
                         bond_amount,
-                        pending_reward,
+                        pending_reward: Uint128::new(MOCK_REWARD_AMOUNT),
                         is_short: false,
                     }
                 })
                 .collect()
         };
+
+        // Remove entries where staked amount is zero
+        reward_infos.retain(|reward_info| !reward_info.bond_amount.is_zero());
 
         Ok(reward_infos)
     }

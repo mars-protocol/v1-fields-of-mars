@@ -65,6 +65,7 @@ async function testBorrow1() {
       user_address: user.key.accAddress,
     },
   });
+
   expect(debtResponse).to.deep.equal({
     debts: [
       {
@@ -118,6 +119,7 @@ async function testBorrow2() {
       user_address: user.key.accAddress,
     },
   });
+
   expect(debtResponse).to.deep.equal({
     debts: [
       {
@@ -160,6 +162,7 @@ async function testRepay1() {
       user_address: user.key.accAddress,
     },
   });
+
   expect(debtResponse).to.deep.equal({
     debts: [
       {
@@ -202,6 +205,7 @@ async function testRepay2() {
       user_address: user.key.accAddress,
     },
   });
+
   expect(debtResponse).to.deep.equal({
     debts: [
       {
@@ -240,6 +244,7 @@ async function testSetUserDebt() {
       user_address: user.key.accAddress,
     },
   });
+
   expect(debtResponse).to.deep.equal({
     debts: [
       {
