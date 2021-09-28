@@ -1,44 +1,30 @@
 import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
-import { deployAstroport } from "./fixture";
-import {
-  queryNativeTokenBalance,
-  queryTokenBalance,
-  sendTransaction,
-  toEncodedBinary,
-} from "./helpers";
-
-//----------------------------------------------------------------------------------------
-// Variables
-//----------------------------------------------------------------------------------------
+import { deployCw20Token, deployAstroport } from "./fixture";
+import { queryNativeBalance, queryCw20Balance, sendTransaction, toEncodedBinary } from "./helpers";
+import { Contract, Astroport } from "./types";
 
 const terra = new LocalTerra();
 const deployer = terra.wallets.test1;
 const user1 = terra.wallets.test2;
 const user2 = terra.wallets.test3;
 
-let mirrorToken: string;
-let astroportPair: string;
-let astroportLpToken: string;
+let cw20Token: Contract;
+let astroport: Astroport;
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Setup
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function setupTest() {
-  let astroportToken: string;
-  ({ astroportToken, astroportPair, astroportLpToken } = await deployAstroport(
-    terra,
-    deployer,
-    false
-  ));
-  mirrorToken = astroportToken;
+  cw20Token = await deployCw20Token(terra, deployer);
+  astroport = await deployAstroport(terra, deployer, cw20Token);
 
-  process.stdout.write("Fund user1 with MIR... ");
+  process.stdout.write("Fund user1 with tokens... ");
 
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, mirrorToken, {
+    new MsgExecuteContract(deployer.key.accAddress, cw20Token.address, {
       mint: {
         recipient: user1.key.accAddress,
         amount: "10000000000",
@@ -48,10 +34,10 @@ async function setupTest() {
 
   console.log(chalk.green("Done!"));
 
-  process.stdout.write("Fund user2 with MIR... ");
+  process.stdout.write("Fund user2 with tokens... ");
 
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, mirrorToken, {
+    new MsgExecuteContract(deployer.key.accAddress, cw20Token.address, {
       mint: {
         recipient: user2.key.accAddress,
         amount: "10000000000",
@@ -62,7 +48,7 @@ async function setupTest() {
   console.log(chalk.green("Done!"));
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 1. Provide Initial Liquidity
 //
 // User1 provides 1_000_000_000 uusd + 100_000_000 uMIR (price: 1 MIR = 10 UST)
@@ -73,21 +59,21 @@ async function setupTest() {
 // pool uusd  1000000000
 // pool uMIR  100000000
 // pool uLP   316227766
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testProvideInitialLiquidity() {
-  process.stdout.write("Should handle providing initial liquidity... ");
+  process.stdout.write("1. Provide initial liquidity... ");
 
   await sendTransaction(terra, user1, [
-    new MsgExecuteContract(user1.key.accAddress, mirrorToken, {
+    new MsgExecuteContract(user1.key.accAddress, cw20Token.address, {
       increase_allowance: {
         amount: "100000000",
-        spender: astroportPair,
+        spender: astroport.pair.address,
       },
     }),
     new MsgExecuteContract(
       user1.key.accAddress,
-      astroportPair,
+      astroport.pair.address,
       {
         provide_liquidity: {
           assets: [
@@ -102,7 +88,7 @@ async function testProvideInitialLiquidity() {
             {
               info: {
                 token: {
-                  contract_addr: mirrorToken,
+                  contract_addr: cw20Token.address,
                 },
               },
               amount: "100000000",
@@ -116,19 +102,19 @@ async function testProvideInitialLiquidity() {
     ),
   ]);
 
-  const poolUusd = await queryNativeTokenBalance(terra, astroportPair);
+  const poolUusd = await queryNativeBalance(terra, astroport.pair.address);
   expect(poolUusd).to.equal("1000000000");
 
-  const poolUMir = await queryTokenBalance(terra, astroportPair, mirrorToken);
+  const poolUMir = await queryCw20Balance(terra, astroport.pair.address, cw20Token.address);
   expect(poolUMir).to.equal("100000000");
 
-  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, astroportLpToken);
+  const poolULp = await queryCw20Balance(terra, user1.key.accAddress, astroport.shareToken.address);
   expect(poolULp).to.equal("316227766");
 
   console.log(chalk.green("Passed!"));
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 2. Provide Further Liquidity
 //
 // User1 provides another 690000000 uusd + 69000000 uMIR
@@ -144,21 +130,21 @@ async function testProvideInitialLiquidity() {
 // pool uusd  1000000000 + 690000000 = 1690000000
 // pool uMIR  100000000 + 69000000 = 169000000
 // pool uLP   316227766 + 218197158 = 534424924
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testProvideFurtherLiquidity() {
-  process.stdout.write("Should handle providing further liquidity... ");
+  process.stdout.write("2. Provide further liquidity... ");
 
   await sendTransaction(terra, user1, [
-    new MsgExecuteContract(user1.key.accAddress, mirrorToken, {
+    new MsgExecuteContract(user1.key.accAddress, cw20Token.address, {
       increase_allowance: {
         amount: "69000000",
-        spender: astroportPair,
+        spender: astroport.pair.address,
       },
     }),
     new MsgExecuteContract(
       user1.key.accAddress,
-      astroportPair,
+      astroport.pair.address,
       {
         provide_liquidity: {
           assets: [
@@ -173,7 +159,7 @@ async function testProvideFurtherLiquidity() {
             {
               info: {
                 token: {
-                  contract_addr: mirrorToken,
+                  contract_addr: cw20Token.address,
                 },
               },
               amount: "69000000",
@@ -187,19 +173,19 @@ async function testProvideFurtherLiquidity() {
     ),
   ]);
 
-  const poolUusd = await queryNativeTokenBalance(terra, astroportPair);
+  const poolUusd = await queryNativeBalance(terra, astroport.pair.address);
   expect(poolUusd).to.equal("1690000000");
 
-  const poolUMir = await queryTokenBalance(terra, astroportPair, mirrorToken);
+  const poolUMir = await queryCw20Balance(terra, astroport.pair.address, cw20Token.address);
   expect(poolUMir).to.equal("169000000");
 
-  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, astroportLpToken);
+  const poolULp = await queryCw20Balance(terra, user1.key.accAddress, astroport.shareToken.address);
   expect(poolULp).to.equal("534424924");
 
   console.log(chalk.green("Passed!"));
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 3. Swap
 //
 // User2 sells 100 MIR for UST
@@ -223,15 +209,15 @@ async function testProvideFurtherLiquidity() {
 // pool uusd  1690000000 - 626368030 = 1063631970
 // pool uMIR  169000000 + 100000000 = 269000000
 // pool uLP   534424924
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testSwap() {
-  process.stdout.write("Should handle swaps... ");
+  process.stdout.write("3. Swap... ");
   await sendTransaction(terra, user2, [
-    new MsgExecuteContract(user2.key.accAddress, mirrorToken, {
+    new MsgExecuteContract(user2.key.accAddress, cw20Token.address, {
       send: {
         amount: "100000000",
-        contract: astroportPair,
+        contract: astroport.pair.address,
         msg: toEncodedBinary({
           swap: {},
         }),
@@ -239,19 +225,19 @@ async function testSwap() {
     }),
   ]);
 
-  const poolUusd = await queryNativeTokenBalance(terra, astroportPair);
+  const poolUusd = await queryNativeBalance(terra, astroport.pair.address);
   expect(poolUusd).to.equal("1063631970");
 
-  const poolUMir = await queryTokenBalance(terra, astroportPair, mirrorToken);
+  const poolUMir = await queryCw20Balance(terra, astroport.pair.address, cw20Token.address);
   expect(poolUMir).to.equal("269000000");
 
-  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, astroportLpToken);
+  const poolULp = await queryCw20Balance(terra, user1.key.accAddress, astroport.shareToken.address);
   expect(poolULp).to.equal("534424924");
 
   console.log(chalk.green("Passed!"));
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 4. Remove Liquidity
 //
 // User1 burns 420 LP tokens
@@ -263,16 +249,16 @@ async function testSwap() {
 // pool uusd  1063631970 - 835899313 = 227732657
 // pool uMIR  269000000 - 211404810 = 57595190
 // pool uLP   534424924 - 420000000 = 114424924
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testRemoveLiquidity() {
-  process.stdout.write("Should handle removal of liquidity... ");
+  process.stdout.write("4. Remove liquidity... ");
 
   await sendTransaction(terra, user1, [
-    new MsgExecuteContract(user1.key.accAddress, astroportLpToken, {
+    new MsgExecuteContract(user1.key.accAddress, astroport.shareToken.address, {
       send: {
         amount: "420000000",
-        contract: astroportPair,
+        contract: astroport.pair.address,
         msg: toEncodedBinary({
           withdraw_liquidity: {},
         }),
@@ -280,21 +266,21 @@ async function testRemoveLiquidity() {
     }),
   ]);
 
-  const poolUusd = await queryNativeTokenBalance(terra, astroportPair);
+  const poolUusd = await queryNativeBalance(terra, astroport.pair.address);
   expect(poolUusd).to.equal("227732657");
 
-  const poolUMir = await queryTokenBalance(terra, astroportPair, mirrorToken);
+  const poolUMir = await queryCw20Balance(terra, astroport.pair.address, cw20Token.address);
   expect(poolUMir).to.equal("57595190");
 
-  const poolULp = await queryTokenBalance(terra, user1.key.accAddress, astroportLpToken);
+  const poolULp = await queryCw20Balance(terra, user1.key.accAddress, astroport.shareToken.address);
   expect(poolULp).to.equal("114424924");
 
   console.log(chalk.green("Passed!"));
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Main
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 (async () => {
   console.log(chalk.yellow("\nTest: Info"));
@@ -307,7 +293,7 @@ async function testRemoveLiquidity() {
 
   await setupTest();
 
-  console.log(chalk.yellow("\nTest: Astroport Pair (Xyk)"));
+  console.log(chalk.yellow("\nTest: Astroport"));
 
   await testProvideInitialLiquidity();
   await testProvideFurtherLiquidity();

@@ -13,6 +13,9 @@ import {
   LCDClient,
 } from "@terra-money/terra.js";
 
+export const GAS_LIMIT = 30000000;
+export const GAS_AMOUNT = 4500000;
+
 /// Send a transaction. Return result if successful, throw error if failed.
 export async function sendTransaction(
   terra: LocalTerra | LCDClient,
@@ -20,24 +23,17 @@ export async function sendTransaction(
   msgs: Msg[],
   verbose = false
 ) {
-  const GAS_LIMIT = 30000000;
-  const GAS_AMOUNT = 4500000;
-  const DEFAULT_FEE = new StdFee(GAS_LIMIT, [
-    new Coin("uluna", GAS_AMOUNT),
-    new Coin("uusd", GAS_AMOUNT),
-  ]);
-
-  const tx = await sender.createAndSignTx({ msgs, fee: DEFAULT_FEE });
+  const tx = await sender.createAndSignTx({
+    msgs,
+    fee: new StdFee(GAS_LIMIT, [new Coin("uluna", GAS_AMOUNT), new Coin("uusd", GAS_AMOUNT)]),
+  });
   const result = await terra.tx.broadcast(tx);
 
   // Print the log info
   if (verbose) {
     console.log(chalk.magenta("\nTxHash:"), result.txhash);
     try {
-      console.log(
-        chalk.magenta("Raw log:"),
-        JSON.stringify(JSON.parse(result.raw_log), null, 2)
-      );
+      console.log(chalk.magenta("Raw log:"), JSON.stringify(JSON.parse(result.raw_log), null, 2));
     } catch {
       console.log(chalk.magenta("Failed to parse log! Raw log:"), result.raw_log);
     }
@@ -84,11 +80,7 @@ export async function instantiateContract(
 }
 
 /// Find CW20 token balance of the specified account
-export async function queryCw20Balance(
-  terra: LCDClient,
-  account: string,
-  contract: string
-) {
+export async function queryCw20Balance(terra: LCDClient, account: string, contract: string) {
   const balanceResponse = await terra.wasm.contractQuery<{ balance: string }>(contract, {
     balance: { address: account },
   });
