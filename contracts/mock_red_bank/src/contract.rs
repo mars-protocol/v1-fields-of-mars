@@ -1,13 +1,15 @@
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response,
-    StdResult, Uint128,
+    StdError, StdResult, Uint128,
 };
 use cw20::Cw20ReceiveMsg;
 
-use fields_of_mars::asset::{Asset, AssetInfo};
-use fields_of_mars::red_bank::mock_msg::{ExecuteMsg, InstantiateMsg};
-use fields_of_mars::red_bank::msg::{DebtInfo, DebtResponse, QueryMsg, ReceiveMsg, RedBankAsset};
+use fields_of_mars::adapters::Asset;
 
+use mars::asset::Asset as MarsAsset;
+use red_bank::msg::{DebtInfo, DebtResponse, QueryMsg, ReceiveMsg};
+
+use crate::msg::{ExecuteMsg, InstantiateMsg};
 use crate::state::DEBT_AMOUNT;
 
 // This mock contract currently only supports borrowing uluna and uusd
@@ -61,6 +63,8 @@ pub fn execute_receive_cw20(
             let denom = info.sender.to_string();
             execute_repay(deps, env, info, repayer_addr, &denom, cw20_msg.amount)
         }
+
+        _ => Err(StdError::generic_err("Unimplemented")),
     }
 }
 
@@ -68,32 +72,23 @@ fn execute_borrow(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    asset: RedBankAsset,
+    asset: MarsAsset,
     amount: Uint128,
 ) -> StdResult<Response> {
     let denom = match &asset {
-        RedBankAsset::Cw20 { contract_addr } => &contract_addr[..],
-        RedBankAsset::Native { denom } => &denom[..],
+        MarsAsset::Cw20 { contract_addr } => &contract_addr[..],
+        MarsAsset::Native { denom } => &denom[..],
     };
 
-    let mut debt_amount = helpers::load_debt_amount(deps.storage, &info.sender, denom);
-    debt_amount += amount;
+    let debt_amount = helpers::load_debt_amount(deps.storage, &info.sender, denom);
 
-    DEBT_AMOUNT.save(deps.storage, (&info.sender, denom), &debt_amount)?;
+    DEBT_AMOUNT.save(deps.storage, (&info.sender, denom), &(debt_amount + amount))?;
 
     let outbound_asset = match &asset {
-        RedBankAsset::Cw20 { contract_addr } => Asset {
-            info: AssetInfo::Token {
-                contract_addr: deps.api.addr_validate(contract_addr)?,
-            },
-            amount,
-        },
-        RedBankAsset::Native { denom } => Asset {
-            info: AssetInfo::NativeToken {
-                denom: denom.clone(),
-            },
-            amount,
-        },
+        MarsAsset::Cw20 { contract_addr } => {
+            Asset::cw20(&deps.api.addr_validate(contract_addr)?, amount)
+        }
+        MarsAsset::Native { denom } => Asset::native(denom, amount),
     };
 
     Ok(Response::new().add_message(outbound_asset.transfer_msg(&info.sender)?))
@@ -105,12 +100,11 @@ fn execute_repay(
     _info: MessageInfo,
     user_addr: Addr,
     denom: &str,
-    repay_amount: Uint128,
+    amount: Uint128,
 ) -> StdResult<Response> {
-    let mut debt_amount = helpers::load_debt_amount(deps.storage, &user_addr, denom);
-    debt_amount -= repay_amount;
+    let debt_amount = helpers::load_debt_amount(deps.storage, &user_addr, denom);
 
-    DEBT_AMOUNT.save(deps.storage, (&user_addr, denom), &debt_amount)?;
+    DEBT_AMOUNT.save(deps.storage, (&user_addr, denom), &(debt_amount - amount))?;
 
     Ok(Response::default())
 }
@@ -134,6 +128,8 @@ fn execute_set_debt(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::UserDebt { user_address } => to_binary(&query_debt(deps, env, user_address)?),
+
+        _ => Err(StdError::generic_err("Unimplemented")),
     }
 }
 
@@ -144,7 +140,7 @@ fn query_debt(deps: Deps, _env: Env, user_address: String) -> StdResult<DebtResp
         .iter()
         .map(|denom| DebtInfo {
             denom: denom.to_string(),
-            amount: helpers::load_debt_amount(deps.storage, &user_addr, denom),
+            amount_scaled: helpers::load_debt_amount(deps.storage, &user_addr, denom),
         })
         .collect();
 
