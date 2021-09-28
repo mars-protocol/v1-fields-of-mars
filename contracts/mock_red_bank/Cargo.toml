@@ -15,12 +15,12 @@ backtraces = ["cosmwasm-std/backtraces"]
 [dependencies]
 fields-of-mars = { path = "../../packages/fields_of_mars" }
 
-mars = { git = "https://github.com/mars-protocol/protocol.git" }
-red-bank = { git = "https://github.com/mars-protocol/protocol.git" }
+mars = { path = "../../packages/mars_core" }
+red-bank = { path = "../../packages/red_bank" } 
 
 cosmwasm-std = "0.16.0"
-cw20 = "0.8"
-cw-storage-plus = "0.8"
+cw20 = "0.8.0"
+cw-storage-plus = "0.8.0"
 
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }

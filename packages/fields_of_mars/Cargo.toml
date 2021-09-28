@@ -7,18 +7,18 @@ license = "UNLICENSED"
 repository = "https://github.com/mars-protocol/field-of-mars"
 
 [dependencies]
-anchor-token = { version = "0.2.0", git = "https://github.com/Anchor-Protocol/anchor-token-contracts.git", branch = "dev/col5" }
-astroport = { git = "https://github.com/astroport-fi/astroport.git" }
-mars = { git = "https://github.com/mars-protocol/protocol.git" }
-red-bank = { git = "https://github.com/mars-protocol/protocol.git" } 
-mars-periphery = { git = "https://github.com/mars-protocol/mars-periphery.git", branch = "dev" }
-mirror-protocol = { version = "2.1.1", git = "https://github.com/Mirror-Protocol/mirror-contracts.git" }
+anchor-token = "0.2.0"
+astroport = { path = "../astroport" }
+mars = { path = "../mars_core" }
+red-bank = { path = "../red_bank" } 
+mars-periphery = { path = "../mars_periphery" }
+mirror-protocol = "2.1.1"
 
 cosmwasm-std = "0.16.0"
-cw20 = "0.8"
+cw20 = "0.8.0"
 
-cosmwasm-bignumber = "2.2"
-terra-cosmwasm = "2.2"
+cosmwasm-bignumber = "2.2.0"
+terra-cosmwasm = "2.2.0"
 
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }

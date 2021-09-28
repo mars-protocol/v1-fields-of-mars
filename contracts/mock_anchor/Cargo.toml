@@ -15,7 +15,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 [dependencies]
 fields-of-mars = { path = "../../packages/fields_of_mars" }
 
-anchor-token = { version = "0.2.0", git = "https://github.com/Anchor-Protocol/anchor-token-contracts.git", branch = "dev/col5" }
+anchor-token = "0.2.0"
 
 cosmwasm-std = "0.16.0"
 cw20 = "0.8.0"

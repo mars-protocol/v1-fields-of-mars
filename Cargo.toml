@@ -1,5 +1,11 @@
 [workspace]
-members = ["contracts/*", "packages/*"]
+members = [
+  "contracts/mock_anchor",
+  "contracts/mock_mirror",
+  "contracts/mock_oracle",
+  "contracts/mock_red_bank", 
+  "packages/fields_of_mars"
+]
 
 [profile.release.package.fields-of-mars]
 opt-level = 3
