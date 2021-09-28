@@ -106,8 +106,14 @@ export function toEncodedBinary(obj: any) {
   return Buffer.from(JSON.stringify(obj)).toString("base64");
 }
 
+/// Encode a string to UTF8 array
+export function toUtf8Array(str: string) {
+  const encoder = new TextEncoder();
+  return Array.from(encoder.encode(str));
+}
+
 /// Given a total amount of UST, find the deviverable amount, after tax, if we transfer this amount
-/// NOTE: Assumes a tax rate of 0.1% and no tax cap (`must be configured in LocalTerra/config.genesis.json`)
+/// NOTE: Assumes a tax rate of 0.1% and a cap of 1000000 (`must be configured in LocalTerra/config.genesis.json`)
 export function deductTax(amount: number) {
   const DECIMAL_FRACTION = new BN("1000000000000000000");
 
@@ -123,8 +129,8 @@ export function deductTax(amount: number) {
   return amount - tax;
 }
 
-/// @notice Given a intended deliverable amount, find the total amount necessary for deliver this amount
-/// NOTE: Assumes a tax rate of 0.1% and no tax cap (`must be configured in LocalTerra/config.genesis.json`)
+/// Given a intended deliverable amount of UST, find the total amount necessary for deliver this amount
+/// NOTE: Assumes a tax rate of 0.1% and a cap of 1000000 (`must be configured in LocalTerra/config.genesis.json`)
 export function addTax(amount: number) {
   const tax = Math.min(new BN(amount).div(new BN(1000)).toNumber(), 1000000);
   return amount + tax;
