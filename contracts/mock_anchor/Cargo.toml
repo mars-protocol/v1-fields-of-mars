@@ -13,9 +13,13 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-field-of-mars = { version = "0.4.1", path = "../../packages/field_of_mars" }
+fields-of-mars = { path = "../../packages/fields_of_mars" }
+
+anchor-token = { version = "0.2.0", git = "https://github.com/Anchor-Protocol/anchor-token-contracts.git", branch = "dev/col5" }
+
 cosmwasm-std = "0.16.0"
 cw20 = "0.8.0"
 cw-storage-plus = "0.8.0"
+
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
