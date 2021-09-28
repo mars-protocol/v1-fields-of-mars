@@ -40,8 +40,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::Receive(cw20_msg) => execute_receive_cw20(deps, env, info, cw20_msg),
         ExecuteMsg::Unbond { amount } => execute_unbond(deps, env, info, amount),
         ExecuteMsg::Withdraw {} => execute_withdraw(deps, env, info),
-
-        _ => Err(StdError::generic_err("Unimplemented")),
     }
 }
 
