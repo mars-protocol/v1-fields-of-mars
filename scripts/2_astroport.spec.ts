@@ -3,7 +3,7 @@ import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
 import { deployCw20Token, deployAstroport } from "./fixture";
 import { queryNativeBalance, queryCw20Balance, sendTransaction, toEncodedBinary } from "./helpers";
-import { Contract, Astroport } from "./types";
+import { Contract, Protocols } from "./types";
 
 const terra = new LocalTerra();
 const deployer = terra.wallets.test1;
@@ -11,7 +11,7 @@ const user1 = terra.wallets.test2;
 const user2 = terra.wallets.test3;
 
 let cw20Token: Contract;
-let astroport: Astroport;
+let astroport: Protocols.Astroport;
 
 //--------------------------------------------------------------------------------------------------
 // Setup

@@ -2,7 +2,7 @@ import * as path from "path";
 import chalk from "chalk";
 import { LCDClient, MsgExecuteContract, Wallet } from "@terra-money/terra.js";
 import { storeCode, instantiateContract, sendTransaction } from "./helpers";
-import { Contract, Astroport } from "./types";
+import { Contract, Protocols } from "./types";
 
 export async function deployCw20Token(terra: LCDClient, deployer: Wallet) {
   process.stdout.write("Uploading CW20 code... ");
@@ -147,7 +147,7 @@ export async function deployRedBank(terra: LCDClient, deployer: Wallet) {
   return { codeId, address };
 }
 
-export async function deployOracle(terra: LCDClient, deployer: Wallet, astroport: Astroport) {
+export async function deployOracle(terra: LCDClient, deployer: Wallet) {
   process.stdout.write("Uploading Oracle code... ");
 
   const codeId = await storeCode(
@@ -173,7 +173,7 @@ export async function deployAnchorStaking(
   terra: LCDClient,
   deployer: Wallet,
   anchorToken: Contract,
-  astroport: Astroport
+  astroport: Protocols.Astroport
 ) {
   process.stdout.write("Uploading Anchor staking code... ");
 
@@ -204,7 +204,7 @@ export async function deployMirrorStaking(
   deployer: Wallet,
   mirrorToken: Contract,
   assetToken: Contract,
-  astroport: Astroport
+  astroport: Protocols.Astroport
 ) {
   process.stdout.write("Uploading Mirror staking code... ");
 
