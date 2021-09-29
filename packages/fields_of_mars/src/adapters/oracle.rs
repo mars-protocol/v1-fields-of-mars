@@ -18,20 +18,18 @@ pub type OracleUnchecked = OracleBase<String>;
 pub type Oracle = OracleBase<Addr>;
 
 impl From<Oracle> for OracleUnchecked {
-    fn from(checked: Oracle) -> Self {
+    fn from(oracle: Oracle) -> Self {
         OracleUnchecked {
-            contract_addr: checked.contract_addr.to_string(),
+            contract_addr: oracle.contract_addr.to_string(),
         }
     }
 }
 
 impl OracleUnchecked {
     pub fn check(&self, api: &dyn Api) -> StdResult<Oracle> {
-        let checked = Oracle {
+        Ok(Oracle {
             contract_addr: api.addr_validate(&self.contract_addr)?,
-        };
-
-        Ok(checked)
+        })
     }
 }
 

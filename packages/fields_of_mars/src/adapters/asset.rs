@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, Addr, Api, BalanceResponse, BankMsg, BankQuery, Coin, CosmosMsg, MessageInfo,
-    QuerierWrapper, QueryRequest, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
+    to_binary, Addr, Api, BalanceResponse, BankMsg, BankQuery, Coin, CosmosMsg, QuerierWrapper,
+    QueryRequest, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
 
@@ -17,8 +17,12 @@ static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetInfoBase<T> {
-    Cw20 { contract_addr: T },
-    Native { denom: String },
+    Cw20 {
+        contract_addr: T,
+    },
+    Native {
+        denom: String,
+    },
 }
 
 pub type AssetInfoUnchecked = AssetInfoBase<String>;
@@ -27,10 +31,14 @@ pub type AssetInfo = AssetInfoBase<Addr>;
 impl From<AssetInfo> for AssetInfoUnchecked {
     fn from(asset_info: AssetInfo) -> Self {
         match &asset_info {
-            AssetInfo::Cw20 { contract_addr } => AssetInfoUnchecked::Cw20 {
+            AssetInfo::Cw20 {
+                contract_addr,
+            } => AssetInfoUnchecked::Cw20 {
                 contract_addr: contract_addr.to_string(),
             },
-            AssetInfo::Native { denom } => AssetInfoUnchecked::Native {
+            AssetInfo::Native {
+                denom,
+            } => AssetInfoUnchecked::Native {
                 denom: denom.clone(),
             },
         }
@@ -39,26 +47,34 @@ impl From<AssetInfo> for AssetInfoUnchecked {
 
 impl AssetInfoUnchecked {
     pub fn check(&self, api: &dyn Api) -> StdResult<AssetInfo> {
-        let checked = match self {
-            AssetInfoUnchecked::Cw20 { contract_addr } => AssetInfo::Cw20 {
+        Ok(match self {
+            AssetInfoUnchecked::Cw20 {
+                contract_addr,
+            } => AssetInfo::Cw20 {
                 contract_addr: api.addr_validate(contract_addr)?,
             },
-            AssetInfoUnchecked::Native { denom } => AssetInfo::Native {
+            AssetInfoUnchecked::Native {
+                denom,
+            } => AssetInfo::Native {
                 denom: denom.clone(),
             },
-        };
-
-        Ok(checked)
+        })
     }
 }
 
 impl From<AssetInfo> for mars::asset::Asset {
     fn from(asset_info: AssetInfo) -> Self {
         match asset_info {
-            AssetInfo::Cw20 { contract_addr } => Self::Cw20 {
+            AssetInfo::Cw20 {
+                contract_addr,
+            } => Self::Cw20 {
                 contract_addr: contract_addr.to_string(),
             },
-            AssetInfo::Native { denom } => Self::Native { denom },
+            AssetInfo::Native {
+                denom,
+            } => Self::Native {
+                denom,
+            },
         }
     }
 }
@@ -66,8 +82,16 @@ impl From<AssetInfo> for mars::asset::Asset {
 impl From<AssetInfo> for astroport::asset::AssetInfo {
     fn from(asset_info: AssetInfo) -> Self {
         match asset_info {
-            AssetInfo::Cw20 { contract_addr } => Self::Token { contract_addr },
-            AssetInfo::Native { denom } => Self::NativeToken { denom },
+            AssetInfo::Cw20 {
+                contract_addr,
+            } => Self::Token {
+                contract_addr,
+            },
+            AssetInfo::Native {
+                denom,
+            } => Self::NativeToken {
+                denom,
+            },
         }
     }
 }
@@ -75,17 +99,27 @@ impl From<AssetInfo> for astroport::asset::AssetInfo {
 impl PartialEq<AssetInfo> for astroport::asset::AssetInfo {
     fn eq(&self, other: &AssetInfo) -> bool {
         match self {
-            Self::Token { contract_addr } => {
+            Self::Token {
+                contract_addr,
+            } => {
                 let self_contract_addr = contract_addr;
-                if let AssetInfo::Cw20 { contract_addr } = other {
+                if let AssetInfo::Cw20 {
+                    contract_addr,
+                } = other
+                {
                     self_contract_addr == contract_addr
                 } else {
                     false
                 }
             }
-            Self::NativeToken { denom } => {
+            Self::NativeToken {
+                denom,
+            } => {
                 let self_denom = denom;
-                if let AssetInfo::Native { denom } = other {
+                if let AssetInfo::Native {
+                    denom,
+                } = other
+                {
                     self_denom == denom
                 } else {
                     false
@@ -117,8 +151,12 @@ impl AssetInfo {
     /// For CW20 tokens, it's the contract address
     pub fn get_denom(&self) -> String {
         match self {
-            AssetInfo::Cw20 { contract_addr } => contract_addr.to_string(),
-            AssetInfo::Native { denom } => denom.clone(),
+            AssetInfo::Cw20 {
+                contract_addr,
+            } => contract_addr.to_string(),
+            AssetInfo::Native {
+                denom,
+            } => denom.clone(),
         }
     }
 
@@ -132,7 +170,9 @@ impl AssetInfo {
     /// Query an account's balance of the specified asset
     pub fn query_balance(&self, querier: &QuerierWrapper, account: &Addr) -> StdResult<Uint128> {
         match self {
-            AssetInfo::Cw20 { contract_addr } => {
+            AssetInfo::Cw20 {
+                contract_addr,
+            } => {
                 let response: Cw20BalanceResponse =
                     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                         contract_addr: contract_addr.to_string(),
@@ -142,7 +182,9 @@ impl AssetInfo {
                     }))?;
                 Ok(response.balance)
             }
-            AssetInfo::Native { denom } => {
+            AssetInfo::Native {
+                denom,
+            } => {
                 let response: BalanceResponse =
                     querier.query(&QueryRequest::Bank(BankQuery::Balance {
                         address: account.to_string(),
@@ -156,12 +198,12 @@ impl AssetInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AssetBase<T> {
-    pub info: T,
+    pub info: AssetInfoBase<T>,
     pub amount: Uint128,
 }
 
-pub type AssetUnchecked = AssetBase<AssetInfoUnchecked>;
-pub type Asset = AssetBase<AssetInfo>;
+pub type AssetUnchecked = AssetBase<String>;
+pub type Asset = AssetBase<Addr>;
 
 impl From<Asset> for AssetUnchecked {
     fn from(asset: Asset) -> Self {
@@ -174,12 +216,10 @@ impl From<Asset> for AssetUnchecked {
 
 impl AssetUnchecked {
     pub fn check(&self, api: &dyn Api) -> StdResult<Asset> {
-        let checked = Asset {
+        Ok(Asset {
             info: self.info.check(api)?,
             amount: self.amount,
-        };
-
-        Ok(checked)
+        })
     }
 }
 
@@ -194,6 +234,13 @@ impl From<Asset> for astroport::asset::Asset {
 
 impl Asset {
     // INSTANCE CREATION
+
+    pub fn new<A: Into<Uint128>>(asset_info: &AssetInfo, amount: A) -> Self {
+        Asset {
+            info: asset_info.clone(),
+            amount: amount.into(),
+        }
+    }
 
     pub fn cw20<A: Into<Uint128>>(contract_addr: &Addr, amount: A) -> Self {
         Asset {
@@ -220,7 +267,9 @@ impl Asset {
     /// let msg = asset.deduct_tax(deps.querier)?.transfer_msg(to, amount)?;
     pub fn transfer_msg(&self, to: &Addr) -> StdResult<CosmosMsg> {
         match &self.info {
-            AssetInfo::Cw20 { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfo::Cw20 {
+                contract_addr,
+            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: to.to_string(),
@@ -228,7 +277,9 @@ impl Asset {
                 })?,
                 funds: vec![],
             })),
-            AssetInfo::Native { denom } => Ok(CosmosMsg::Bank(BankMsg::Send {
+            AssetInfo::Native {
+                denom,
+            } => Ok(CosmosMsg::Bank(BankMsg::Send {
                 to_address: to.to_string(),
                 amount: vec![Coin {
                     denom: denom.clone(),
@@ -244,7 +295,9 @@ impl Asset {
     /// NOTE: Must have allowance
     pub fn transfer_from_msg(&self, from: &Addr, to: &Addr) -> StdResult<CosmosMsg> {
         match &self.info {
-            AssetInfo::Cw20 { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfo::Cw20 {
+                contract_addr,
+            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
                     owner: from.to_string(),
@@ -253,9 +306,9 @@ impl Asset {
                 })?,
                 funds: vec![],
             })),
-            AssetInfo::Native { .. } => Err(StdError::generic_err(
-                "`TransferFrom` does not apply to native tokens",
-            )),
+            AssetInfo::Native {
+                ..
+            } => Err(StdError::generic_err("TransferFrom does not apply to native tokens")),
         }
     }
 
@@ -263,44 +316,52 @@ impl Asset {
 
     /// Check if native token of specified amount was sent along a message
     /// Skip if asset if CW20
-    pub fn assert_sent_fund(&self, message: &MessageInfo) -> StdResult<()> {
+    pub fn assert_sent_fund(&self, funds: &[Coin]) -> StdResult<()> {
         let denom = match &self.info {
-            AssetInfo::Cw20 { .. } => {
+            AssetInfo::Cw20 {
+                ..
+            } => {
                 return Ok(());
             }
-            AssetInfo::Native { denom } => denom,
+            AssetInfo::Native {
+                denom,
+            } => denom,
         };
 
-        let sent_amount = match message.funds.iter().find(|fund| &fund.denom == denom) {
+        let sent_amount = match funds.iter().find(|fund| &fund.denom == denom) {
             Some(fund) => fund.amount,
             None => Uint128::zero(),
         };
 
-        if sent_amount != self.amount {
-            return Err(StdError::generic_err(format!(
-                "Sent fund mismatch! denom: {} expected: {} received: {}",
-                denom, self.amount, sent_amount
-            )));
+        if sent_amount == self.amount {
+            Ok(())
+        } else {
+            Err(StdError::generic_err(format!(
+                "sent fund mismatch: expected {}{}, received {}{}",
+                self.amount, denom, sent_amount, denom
+            )))
         }
-
-        Ok(())
     }
 
     /// Compute total cost (tax included) for transferring specified amount of asset
     ///
     /// E.g. If tax incurred for transferring 100 UST is 0.5 UST, then return 100.5 UST.
     /// This is the total amount that will be deducted from the sender's account.
-    pub fn add_tax(&self, querier: &QuerierWrapper, amount: Uint128) -> StdResult<Self> {
+    pub fn add_tax(&self, querier: &QuerierWrapper) -> StdResult<Self> {
         let tax = match &self.info {
-            AssetInfo::Cw20 { .. } => Uint128::zero(),
-            AssetInfo::Native { denom } => {
+            AssetInfo::Cw20 {
+                ..
+            } => Uint128::zero(),
+            AssetInfo::Native {
+                denom,
+            } => {
                 if denom == "luna" {
                     Uint128::zero()
                 } else {
                     let terra_querier = TerraQuerier::new(querier);
                     let tax_rate = terra_querier.query_tax_rate()?.rate;
                     let tax_cap = terra_querier.query_tax_cap(denom.clone())?.cap;
-                    std::cmp::min(amount * tax_rate, tax_cap)
+                    std::cmp::min(self.amount * tax_rate, tax_cap)
                 }
             }
         };
@@ -317,8 +378,12 @@ impl Asset {
     /// https://github.com/terraswap/terraswap/blob/master/packages/terraswap/src/asset.rs#L58
     pub fn deduct_tax(&self, querier: &QuerierWrapper) -> StdResult<Self> {
         let tax = match &self.info {
-            AssetInfo::Cw20 { .. } => Uint128::zero(),
-            AssetInfo::Native { denom } => {
+            AssetInfo::Cw20 {
+                ..
+            } => Uint128::zero(),
+            AssetInfo::Native {
+                denom,
+            } => {
                 if denom == "luna" {
                     Uint128::zero()
                 } else {

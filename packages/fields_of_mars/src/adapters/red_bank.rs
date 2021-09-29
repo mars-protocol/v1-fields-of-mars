@@ -20,20 +20,18 @@ pub type RedBankUnchecked = RedBankBase<String>;
 pub type RedBank = RedBankBase<Addr>;
 
 impl From<RedBank> for RedBankUnchecked {
-    fn from(checked: RedBank) -> Self {
+    fn from(red_bank: RedBank) -> Self {
         RedBankUnchecked {
-            contract_addr: checked.contract_addr.to_string(),
+            contract_addr: red_bank.contract_addr.to_string(),
         }
     }
 }
 
 impl RedBankUnchecked {
     pub fn check(&self, api: &dyn Api) -> StdResult<RedBank> {
-        let checked = RedBank {
+        Ok(RedBank {
             contract_addr: api.addr_validate(&self.contract_addr)?,
-        };
-
-        Ok(checked)
+        })
     }
 }
 
@@ -54,7 +52,9 @@ impl RedBank {
     /// @dev Note: we do not deduct tax here
     pub fn repay_msg(&self, asset: &Asset) -> StdResult<CosmosMsg> {
         match &asset.info {
-            AssetInfo::Cw20 { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfo::Cw20 {
+                contract_addr,
+            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Send {
@@ -63,7 +63,9 @@ impl RedBank {
                     msg: to_binary(&ReceiveMsg::RepayCw20 {})?,
                 })?,
             })),
-            AssetInfo::Native { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfo::Native {
+                denom,
+            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: self.contract_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::RepayNative {
                     denom: denom.into(),

@@ -14,35 +14,33 @@ use mirror_protocol::staking as mirror_staking;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StakingConfigBase<T> {
     /// Address of the staking contract
-    contract_addr: T,
+    pub contract_addr: T,
     /// Address of ANC, MIR, or mAsset token; refer to Mirror contract for definition
-    asset_token: T,
+    pub asset_token: T,
     /// Address of ANC-UST, MIR-UST, or mAsset-UST LP token
-    staking_token: T,
+    pub staking_token: T,
 }
 
 pub type StakingConfigUnchecked = StakingConfigBase<String>;
 pub type StakingConfig = StakingConfigBase<Addr>;
 
 impl From<StakingConfig> for StakingConfigUnchecked {
-    fn from(checked: StakingConfig) -> Self {
+    fn from(config: StakingConfig) -> Self {
         StakingConfigUnchecked {
-            contract_addr: checked.contract_addr.to_string(),
-            asset_token: checked.asset_token.to_string(),
-            staking_token: checked.staking_token.to_string(),
+            contract_addr: config.contract_addr.to_string(),
+            asset_token: config.asset_token.to_string(),
+            staking_token: config.staking_token.to_string(),
         }
     }
 }
 
 impl StakingConfigUnchecked {
     pub fn check(&self, api: &dyn Api) -> StdResult<StakingConfig> {
-        let checked = StakingConfig {
+        Ok(StakingConfig {
             contract_addr: api.addr_validate(&self.contract_addr)?,
             asset_token: api.addr_validate(&self.asset_token)?,
             staking_token: api.addr_validate(&self.staking_token)?,
-        };
-
-        Ok(checked)
+        })
     }
 }
 
@@ -50,21 +48,21 @@ impl StakingConfigUnchecked {
 #[serde(rename_all = "snake_case")]
 pub enum StakingBase<T> {
     /// Anchor staking contract, or those forked from it, e.g. Pylon
-    Anchor(T),
+    Anchor(StakingConfigBase<T>),
     /// Mars staking contract, a fork of Anchor staking but
     /// 1) uses `cosmwasm_bignumber::Uint256` instead of `cosmwasm_std::Uint128`
     /// 2) uses timestamp instead of block height
-    Mars(T),
+    Mars(StakingConfigBase<T>),
     /// Mirror V2 staking contract
-    Mirror(T),
+    Mirror(StakingConfigBase<T>),
 }
 
-pub type StakingUnchecked = StakingBase<StakingConfigUnchecked>;
-pub type Staking = StakingBase<StakingConfig>;
+pub type StakingUnchecked = StakingBase<String>;
+pub type Staking = StakingBase<Addr>;
 
 impl From<Staking> for StakingUnchecked {
-    fn from(checked: Staking) -> Self {
-        match checked {
+    fn from(staking: Staking) -> Self {
+        match staking {
             Staking::Anchor(config) => StakingUnchecked::Anchor(config.into()),
             Staking::Mars(config) => StakingUnchecked::Mars(config.into()),
             Staking::Mirror(config) => StakingUnchecked::Mirror(config.into()),
@@ -74,13 +72,11 @@ impl From<Staking> for StakingUnchecked {
 
 impl StakingUnchecked {
     pub fn check(&self, api: &dyn Api) -> StdResult<Staking> {
-        let checked = match self {
+        Ok(match self {
             StakingUnchecked::Anchor(config) => Staking::Anchor(config.check(api)?),
             StakingUnchecked::Mars(config) => Staking::Mars(config.check(api)?),
             StakingUnchecked::Mirror(config) => Staking::Mirror(config.check(api)?),
-        };
-
-        Ok(checked)
+        })
     }
 }
 
@@ -91,7 +87,6 @@ impl Staking {
             Staking::Mars(config) => config,
             Staking::Mirror(config) => config,
         };
-
         config.clone()
     }
 
@@ -123,7 +118,9 @@ impl Staking {
         let config = self.get_config();
 
         let msg = match self {
-            Staking::Anchor(..) => to_binary(&anchor_staking::ExecuteMsg::Unbond { amount })?,
+            Staking::Anchor(..) => to_binary(&anchor_staking::ExecuteMsg::Unbond {
+                amount,
+            })?,
             Staking::Mars(..) => to_binary(&mars_staking::ExecuteMsg::Unbond {
                 amount: amount.into(),
                 withdraw_pending_reward: Some(false),
