@@ -38,7 +38,9 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::Receive(cw20_msg) => execute_receive_cw20(deps, env, info, cw20_msg),
-        ExecuteMsg::Unbond { amount } => execute_unbond(deps, env, info, amount),
+        ExecuteMsg::Unbond {
+            amount,
+        } => execute_unbond(deps, env, info, amount),
         ExecuteMsg::Withdraw {} => execute_withdraw(deps, env, info),
     }
 }
@@ -110,7 +112,10 @@ fn execute_withdraw(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Re
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::StakerInfo { staker, .. } => to_binary(&query_staker_info(deps, env, staker)?),
+        QueryMsg::StakerInfo {
+            staker,
+            ..
+        } => to_binary(&query_staker_info(deps, env, staker)?),
 
         _ => Err(StdError::generic_err("Unimplemented")),
     }
@@ -135,8 +140,6 @@ mod helpers {
     use super::*;
 
     pub fn load_bond_amount(storage: &dyn Storage, staker_addr: &Addr) -> Uint128 {
-        BOND_AMOUNT
-            .load(storage, staker_addr)
-            .unwrap_or_else(|_| Uint128::zero())
+        BOND_AMOUNT.load(storage, staker_addr).unwrap_or_else(|_| Uint128::zero())
     }
 }

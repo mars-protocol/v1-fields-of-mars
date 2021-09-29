@@ -45,7 +45,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_token,
             amount,
         } => execute_unbond(deps, env, info, asset_token, amount),
-        ExecuteMsg::Withdraw { asset_token } => execute_withdraw(deps, env, info, asset_token),
+        ExecuteMsg::Withdraw {
+            asset_token,
+        } => execute_withdraw(deps, env, info, asset_token),
 
         _ => Err(StdError::generic_err("unimplemented")),
     }
@@ -58,7 +60,9 @@ fn execute_receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
     match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::Bond { asset_token } => {
+        Cw20HookMsg::Bond {
+            asset_token,
+        } => {
             let asset_token_addr = deps.api.addr_validate(&asset_token)?;
             let staking_token_addr = STAKING_TOKEN.load(deps.storage, &asset_token_addr)?;
 
@@ -66,14 +70,7 @@ fn execute_receive_cw20(
                 return Err(StdError::generic_err("unauthorized"));
             }
 
-            execute_bond(
-                deps,
-                env,
-                info,
-                cw20_msg.sender,
-                asset_token,
-                cw20_msg.amount,
-            )
+            execute_bond(deps, env, info, cw20_msg.sender, asset_token, cw20_msg.amount)
         }
 
         _ => Err(StdError::generic_err("unimplemented")),
@@ -108,11 +105,7 @@ fn execute_bond(
 
     let bond_amount = helpers::load_bond_amount(deps.storage, &staker_addr, &asset_token_addr);
 
-    BOND_AMOUNT.save(
-        deps.storage,
-        (&staker_addr, &asset_token_addr),
-        &(bond_amount + amount),
-    )?;
+    BOND_AMOUNT.save(deps.storage, (&staker_addr, &asset_token_addr), &(bond_amount + amount))?;
 
     Ok(Response::default())
 }
@@ -128,11 +121,7 @@ fn execute_unbond(
 
     let bond_amount = helpers::load_bond_amount(deps.storage, &info.sender, &asset_token_addr);
 
-    BOND_AMOUNT.save(
-        deps.storage,
-        (&info.sender, &asset_token_addr),
-        &(bond_amount - amount),
-    )?;
+    BOND_AMOUNT.save(deps.storage, (&info.sender, &asset_token_addr), &(bond_amount - amount))?;
 
     let staking_token_addr = STAKING_TOKEN.load(deps.storage, &asset_token_addr)?;
     let outbound_asset = Asset::cw20(&staking_token_addr, amount);
@@ -149,10 +138,8 @@ fn execute_withdraw(
 ) -> StdResult<Response> {
     let reward_infos =
         helpers::read_reward_infos(deps.api, deps.storage, &info.sender, asset_token)?;
-    let reward_amounts: Vec<Uint128> = reward_infos
-        .iter()
-        .map(|reward_info| reward_info.pending_reward)
-        .collect();
+    let reward_amounts: Vec<Uint128> =
+        reward_infos.iter().map(|reward_info| reward_info.pending_reward).collect();
     let total_reward_amount: Uint128 = reward_amounts.iter().sum();
 
     let config = CONFIG.load(deps.storage)?;

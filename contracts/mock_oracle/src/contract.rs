@@ -52,7 +52,11 @@ fn execute_set_asset(
     let asset_reference = asset.get_reference();
 
     let price_source_checked = match price_source {
-        PriceSourceUnchecked::Fixed { price } => PriceSourceChecked::Fixed { price },
+        PriceSourceUnchecked::Fixed {
+            price,
+        } => PriceSourceChecked::Fixed {
+            price,
+        },
 
         PriceSourceUnchecked::AstroportSpot {
             pair_address,
@@ -77,9 +81,9 @@ fn execute_set_asset(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::AssetPriceByReference { asset_reference } => {
-            to_binary(&query_asset_price(deps, env, &asset_reference)?)
-        }
+        QueryMsg::AssetPriceByReference {
+            asset_reference,
+        } => to_binary(&query_asset_price(deps, env, &asset_reference)?),
 
         _ => Err(StdError::generic_err("Unimplemented")),
     }
@@ -93,7 +97,9 @@ fn query_asset_price(
     let price_source = PRICE_SOURCE.load(deps.storage, asset_reference)?;
 
     let price = match price_source {
-        PriceSourceChecked::Fixed { price } => price,
+        PriceSourceChecked::Fixed {
+            price,
+        } => price,
 
         PriceSourceChecked::AstroportSpot {
             pair_address,
@@ -109,10 +115,7 @@ fn query_asset_price(
                     })?,
                 }))?;
 
-            Decimal::from_ratio(
-                response.return_amount + response.commission_amount,
-                PROBE_AMOUNT,
-            )
+            Decimal::from_ratio(response.return_amount + response.commission_amount, PROBE_AMOUNT)
         }
 
         _ => return Err(StdError::generic_err("Unimplemented")),

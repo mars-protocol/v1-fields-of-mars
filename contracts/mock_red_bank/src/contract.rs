@@ -34,8 +34,13 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::Receive(cw20_msg) => execute_receive_cw20(deps, env, info, cw20_msg),
-        ExecuteMsg::Borrow { asset, amount } => execute_borrow(deps, env, info, asset, amount),
-        ExecuteMsg::RepayNative { denom } => {
+        ExecuteMsg::Borrow {
+            asset,
+            amount,
+        } => execute_borrow(deps, env, info, asset, amount),
+        ExecuteMsg::RepayNative {
+            denom,
+        } => {
             let repayer_addr = info.sender.clone();
             let repay_amount = helpers::get_denom_amount_from_coins(&info.funds, &denom);
             execute_repay(deps, env, info, repayer_addr, &denom, repay_amount)
@@ -76,8 +81,12 @@ fn execute_borrow(
     amount: Uint128,
 ) -> StdResult<Response> {
     let denom = match &asset {
-        MarsAsset::Cw20 { contract_addr } => &contract_addr[..],
-        MarsAsset::Native { denom } => &denom[..],
+        MarsAsset::Cw20 {
+            contract_addr,
+        } => &contract_addr[..],
+        MarsAsset::Native {
+            denom,
+        } => &denom[..],
     };
 
     let debt_amount = helpers::load_debt_amount(deps.storage, &info.sender, denom);
@@ -85,15 +94,15 @@ fn execute_borrow(
     DEBT_AMOUNT.save(deps.storage, (&info.sender, denom), &(debt_amount + amount))?;
 
     let outbound_asset = match &asset {
-        MarsAsset::Cw20 { contract_addr } => {
-            Asset::cw20(&deps.api.addr_validate(contract_addr)?, amount)
-        }
-        MarsAsset::Native { denom } => Asset::native(denom, amount),
+        MarsAsset::Cw20 {
+            contract_addr,
+        } => Asset::cw20(&deps.api.addr_validate(contract_addr)?, amount),
+        MarsAsset::Native {
+            denom,
+        } => Asset::native(denom, amount),
     };
 
-    let outbound_msg = outbound_asset
-        .deduct_tax(&deps.querier)?
-        .transfer_msg(&info.sender)?;
+    let outbound_msg = outbound_asset.deduct_tax(&deps.querier)?.transfer_msg(&info.sender)?;
 
     Ok(Response::new().add_message(outbound_msg))
 }
@@ -131,7 +140,9 @@ fn execute_set_debt(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::UserDebt { user_address } => to_binary(&query_debt(deps, env, user_address)?),
+        QueryMsg::UserDebt {
+            user_address,
+        } => to_binary(&query_debt(deps, env, user_address)?),
 
         _ => Err(StdError::generic_err("Unimplemented")),
     }
@@ -148,7 +159,9 @@ fn query_debt(deps: Deps, _env: Env, user_address: String) -> StdResult<DebtResp
         })
         .collect();
 
-    Ok(DebtResponse { debts })
+    Ok(DebtResponse {
+        debts,
+    })
 }
 
 // HELPERS
@@ -159,9 +172,7 @@ pub mod helpers {
     use crate::state::DEBT_AMOUNT;
 
     pub fn load_debt_amount(storage: &dyn Storage, user: &Addr, denom: &str) -> Uint128 {
-        DEBT_AMOUNT
-            .load(storage, (user, denom))
-            .unwrap_or_else(|_| Uint128::zero())
+        DEBT_AMOUNT.load(storage, (user, denom)).unwrap_or_else(|_| Uint128::zero())
     }
 
     pub fn get_denom_amount_from_coins(funds: &[Coin], denom: &str) -> Uint128 {
