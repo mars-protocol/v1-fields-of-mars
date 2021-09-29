@@ -157,6 +157,11 @@ impl Pair {
 
     // QUERIES
 
+    /// Query an account's balance of the pool's share token
+    pub fn query_share(&self, querier: &QuerierWrapper, account: &Addr) -> StdResult<Uint128> {
+        AssetInfo::cw20(&self.share_token).query_balance(querier, account)
+    }
+
     /// Query the Astroport pool, parse response, and return the following 3-tuple:
     /// 1. depth of the primary asset
     /// 2. depth of the secondary asset
@@ -187,11 +192,6 @@ impl Pair {
             .amount;
 
         Ok((primary_asset_depth, secondary_asset_depth, response.total_share))
-    }
-
-    /// Query an account's balance of the pool's share token
-    pub fn query_share(&self, querier: &QuerierWrapper, account: &Addr) -> StdResult<Uint128> {
-        AssetInfo::cw20(&self.share_token).query_balance(querier, account)
     }
 
     // RESPONSE PARSING
@@ -277,7 +277,7 @@ impl Pair {
 }
 
 mod helpers {
-    use cosmwasm_std::Event;
+    use super::*;
 
     pub fn event_contains_attr(event: &Event, key: &str, value: &str) -> bool {
         event.attributes.iter().any(|attr| attr.key == key && attr.value == value)
