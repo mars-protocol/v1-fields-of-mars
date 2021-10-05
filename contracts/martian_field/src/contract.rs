@@ -10,7 +10,7 @@ use fields_of_mars::martian_field::msg::{
     CallbackMsg, ConfigResponse, ExecuteMsg, HealthResponse, InstantiateMsg, MigrateMsg,
     PositionResponse, QueryMsg, StateResponse,
 };
-use fields_of_mars::martian_field::{ConfigUnchecked, State};
+use fields_of_mars::martian_field::{Config, State};
 
 use crate::helpers::*;
 use crate::state::{CONFIG, POSITION, STATE, TEMP_USER_ADDR};
@@ -44,7 +44,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     match msg {
         ExecuteMsg::UpdateConfig {
             new_config,
-        } => execute_update_config(deps, env, info, new_config),
+        } => execute_update_config(deps, env, info, new_config.check(api)?),
         ExecuteMsg::IncreasePosition {
             deposits,
         } => execute_increase_position(
@@ -73,7 +73,7 @@ fn execute_update_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    new_config: ConfigUnchecked,
+    new_config: Config,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -81,7 +81,7 @@ fn execute_update_config(
         return Err(StdError::generic_err("only governance can update config"));
     }
 
-    CONFIG.save(deps.storage, &new_config.check(deps.api)?)?;
+    CONFIG.save(deps.storage, &new_config)?;
 
     Ok(Response::default())
 }
@@ -676,11 +676,14 @@ fn callback_repay(
 
     let debt_amount = total_debt_amount.multiply_ratio(position.debt_units, state.total_debt_units);
 
+    // We only repay up to the debt amount
+    let repay_amount = cmp::min(repay_amount, debt_amount);
+
     // Calculate how by many the user's debt units should be deducted
     let debt_units_to_deduct = if debt_amount.is_zero() {
         Uint128::zero()
     } else {
-        cmp::min(position.debt_units.multiply_ratio(repay_amount, debt_amount), position.debt_units)
+        position.debt_units.multiply_ratio(repay_amount, debt_amount)
     };
 
     // NOTE: `repay_amount` is the amount to be delivered to Red Bank. The total cost of making this
@@ -811,9 +814,10 @@ fn callback_assert_health(
 
     // If ltv is Some(ltv), we assert it is no larger than `config.max_ltv`
     // If it is None, meaning `bond_value` is zero, we assert debt is also zero
-    let healthy = match health.ltv {
-        Some(ltv) => ltv <= config.max_ltv,
-        None => health.debt_value.is_zero(),
+    let healthy = if let Some(ltv) = health.ltv {
+        ltv <= config.max_ltv
+    } else {
+        health.debt_value.is_zero()
     };
 
     // Convert `ltv` to String so that it can be recorded in logs

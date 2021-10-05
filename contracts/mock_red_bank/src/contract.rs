@@ -115,9 +115,14 @@ fn execute_repay(
     denom: &str,
     amount: Uint128,
 ) -> StdResult<Response> {
-    let debt_amount = helpers::load_debt_amount(deps.storage, &user_addr, denom);
+    let mut debt_amount = helpers::load_debt_amount(deps.storage, &user_addr, denom);
 
-    DEBT_AMOUNT.save(deps.storage, (&user_addr, denom), &(debt_amount - amount))?;
+    // If the user pays more than what they owe, we simply reduce the debt amount to zero
+    // The actual Red Bank contract refunds the excess payment amount. But this difference is ok for
+    // testing purpose
+    debt_amount = debt_amount.checked_sub(amount).unwrap_or_else(|_| Uint128::zero());
+
+    DEBT_AMOUNT.save(deps.storage, (&user_addr, denom), &debt_amount)?;
 
     Ok(Response::default())
 }

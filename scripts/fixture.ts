@@ -232,12 +232,15 @@ export async function deployMirrorStaking(
 export async function deployMartianField(
   terra: LCDClient,
   deployer: Wallet,
-  codePath: string,
   instantiateMsg: object
 ) {
   process.stdout.write("Uploading Martian Field code... ");
 
-  const codeId = await storeCode(terra, deployer, path.resolve(__dirname, codePath));
+  const codeId = await storeCode(
+    terra,
+    deployer,
+    path.resolve(__dirname, "../artifacts/martian_field.wasm")
+  );
 
   console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
 

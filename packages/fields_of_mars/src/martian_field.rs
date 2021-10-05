@@ -167,7 +167,11 @@ pub mod msg {
         /// LTV is no greater than `max_ltv` after these actions are completed, the remaining withdrawn
         /// assets are refunded to the user.
         ///
-        /// NOTE: `repay_amount` is the actual amount to be delivered to Red Bank. Due to tax, tf the
+        /// NOTE: `repay_amount` is the maximum amount to be repaid. The contract will calculate the
+        /// amount of debt the user's owes (which can be queried by `QueryMsg::Health`) repay whichever
+        /// is smaller.
+        ///
+        /// NOTE: `repay_amount` denotes actual amount to be delivered to Red Bank. Due to tax, if the
         /// secondary asset is a native token, an amount slightly greater than `repay_amount` needs
         /// to be available in the user's position after performing the swap.
         ReducePosition {
@@ -177,9 +181,13 @@ pub mod msg {
         },
         /// Pay down debt owed to Mars, reduce debt units
         ///
-        /// NOTE: `repay_amount` is the actual amount to be delivered to Red Bank. Due to tax, if the
+        /// NOTE: `repay_amount` is the maximum amount to be repaid. The contract will calculate the
+        /// amount of debt the user's owes (which can be queried by `QueryMsg::Health`) repay whichever
+        /// is smaller.
+        ///
+        /// NOTE: `repay_amount` denotes actual amount to be delivered to Red Bank. Due to tax, if the
         /// secondary asset is a native token, an amount slightly greater than `repay_amount` needs
-        /// to be deposited. The excess amount will be refunded to the user.
+        /// to be available in the user's position after performing the swap.
         ///
         /// E.g. Suppose the tax associated with transferring 100 UST is 0.1 UST. To reduce the user's
         /// debt by 100 UST, set `repay_amount` as 100.1e6 and transfer at least 1_001_000 uusd with

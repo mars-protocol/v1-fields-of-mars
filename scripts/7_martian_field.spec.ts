@@ -2,16 +2,16 @@ import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract, MsgSend } from "@terra-money/terra.js";
 import { sendTransaction, toEncodedBinary } from "./helpers";
 import {
-  deployMartianField,
-  deployMockAnchor,
-  deployMockMars,
+  deployCw20Token,
   deployAstroport,
+  deployRedBank,
+  deployOracle,
+  deployAnchorStaking,
+  deployMirrorStaking,
+  deployMartianField,
 } from "./fixture";
-import { Checker, Config } from "./check";
-
-//----------------------------------------------------------------------------------------
-// Variables
-//----------------------------------------------------------------------------------------
+import { Contract, Protocols, MartianField } from "./types";
+import { Verifier } from "./verifier";
 
 // LocalTerra instance
 const terra = new LocalTerra();
@@ -21,86 +21,101 @@ const deployer = terra.wallets.test1;
 const treasury = terra.wallets.test2;
 const user1 = terra.wallets.test3;
 const user2 = terra.wallets.test4;
-const liquidator1 = terra.wallets.test5;
-const liquidator2 = terra.wallets.test6;
+const liquidator = terra.wallets.test5;
 
 // Contract addresses
-let anchorToken: string;
-let anchorStaking: string;
-let astroportPair: string;
-let astroportLpToken: string;
-let redBank: string;
-let field: string;
+let astroport: Protocols.Astroport;
+let anchor: Protocols.Anchor;
+let mars: Protocols.Mars;
+let field: Contract;
 
 // InstantiateMsg aka Config
-let config: object;
+let config: MartianField.Config;
 
 // Helper for checking whether contract state matches expected values
-let checker: Checker;
+let verifier: Verifier;
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Setup
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function setupTest() {
-  // Part 1. Deploy mock contracts
-  let astroportToken: string;
-  ({ astroportToken, astroportPair, astroportLpToken } = await deployAstroport(
-    terra,
-    deployer,
-    false
-  ));
-  anchorToken = astroportToken;
+  // Deploy mock Anchor token, staking, Astroport pair
+  const token = await deployCw20Token(terra, deployer);
+  astroport = await deployAstroport(terra, deployer, token);
+  const staking = await deployAnchorStaking(terra, deployer, token, astroport);
+  anchor = { token, staking };
 
-  anchorStaking = await deployMockAnchor(terra, deployer, anchorToken, astroportLpToken);
+  // Deploy mock Red Bank + Oracle
+  const redBank = await deployRedBank(terra, deployer);
+  const oracle = await deployOracle(terra, deployer);
+  mars = { redBank, oracle };
 
-  redBank = await deployMockMars(terra, deployer);
-
-  // Part 2. Deploy Martian Field
+  // Deploy Martian Field
   config = {
-    long_asset: {
-      token: {
-        contract_addr: anchorToken,
+    primary_asset_info: {
+      cw20: {
+        contract_addr: anchor.token.address,
       },
     },
-    short_asset: {
-      native_token: {
+    secondary_asset_info: {
+      native: {
         denom: "uusd",
       },
     },
     red_bank: {
-      contract_addr: redBank,
+      contract_addr: mars.redBank.address,
     },
-    swap: {
-      pair: astroportPair,
-      share_token: astroportLpToken,
+    oracle: {
+      contract_addr: mars.oracle.address,
+    },
+    pair: {
+      contract_addr: astroport.pair.address,
+      share_token: astroport.shareToken.address,
     },
     staking: {
       anchor: {
-        contract_addr: anchorStaking,
-        asset_token: anchorToken,
-        staking_token: astroportLpToken,
+        contract_addr: anchor.staking.address,
+        asset_token: anchor.token.address,
+        staking_token: astroport.shareToken.address,
       },
     },
-    keepers: [deployer.key.accAddress],
     treasury: treasury.key.accAddress,
     governance: deployer.key.accAddress,
-    max_ltv: "0.75", // 75% debt ratio, i.e. 133.333...% collateralization ratio
+    max_ltv: "0.75", // 75%, i.e. for every 100 UST asset there must be no more than 75 UST debt
     fee_rate: "0.2", // 20%
+    bonus_rate: "0.05", // 5%
   };
 
-  field = await deployMartianField(
-    terra,
-    deployer,
-    "../artifacts/martian_field.wasm",
-    config
-  );
+  field = await deployMartianField(terra, deployer, config);
 
-  // Part 3. Misc
+  // Other setups
+  process.stdout.write("Configuring asset with oracle...");
+
+  await sendTransaction(terra, deployer, [
+    new MsgExecuteContract(deployer.key.accAddress, oracle.address, {
+      set_asset: {
+        asset: {
+          cw20: {
+            contract_addr: anchor.token.address,
+          },
+        },
+        price_source: {
+          astroport_spot: {
+            pair_address: astroport.pair.address,
+            asset_address: anchor.token.address,
+          },
+        },
+      },
+    }),
+  ]);
+
+  console.log(chalk.green("Done!"));
+
   process.stdout.write("Fund deployer with ANC... ");
 
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, anchorToken, {
+    new MsgExecuteContract(deployer.key.accAddress, anchor.token.address, {
       mint: {
         recipient: deployer.key.accAddress,
         amount: "1000000000", // 1000 ANC
@@ -113,7 +128,7 @@ async function setupTest() {
   process.stdout.write("Fund user1 with ANC... ");
 
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, anchorToken, {
+    new MsgExecuteContract(deployer.key.accAddress, anchor.token.address, {
       mint: {
         recipient: user1.key.accAddress,
         amount: "69000000",
@@ -126,7 +141,7 @@ async function setupTest() {
   process.stdout.write("Fund user2 with ANC... ");
 
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, anchorToken, {
+    new MsgExecuteContract(deployer.key.accAddress, anchor.token.address, {
       mint: {
         recipient: user2.key.accAddress,
         amount: "34500000",
@@ -139,9 +154,9 @@ async function setupTest() {
   process.stdout.write("Fund Anchor Staking contract with ANC... ");
 
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, anchorToken, {
+    new MsgExecuteContract(deployer.key.accAddress, anchor.token.address, {
       mint: {
-        recipient: anchorStaking,
+        recipient: anchor.staking.address,
         amount: "100000000",
       },
     }),
@@ -152,7 +167,7 @@ async function setupTest() {
   process.stdout.write("Fund Mars contract with UST...");
 
   await sendTransaction(terra, deployer, [
-    new MsgSend(deployer.key.accAddress, redBank, { uusd: 99999000000 }), // 99999 UST
+    new MsgSend(deployer.key.accAddress, mars.redBank.address, { uusd: 99999000000 }), // 99999 UST
   ]);
 
   console.log(chalk.green("Done!"));
@@ -162,15 +177,15 @@ async function setupTest() {
   // Deployer Provides 69 ANC + 420 UST
   // Should receive sqrt(69000000 * 420000000) = 170235131 uLP
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, anchorToken, {
+    new MsgExecuteContract(deployer.key.accAddress, anchor.token.address, {
       increase_allowance: {
         amount: "69000000",
-        spender: astroportPair,
+        spender: astroport.pair.address,
       },
     }),
     new MsgExecuteContract(
       deployer.key.accAddress,
-      astroportPair,
+      astroport.pair.address,
       {
         provide_liquidity: {
           assets: [
@@ -186,7 +201,7 @@ async function setupTest() {
               amount: "69000000",
               info: {
                 token: {
-                  contract_addr: anchorToken,
+                  contract_addr: anchor.token.address,
                 },
               },
             },
@@ -201,25 +216,25 @@ async function setupTest() {
 
   console.log(chalk.green("Done!"));
 
-  // Finally, initialize the checker object
-  checker = new Checker(terra, field, config as Config);
+  // Finally, initialize the verifier object
+  verifier = new Verifier(terra, field.address, config);
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 1. Config
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testConfig() {
-  await checker.check("null", "testConfig", {
+  await verifier.verify("null", "testConfig", {
     bond: {
       bond_amount: "0",
     },
     debt: {
       debts: [
         // uluna
-        { amount: "0" },
+        { amount_scaled: "0" },
         // uusd
-        { amount: "0" },
+        { amount_scaled: "0" },
       ],
     },
     pool: {
@@ -231,22 +246,15 @@ async function testConfig() {
       ],
       total_share: "170235131",
     },
-    strategy: {
-      state: {
-        total_bond_units: "0",
-        total_debt_units: "0",
-      },
-      health: {
-        bond_value: "0",
-        debt_value: "0",
-        ltv: null,
-      },
+    state: {
+      total_bond_units: "0",
+      total_debt_units: "0",
     },
     users: [],
   });
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 2. Open Position, Pt. 1
 //
 // Prior to execution:
@@ -305,61 +313,52 @@ async function testConfig() {
 // pool uusd            839161257
 // pool uLP             340130301
 //
-// ancPrice = computeXykSwapOutput(1000000, 138000000, 839161257) / 1000000
+// ancPrice = computeSwapOutput(1000000, 138000000, 839161257) / 1000000
 // = 6.037132 uusd
 //
 // State health:
-// bondValue = (138000000 * 6.037132 + 839161257) * 169895170 / 340130301
+// totalBondValue = (138000000 * 6.037132 + 839161257) * 169895170 / 340130301
 // = 835307009 uusd
-// debtValue = 420000000 uusd
-// ltv = 420000000 / 835307009 = 0.502809141399171475
+// totalDebtValue = 420000000 uusd
 //
 // User1 health:
 // same as state as user1 is the only user now
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testOpenPosition1() {
   const { txhash } = await sendTransaction(terra, user1, [
-    new MsgExecuteContract(user1.key.accAddress, anchorToken, {
+    new MsgExecuteContract(user1.key.accAddress, anchor.token.address, {
       increase_allowance: {
         amount: "69000000",
-        spender: field,
+        spender: field.address,
       },
     }),
-    new MsgExecuteContract(user1.key.accAddress, field, {
+    new MsgExecuteContract(user1.key.accAddress, field.address, {
       increase_position: {
         deposits: [
           {
             info: {
-              token: {
-                contract_addr: anchorToken,
+              cw20: {
+                contract_addr: anchor.token.address,
               },
             },
             amount: "69000000",
-          },
-          {
-            info: {
-              native_token: {
-                denom: "uusd",
-              },
-            },
-            amount: "0",
           },
         ],
       },
     }),
   ]);
 
-  await checker.check(txhash, "testOpenPosition1", {
+  await verifier.verify(txhash, "testOpenPosition1", {
     bond: {
       bond_amount: "169895170",
     },
     debt: {
       debts: [
         // uluna
-        { amount: "0" },
+        { amount_scaled: "0" },
         // uusd
-        { amount: "420000000" },
+        { amount_scaled: "420000000" },
       ],
     },
     pool: {
@@ -371,16 +370,9 @@ async function testOpenPosition1() {
       ],
       total_share: "340130301",
     },
-    strategy: {
-      state: {
-        total_bond_units: "169895170000000",
-        total_debt_units: "420000000000000",
-      },
-      health: {
-        bond_value: "835307009",
-        debt_value: "420000000",
-        ltv: "0.502809141399171475",
-      },
+    state: {
+      total_bond_units: "169895170000000",
+      total_debt_units: "420000000000000",
     },
     users: [
       {
@@ -389,12 +381,10 @@ async function testOpenPosition1() {
           bond_units: "169895170000000",
           debt_units: "420000000000000",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
@@ -407,7 +397,7 @@ async function testOpenPosition1() {
   });
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 3. Harvest
 //
 // Prior to execution:
@@ -425,9 +415,8 @@ async function testOpenPosition1() {
 // pool uusd            839161257
 // pool uLP             340130301
 //
-// Step 1. reinvest
+// Step 1. swap
 // receives 1000000 uANC, sends 200000 uANC to treasury, swap 400000 uANC for UST
-// 1.0 ANC reward claimed, 0.2 ANC charged as performance fee, 0.4 ANC swapped for UST
 // kValue = poolUst * poolAnc = 839161257 * 138000000
 // = 115804253466000000
 // returnUst = poolUst - k / (poolAnc + sendAnc)
@@ -473,9 +462,6 @@ async function testOpenPosition1() {
 // ---
 // total bond units     169895170000000
 // total debt units     420000000000000
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
 // user1 bond units     169895170000000
 // user1 debt units     420000000000000
 // user1 unlocked uANC  0
@@ -487,36 +473,35 @@ async function testOpenPosition1() {
 // pool uusd            839156428
 // pool uLP             341111256
 //
-// ancPrice = computeXykSwapOutput(1000000, 138800000, 839156428) / 1000000
+// ancPrice = computeSwapOutput(1000000, 138800000, 839156428) / 1000000
 // = 6.002550 uusd
 //
 // State health:
-// bondValue = (138800000 * 6.002550 + 839156428) * 170876125 / 341111256
+// totalBondValue = (138800000 * 6.002550 + 839156428) * 170876125 / 341111256
 // = 837726432 uusd
-// debtValue = 420000000 uusd
-// ltv = 420000000 / 837726432 = 0.501356987145894424
+// totalDebtValue = 420000000 uusd
 //
 // User1 health:
 // same as state as user1 is the only user now
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testHarvest() {
   const { txhash } = await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, field, {
+    new MsgExecuteContract(deployer.key.accAddress, field.address, {
       harvest: {},
     }),
   ]);
 
-  await checker.check(txhash, "testHarvest", {
+  await verifier.verify(txhash, "testHarvest", {
     bond: {
       bond_amount: "170876125",
     },
     debt: {
       debts: [
         // uluna
-        { amount: "0" },
+        { amount_scaled: "0" },
         // uusd
-        { amount: "420000000" },
+        { amount_scaled: "420000000" },
       ],
     },
     pool: {
@@ -528,16 +513,9 @@ async function testHarvest() {
       ],
       total_share: "341111256",
     },
-    strategy: {
-      state: {
-        total_bond_units: "169895170000000",
-        total_debt_units: "420000000000000",
-      },
-      health: {
-        bond_value: "837726432",
-        debt_value: "420000000",
-        ltv: "0.501356987145894424",
-      },
+    state: {
+      total_bond_units: "169895170000000",
+      total_debt_units: "420000000000000",
     },
     users: [
       {
@@ -546,12 +524,10 @@ async function testHarvest() {
           bond_units: "169895170000000",
           debt_units: "420000000000000",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
@@ -564,16 +540,13 @@ async function testHarvest() {
   });
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 4. Accrue Interest
 //
 // Prior to execution:
 // ---
 // total bond units     169895170000000
 // total debt units     420000000000000
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
 // user1 bond units     169895170000000
 // user1 debt units     420000000000000
 // user1 unlocked uANC  0
@@ -591,9 +564,6 @@ async function testHarvest() {
 // ---
 // total bond units     169895170000000
 // total debt units     420000000000000
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
 // user1 bond units     169895170000000
 // user1 debt units     420000000000000
 // user1 unlocked uANC  0
@@ -608,31 +578,34 @@ async function testHarvest() {
 // ancPrice = = 6.002550 uusd (unchanged)
 //
 // State health:
-// bondValue = 837726432 uusd (unchanged)
-// debtValue = 441000000 uusd
-// ltv = 441000000 / 837726432 = 0.526424836503189146
+// totalBondValue = 837726432 uusd (unchanged)
+// totalDebtValue = 441000000 uusd
 //
 // User1 health:
 // same as state as user1 is the only user now
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testAccrueInterest() {
   const { txhash } = await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, redBank, {
-      set_debt: { user: field, denom: "uusd", amount: "441000000" },
+    new MsgExecuteContract(deployer.key.accAddress, mars.redBank.address, {
+      set_user_debt: {
+        user_address: field.address,
+        denom: "uusd",
+        amount: "441000000",
+      },
     }),
   ]);
 
-  await checker.check(txhash, "testAccrueInterest", {
+  await verifier.verify(txhash, "testAccrueInterest", {
     bond: {
       bond_amount: "170876125",
     },
     debt: {
       debts: [
         // uluna
-        { amount: "0" },
+        { amount_scaled: "0" },
         // uusd
-        { amount: "441000000" },
+        { amount_scaled: "441000000" },
       ],
     },
     pool: {
@@ -644,16 +617,9 @@ async function testAccrueInterest() {
       ],
       total_share: "341111256",
     },
-    strategy: {
-      state: {
-        total_bond_units: "169895170000000",
-        total_debt_units: "420000000000000",
-      },
-      health: {
-        bond_value: "837726432",
-        debt_value: "441000000",
-        ltv: "0.526424836503189146",
-      },
+    state: {
+      total_bond_units: "169895170000000",
+      total_debt_units: "420000000000000",
     },
     users: [
       {
@@ -662,12 +628,10 @@ async function testAccrueInterest() {
           bond_units: "169895170000000",
           debt_units: "420000000000000",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
@@ -680,16 +644,13 @@ async function testAccrueInterest() {
   });
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 5. Open Position, Pt. 2
 //
 // Prior to execution:
 // ---
 // total bond units     169895170000000
 // total debt units     420000000000000
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
 // user1 bond units     169895170000000
 // user1 debt units     420000000000000
 // user1 unlocked uANC  0
@@ -743,9 +704,6 @@ async function testAccrueInterest() {
 // ---
 // total bond units     254086887789575
 // total debt units     475790425714285
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
 // user1 bond units     169895170000000
 // user1 debt units     420000000000000
 // user1 unlocked uANC  0
@@ -762,14 +720,13 @@ async function testAccrueInterest() {
 // pool uusd            1047469539
 // pool uLP             425789087
 //
-// ancPrice = computeXykSwapOutput(1000000, 173300000, 1047469539) / 1000000
+// ancPrice = computeSwapOutput(1000000, 173300000, 1047469539) / 1000000
 // = 6.009579 uusd
 //
 // State health:
-// bondValue = (173300000 * 6.009579 + 1047469539) * 255553956 / 425789087
+// totalBondValue = (173300000 * 6.009579 + 1047469539) * 255553956 / 425789087
 // = 1253752700 uusd
-// debtValue = 499579947
-// ltv = 499579947 / 1253752700 = 0.398467693828296441
+// totalDebtValue = 499579947
 //
 // User1 health:
 // bondValue = 1253752700 * 169895170000000 / 254086887789575 = 838321607
@@ -780,33 +737,33 @@ async function testAccrueInterest() {
 // bondValue = 1253752700 * 84191717789575 / 254086887789575 = 415431092
 // debtValue = 499579947 * 55790425714285 / 475790425714285 = 58579946
 // ltv = 58579946 / 415431092 = 0.141010018576077112
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testOpenPosition2() {
   const { txhash } = await sendTransaction(terra, user2, [
-    new MsgExecuteContract(user2.key.accAddress, anchorToken, {
+    new MsgExecuteContract(user2.key.accAddress, anchor.token.address, {
       increase_allowance: {
         amount: "34500000",
-        spender: field,
+        spender: field.address,
       },
     }),
     new MsgExecuteContract(
       user2.key.accAddress,
-      field,
+      field.address,
       {
         increase_position: {
           deposits: [
             {
               info: {
-                token: {
-                  contract_addr: anchorToken,
+                cw20: {
+                  contract_addr: anchor.token.address,
                 },
               },
               amount: "34500000",
             },
             {
               info: {
-                native_token: {
+                native: {
                   denom: "uusd",
                 },
               },
@@ -821,16 +778,16 @@ async function testOpenPosition2() {
     ),
   ]);
 
-  await checker.check(txhash, "testOpenPosition2", {
+  await verifier.verify(txhash, "testOpenPosition2", {
     bond: {
       bond_amount: "255553956",
     },
     debt: {
       debts: [
         // uluna
-        { amount: "0" },
+        { amount_scaled: "0" },
         // uusd
-        { amount: "499579947" },
+        { amount_scaled: "499579947" },
       ],
     },
     pool: {
@@ -842,16 +799,9 @@ async function testOpenPosition2() {
       ],
       total_share: "425789087",
     },
-    strategy: {
-      state: {
-        total_bond_units: "254086887789575",
-        total_debt_units: "475790425714285",
-      },
-      health: {
-        bond_value: "1253752700",
-        debt_value: "499579947",
-        ltv: "0.398467693828296441",
-      },
+    state: {
+      total_bond_units: "254086887789575",
+      total_debt_units: "475790425714285",
     },
     users: [
       // user 1
@@ -861,12 +811,10 @@ async function testOpenPosition2() {
           bond_units: "169895170000000",
           debt_units: "420000000000000",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
@@ -882,12 +830,10 @@ async function testOpenPosition2() {
           bond_units: "84191717789575",
           debt_units: "55790425714285",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
@@ -900,7 +846,7 @@ async function testOpenPosition2() {
   });
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 6. Pay Debt
 //
 // Prior to execution:
@@ -927,31 +873,26 @@ async function testOpenPosition2() {
 // pool uLP             425789087
 //
 // Step 1. receiving user deposit
-// user1 deposits 100 UST to contract
+// user1 deposits 100.1 UST to contract
 // ---
-// user1 unlocked uusd  1 + 100000000 = 100000001
+// user1 unlocked uusd  1 + 100100000 = 100100001
 //
 // Step 2. repay
-// user1's outstanding debt value (441000000) is greater than unlocked uusd, so use all
-// unlocked uusd to repay
-// deliverable amount: deductTax(100000001) = 99900100
-// transaction cost: addTax(99900100) = 100000000
-// debt units to reduce: 475790425714285 * 99900100 / 499579947 = 95142952380952
+// Repay 100 UST
+// transaction cost: addTax(100000000) = 100100000
+// debt units to reduce: 475790425714285 * 100000000 / 499579947 = 95238095238095
 // ---
-// debt                 499579947 - 99900100 = 399679847
-// total debt units     475790425714285 - 95142952380952 = 380647473333333
-// user1 debt units     420000000000000 - 95142952380952 = 324857047619048
-// user1 unlocked uusd  100000001 - 100000000 = 1
+// debt                 499579947 - 100000000 = 399579947
+// total debt units     475790425714285 - 95238095238095 = 380552330476190
+// user1 debt units     420000000000000 - 95238095238095 = 324761904761905
+// user1 unlocked uusd  100100001 - 100100000 = 1
 //
 // Result
 // ---
 // total bond units     254086887789575
-// total debt units     380647473333333
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
+// total debt units     380552330476190
 // user1 bond units     169895170000000
-// user1 debt units     324857047619048
+// user1 debt units     324761904761905
 // user1 unlocked uANC  0
 // user1 unlocked uusd  1
 // user1 unlocked uLP   0
@@ -961,7 +902,7 @@ async function testOpenPosition2() {
 // user2 unlocked uusd  1
 // user2 unlocked uLP   0
 // bond                 255553956
-// debt                 399679847
+// debt                 399579947
 // pool uANC            173300000
 // pool uusd            1047469539
 // pool uLP             425789087
@@ -969,55 +910,46 @@ async function testOpenPosition2() {
 // ancPrice = 6.009579 uusd (unchanged)
 //
 // State health:
-// bondValue = 1253752700 uusd (unchanged)
-// debtValue = 399679847
-// ltv = 399679847 / 1253752700 = 0.318786828534845827
+// totaoBondValue = 1253752700 uusd (unchanged)
+// totalDebtValue = 399579947
 //
 // User1 health:
 // bondValue = 1253752700 * 169895170000000 / 254086887789575 = 838321607
-// debtValue = 399679847 * 324857047619048 / 380647473333333 = 341099900
-// ltv = 341099900 / 838321607 = 0.406884299714822929
+// debtValue = 399579947 * 324761904761905 / 380552330476190 = 341000000
+// ltv = 341000000 / 838321607 = 0.40676513303801795(0)
 //
 // User2 health:
 // bondValue = 1253752700 * 84191717789575 / 254086887789575 = 415431092
-// debtValue = 399679847 * 55790425714285 / 380647473333333 = 58579946
+// debtValue = 399579947 * 55790425714285 / 380552330476190 = 58579946
 // ltv = 58579946 / 415431092 = 0.141010018576077112
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 async function testPayDebt() {
   const { txhash } = await sendTransaction(terra, user1, [
     new MsgExecuteContract(
       user1.key.accAddress,
-      field,
+      field.address,
       {
         pay_debt: {
-          user: user1.key.accAddress,
-          deposit: {
-            info: {
-              native_token: {
-                denom: "uusd",
-              },
-            },
-            amount: "100000000",
-          },
+          repay_amount: "100000000",
         },
       },
       {
-        uusd: "100000000",
+        uusd: "100500000", // 100.1 is actually needed; should refund us ~0.4 UST
       }
     ),
   ]);
 
-  await checker.check(txhash, "testPayDebt", {
+  await verifier.verify(txhash, "testPayDebt", {
     bond: {
       bond_amount: "255553956",
     },
     debt: {
       debts: [
         // uluna
-        { amount: "0" },
+        { amount_scaled: "0" },
         // uusd
-        { amount: "399679847" },
+        { amount_scaled: "399579947" },
       ],
     },
     pool: {
@@ -1029,16 +961,9 @@ async function testPayDebt() {
       ],
       total_share: "425789087",
     },
-    strategy: {
-      state: {
-        total_bond_units: "254086887789575",
-        total_debt_units: "380647473333333",
-      },
-      health: {
-        bond_value: "1253752700",
-        debt_value: "399679847",
-        ltv: "0.318786828534845827",
-      },
+    state: {
+      total_bond_units: "254086887789575",
+      total_debt_units: "380552330476190",
     },
     users: [
       // user 1
@@ -1046,20 +971,18 @@ async function testPayDebt() {
         address: user1.key.accAddress,
         position: {
           bond_units: "169895170000000",
-          debt_units: "324857047619048",
+          debt_units: "324761904761905",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
           bond_value: "838321607",
-          debt_value: "341099900",
-          ltv: "0.406884299714822929",
+          debt_value: "341000000",
+          ltv: "0.40676513303801795",
         },
       },
       // user 2
@@ -1069,12 +992,10 @@ async function testPayDebt() {
           bond_units: "84191717789575",
           debt_units: "55790425714285",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
@@ -1087,18 +1008,15 @@ async function testPayDebt() {
   });
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 7. Reduce Position, Pt. 1
 //
 // Prior to execution:
 // ---
 // total bond units     254086887789575
-// total debt units     380647473333333
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
+// total debt units     380552330476190
 // user1 bond units     169895170000000
-// user1 debt units     324857047619048
+// user1 debt units     324761904761905
 // user1 unlocked uANC  0
 // user1 unlocked uusd  1
 // user1 unlocked uLP   0
@@ -1108,7 +1026,7 @@ async function testPayDebt() {
 // user2 unlocked uusd  1
 // user2 unlocked uLP   0
 // bond                 255553956
-// debt                 399679847
+// debt                 399579947
 // pool uANC            173300000
 // pool uusd            1047469539
 // pool uLP             425789087
@@ -1123,25 +1041,39 @@ async function testPayDebt() {
 // user1 unlocked uLP   0 + 30173216 = 30173216
 //
 // Step 2. remove liquidity
-// skipped per message input
-//
-// Step 3. repay
-// skipped per message input
-//
-// Step 4. refund
-// send all 30173216 uLP to user1
+// burn of of user1's 30173216 uLP
+// ANC to be released: 173300000 * 30173216 / 425789087 = 12280771
+// UST to be released: 1047469539 * 30173216 / 425789087 = 74228122
+// UST to receive: deductTax(74228122) = 74153968
+// transaction cost for pool: addTax(74153968) = 74228121
 // ---
+// pool uANC            173300000 - 12280771 = 161019229
+// pool uusd            1047469539 - 74228121 = 973241418
+// pool uLP             425789087 - 30173216 = 395615871
+// user1 unlocked uANC  0 + 161019229 = 161019229
+// user1 unlocked uusd  1 + 973241418 = 973241419
 // user1 unlocked uLP   30173216 - 30173216 = 0
+//
+// Step 3. swap
+// skipped as `swap_amount` is zero
+//
+// Step 4. repay
+// skipped as `repay_amount` is zero
+//
+// Step 5. refund
+// send all 161019229 uANC to user1
+// UST to send: deductTax(973241419) = 972269149
+// transaction cost: addTax(972269149) = 973241418
+// ---
+// user1 unlocked uANC  161019229 - 161019229 = 0
+// user1 unlocked uusd  973241419 - 973241418 = 1
 //
 // Result
 // ---
 // total bond units     224086887789575
-// total debt units     380647473333333
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
+// total debt units     380552330476190
 // user1 bond units     139895170000000
-// user1 debt units     324857047619048
+// user1 debt units     324761904761905
 // user1 unlocked uANC  0
 // user1 unlocked uusd  1
 // user1 unlocked uLP   0
@@ -1151,72 +1083,65 @@ async function testPayDebt() {
 // user2 unlocked uusd  1
 // user2 unlocked uLP   0
 // bond                 225380740
-// debt                 399679847
-// pool uANC            173300000
-// pool uusd            1047469539
-// pool uLP             425789087
+// debt                 399579947
+// pool uANC            161019229
+// pool uusd            973241418
+// pool uLP             395615871
 //
-// ancPrice = 6.009579 uusd (unchanged)
+// ancPrice = computeSwapOutput(1000000, 161019229, 973241418) / 1000000
+// = 6.006951 uusd
 //
 // State health:
-// bondValue = (173300000 * 6.009579 + 1047469539) * 225380740 / 425789087
-// = 1105722313 uusd
-// debtValue = 399679847
-// ltv = 399679847 / 1105722313 = 0.361464937716238344
+// totalBondValue = (161019229 * 6.006951 + 973241418) * 225380740 / 395615871
+// = 1105481243 uusd
+// totalDebtValue = 399579947 uusd
 //
 // User1 health:
-// bondValue = 1105722313 * 139895170000000 / 224086887789575 = 690291219
-// debtValue = 399679847 * 324857047619048 / 380647473333333 = 341099900
-// ltv = 341099900 / 690291219 = 0.49413912651842671(0)
+// bondValue = 1105481243 * 139895170000000 / 224086887789575 = 690140721
+// debtValue = 399579947 * 324761904761905 / 380552330476190 = 341000000
+// ltv = 341000000 / 690140721 = 0.49410212964378898(0)
 //
 // User2 health:
-// bondValue = 1105722313 * 84191717789575 / 224086887789575 = 415431093
-// debtValue = 399679847 * 55790425714285 / 380647473333333 = 58579946
-// ltv = 58579946 / 415431093 =0.141010018236646528
-//----------------------------------------------------------------------------------------
+// bondValue = 1105481243 * 84191717789575 / 224086887789575 = 415340521
+// debtValue = 399579947 * 55790425714285 / 380552330476190 = 58579946
+// ltv = 58579946 / 415340521 = 0.141040767847450164
+//--------------------------------------------------------------------------------------------------
 
 async function testReducePosition1() {
   const { txhash } = await sendTransaction(terra, user1, [
-    new MsgExecuteContract(user1.key.accAddress, field, {
+    new MsgExecuteContract(user1.key.accAddress, field.address, {
       reduce_position: {
         bond_units: "30000000000000",
-        remove: false,
-        repay: false,
+        swap_amount: "0",
+        repay_amount: "0",
       },
     }),
   ]);
 
-  await checker.check(txhash, "testReducePosition1", {
+  await verifier.verify(txhash, "testReducePosition1", {
     bond: {
       bond_amount: "225380740",
     },
     debt: {
       debts: [
         // uluna
-        { amount: "0" },
+        { amount_scaled: "0" },
         // uusd
-        { amount: "399679847" },
+        { amount_scaled: "399579947" },
       ],
     },
     pool: {
       assets: [
         // uusd
-        { amount: "1047469539" },
+        { amount: "973241418" },
         // uANC
-        { amount: "173300000" },
+        { amount: "161019229" },
       ],
-      total_share: "425789087",
+      total_share: "395615871",
     },
-    strategy: {
-      state: {
-        total_bond_units: "224086887789575",
-        total_debt_units: "380647473333333",
-      },
-      health: {
-        bond_value: "1105722313",
-        debt_value: "399679847",
-        ltv: "0.361464937716238344",
-      },
+    state: {
+      total_bond_units: "224086887789575",
+      total_debt_units: "380552330476190",
     },
     users: [
       // user 1
@@ -1224,20 +1149,18 @@ async function testReducePosition1() {
         address: user1.key.accAddress,
         position: {
           bond_units: "139895170000000",
-          debt_units: "324857047619048",
+          debt_units: "324761904761905",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
-          bond_value: "690291219",
-          debt_value: "341099900",
-          ltv: "0.49413912651842671",
+          bond_value: "690140721",
+          debt_value: "341000000",
+          ltv: "0.49410212964378898",
         },
       },
       // user 2
@@ -1247,36 +1170,31 @@ async function testReducePosition1() {
           bond_units: "84191717789575",
           debt_units: "55790425714285",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
-          bond_value: "415431093",
+          bond_value: "415340521",
           debt_value: "58579946",
-          ltv: "0.141010018236646528",
+          ltv: "0.141040767847450164",
         },
       },
     ],
   });
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 8. Dump
 //
 // Prior to execution:
 // ---
 // total bond units     224086887789575
-// total debt units     380647473333333
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
+// total debt units     380552330476190
 // user1 bond units     139895170000000
-// user1 debt units     324857047619048
+// user1 debt units     324761904761905
 // user1 unlocked uANC  0
 // user1 unlocked uusd  1
 // user1 unlocked uLP   0
@@ -1286,37 +1204,34 @@ async function testReducePosition1() {
 // user2 unlocked uusd  1
 // user2 unlocked uLP   0
 // bond                 225380740
-// debt                 399679847
-// pool uANC            173300000
-// pool uusd            1047469539
-// pool uLP             425789087
+// debt                 399579947
+// pool uANC            161019229
+// pool uusd            973241418
+// pool uLP             395615871
 //
 // We dump 35 ANC token in the AMM, which should barely make user1 liquidatable
-// kValue = poolUst * poolAnc = 1047469539 * 173300000
-// = 181526471108700000
+// kValue = poolUst * poolAnc = 973241418 * 161019229
+// = 156710582757226722
 // returnUst = poolUst - k / (poolAnc + sendAnc)
-// = 1047469539 - 181526471108700000 / (173300000 + 100000000)
-// = 383267303 uusd
-// fee = returnUst * feeRate = 383267303 * 0.003
-// = 1149801 uusd
-// returnUstAfterFee = returnUst - fee = 383267303 - 1149801
-// = 382117502 uusd
-// returnUstAfterFeeAndTax = deductTax(returnUstAfterFee) = deductTax(382117502)
-// = 381735766 uusd
-// ustCostForPool = addTax(381735766) = 382117501 uusd
+// = 973241418 - 156710582757226722 / (161019229 + 100000000)
+// = 372861962 uusd
+// fee = returnUst * feeRate = 372861962 * 0.003
+// = 1118585 uusd
+// returnUstAfterFee = returnUst - fee = 372861962 - 1118585
+// = 371743377 uusd
+// returnUstAfterFeeAndTax = deductTax(returnUstAfterFee) = deductTax(371743377)
+// = 371372004 uusd
+// ustCostForPool = addTax(371372004) = 371743376 uusd
 // ---
-// pool uANC            173300000 + 100000000 = 273300000
-// pool uusd            1047469539 - 382117501 = 665352038
+// pool uANC            161019229 + 100000000 = 261019229
+// pool uusd            973241418 - 371743376 = 601498042
 //
 // Result
 // ---
 // total bond units     224086887789575
-// total debt units     380647473333333
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
+// total debt units     380552330476190
 // user1 bond units     139895170000000
-// user1 debt units     324857047619048
+// user1 debt units     324761904761905
 // user1 unlocked uANC  0
 // user1 unlocked uusd  1
 // user1 unlocked uLP   0
@@ -1326,37 +1241,36 @@ async function testReducePosition1() {
 // user2 unlocked uusd  1
 // user2 unlocked uLP   0
 // bond                 225380740
-// debt                 399679847
-// pool uANC            273300000
-// pool uusd            665352038
-// pool uLP             425789087
+// debt                 399579947
+// pool uANC            261019229
+// pool uusd            601498042
+// pool uLP             395615871
 //
-// ancPrice = computeXykSwapOutput(1000000, 273300000, 665352038) / 1000000
-// = 2.425637 uusd
+// ancPrice = computeSwapOutput(1000000, 261019229, 601498042) / 1000000
+// = 2.295626 uusd per uANC
 //
 // State health:
-// bondValue = (273300000 * 2.425637 + 665352038) * 225380740 / 425789087
-// = 703090872 uusd
-// debtValue = 399679847
-// ltv = 399679847 / 703090872 = 0.568461151917785102
+// totalBondValue = (261019229 * 2.295626 + 601498042) * 225380740 / 395615871
+// = 684034192 uusd
+// totalDebtValue = 399579947
 //
 // User1 health:
-// bondValue = 703090872 * 139895170000000 / 224086887789575 = 438932496
-// debtValue = 399679847 * 324857047619048 / 380647473333333 = 341099900
-// ltv = 341099900 / 438932496 = 0.777112433252150918
+// bondValue = 684034192 * 139895170000000 / 224086887789575 = 427035604
+// debtValue = 399579947 * 324761904761905 / 380552330476190 = 341000000
+// ltv = 341000000 / 427035604 = 0.798528265104564911
 //
 // User2 health:
-// bondValue = 703090872 * 84191717789575 / 224086887789575 = 264158375
-// debtValue = 399679847 * 55790425714285 / 380647473333333 = 58579946
-// ltv = 58579946 / 264158375 = 0.221760699428893746
-//----------------------------------------------------------------------------------------
+// bondValue = 684034192 * 84191717789575 / 224086887789575 = 256998587
+// debtValue = 399579947 * 55790425714285 / 380552330476190 = 58579946
+// ltv = 58579946 / 256998587 = 0.227938786293793903
+//--------------------------------------------------------------------------------------------------
 
 async function testDump() {
   const { txhash } = await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, anchorToken, {
+    new MsgExecuteContract(deployer.key.accAddress, anchor.token.address, {
       send: {
         amount: "100000000",
-        contract: astroportPair,
+        contract: astroport.pair.address,
         msg: toEncodedBinary({
           swap: {},
         }),
@@ -1364,37 +1278,30 @@ async function testDump() {
     }),
   ]);
 
-  await checker.check(txhash, "testDump", {
+  await verifier.verify(txhash, "testDump", {
     bond: {
       bond_amount: "225380740",
     },
     debt: {
       debts: [
         // uluna
-        { amount: "0" },
+        { amount_scaled: "0" },
         // uusd
-        { amount: "399679847" },
+        { amount_scaled: "399579947" },
       ],
     },
     pool: {
       assets: [
         // uusd
-        { amount: "665352038" },
+        { amount: "601498042" },
         // uANC
-        { amount: "273300000" },
+        { amount: "261019229" },
       ],
-      total_share: "425789087",
+      total_share: "395615871",
     },
-    strategy: {
-      state: {
-        total_bond_units: "224086887789575",
-        total_debt_units: "380647473333333",
-      },
-      health: {
-        bond_value: "703090872",
-        debt_value: "399679847",
-        ltv: "0.568461151917785102",
-      },
+    state: {
+      total_bond_units: "224086887789575",
+      total_debt_units: "380552330476190",
     },
     users: [
       // user 1
@@ -1402,20 +1309,18 @@ async function testDump() {
         address: user1.key.accAddress,
         position: {
           bond_units: "139895170000000",
-          debt_units: "324857047619048",
+          debt_units: "324761904761905",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
-          bond_value: "438932496",
-          debt_value: "341099900",
-          ltv: "0.777112433252150918",
+          bond_value: "427035604",
+          debt_value: "341000000",
+          ltv: "0.798528265104564911",
         },
       },
       // user 2
@@ -1425,39 +1330,31 @@ async function testDump() {
           bond_units: "84191717789575",
           debt_units: "55790425714285",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
-          bond_value: "264158375",
+          bond_value: "256998587",
           debt_value: "58579946",
-          ltv: "0.221760699428893746",
+          ltv: "0.227938786293793903",
         },
       },
     ],
   });
 }
 
-//----------------------------------------------------------------------------------------
-// Test 9. Liquidation, Pt. 1
+//--------------------------------------------------------------------------------------------------
+// Test 9. Liquidation
 //
-//----------------------------------------------------------------------------------------
-// Part 1. Close Position
-//
-// Prior to execution:
+// Prior to execution
 // ---
 // total bond units     224086887789575
-// total debt units     380647473333333
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
+// total debt units     380552330476190
 // user1 bond units     139895170000000
-// user1 debt units     324857047619048
+// user1 debt units     324761904761905
 // user1 unlocked uANC  0
 // user1 unlocked uusd  1
 // user1 unlocked uLP   0
@@ -1467,13 +1364,13 @@ async function testDump() {
 // user2 unlocked uusd  1
 // user2 unlocked uLP   0
 // bond                 225380740
-// debt                 399679847
-// pool uANC            273300000
-// pool uusd            665352038
-// pool uLP             425789087
+// debt                 399579947
+// pool uANC            261019229
+// pool uusd            601498042
+// pool uLP             395615871
 //
 // Step 1. unbond
-// reduce all of user1's bond units
+// reduce all of user1's 139895170000000 bond units
 // amount to unbond: 225380740 * 139895170000000 / 224086887789575 = 140702908
 // ---
 // bond                 225380740 - 140702908 = 84677832
@@ -1483,290 +1380,68 @@ async function testDump() {
 //
 // Step 2. remove liquidity
 // burn of of user1's 140702908 uLP
-// ANC to be released: 273300000 * 140702908 / 425789087 = 90312565
-// UST to be released: 665352038 * 140702908 / 425789087 = 219866993
-// UST to receive: deductTax(219866993) = 219647345
-// transaction cost for pool: addTax(219647345) = 219866992
+// ANC to be released: 261019229 * 140702908 / 395615871 = 92832889
+// UST to be released: 601498042 * 140702908 / 395615871 = 213926007
+// UST to receive: deductTax(213926007) = 213712294
+// transaction cost for pool: addTax(213712294) = 213926006
 // ---
-// pool uANC            273300000 - 90312565 = 182987435
-// pool uusd            665352038 - 219866992 = 445485046
-// pool uLP             425789087 - 140702908 = 285086179
-// user1 unlocked uANC  0 + 90312565 = 90312565
-// user1 unlocked uusd  1 + 219647345 = 219647346
+// pool uANC            261019229 - 92832889 = 168186340
+// pool uusd            601498042 - 213926006 = 387572036
+// pool uLP             395615871 - 140702908 = 254912963
+// user1 unlocked uANC  0 + 92832889 = 92832889
+// user1 unlocked uusd  1 + 213712294 = 213712295
 // user1 unlocked uLP   140702908 - 140702908 = 0
 //
-// Step 3. repay
-// user1's outstanding debt (341099900) is greater than his unlocked uusd (219647346)
-// therefore, use all of the unlocked uusd to repay
-// deliverable amount: deductTax(219647346) = 219427918
-// transaction cost: addTax(219427918) = 219647345
-// debt units to reduce: 380647473333333 * 219427918 / 399679847 = 208978969523809
+// Step 3. swap
+// swap all of user1's 92832889 uANC for UST
+// kValue = poolUst * poolAnc = 387572036 * 168186340
+// = 65184322221188240
+// returnUst = poolUst - k / (poolAnc + sendAnc)
+// = 387572036 - 65184322221188240 / (168186340 + 92832889)
+// = 137842074 uusd
+// fee = returnUst * feeRate = 137842074 * 0.003
+// = 413526 uusd
+// returnUstAfterFee = returnUst - fee = 137842074 - 413526
+// = 137428548 uusd
+// returnUstAfterFeeAndTax = deductTax(137428548)
+// = 137291256 uusd
+// ustCostForPool = addTax(137291256) = 137428547 uusd
 // ---
-// debt                 399679847 - 219427918 = 180251929
-// total debt units     380647473333333 - 208978969523809 = 171668503809524
-// user1 debt units     324857047619048 - 208978969523809 = 115878078095239
-// user1 unlocked uusd  219647346 - 219647345 = 1
+// pool uANC            168186340 + 92832889 = 261019229
+// pool uusd            387572036 - 137428547 = 250143489
+// user1 unlocked uANC  92832889 - 92832889 = 0
+// user1 unlocked uusd  213712295 + 137291256 = 351003551
 //
-// Result
+//
+// Step 4. repay
+// user1's debt amount: 341000000. repay this amount
+// transaction cost: addTax(341000000) = 341341000
+// user1's debt units is reduced to zero
 // ---
-// total bond units     84191717789575
-// total debt units     171668503809524
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
-// user1 bond units     0
-// user1 debt units     115878078095239
-// user1 unlocked uANC  90312565
-// user1 unlocked uusd  1
-// user1 unlocked uLP   0
-// user2 bond units     84191717789575
-// user2 debt units     55790425714285
-// user2 unlocked uANC  0
-// user2 unlocked uusd  1
-// user2 unlocked uLP   0
-// bond                 84677832
-// debt                 180251929
-// pool uANC            182987435
-// pool uusd            445485046
-// pool uLP             285086179
-//----------------------------------------------------------------------------------------
-// Part 2. Liquidate
+// debt                 399579947 - 341000000 = 58579947
+// total debt units     380552330476190 - 324761904761905 = 55790425714285
+// user1 debt units     324761904761905 - 324761904761905 = 0
+// user1 unlocked uusd  351003551 - 341341000 = 9662551
 //
-// Step 1. deposit
-// user1 remaining debt: 180251929 * 115878078095239 / 171668503809524 = 121671982
-// liquidator provides 100000000 uusd
-// deliverable amount: deductTax(100000000) = 99900099
-// percentage: 99900099 / 121671982 = 0.821060833873816570
+// Step 5. refund to liquidator
+// uusdToRefund = 9662551 * bonusRate = 9662551 * 0.05 = 483127
+// UST to send: deductTax(483127) = 482644
+// transaction cost: addTax(482644) = 483126
 // ---
-// user1 unlocked uusd  1 + 100000000 = 100000001
+// user1 unlocked uusd  9662551 - 483126 = 9179425
 //
-// Step 2. repay
-// user1's outstanding debt (121671981) is greater than his unlocked uusd (100000001)
-// therefore, use all of the unlocked uusd to repay
-// deliverable amount: deductTax(100000001) = 99900100
-// transaction cost: addTax(99900100) = 100000000
-// debt units to reduce: 115878078095239 * 99900100 / 121671982 = 95142952380953
+// Step 6. refund to user
+// refund all the remaining unlocked uusd to user
+// uusdToRefund = 9179425
+// UST to send: deductTax(9179425) = 9170254
+// transaction cost: addTax(9170254) = 9179424
 // ---
-// debt                 180251929 - 99900100 = 80351829
-// total debt units     171668503809524 - 95142952380953 = 76525551428571
-// user1 debt units     115878078095239 - 95142952380953 = 20735125714286
-// user1 unlocked uusd  100000001 - 100000000 = 1
-//
-// Step 3. refund
-// ANC to refund: 90312565 * 0.821060833873816570 = 74152109
-// UST to refund: 1 * 0.821060833873816570 = 0
-// ---
-// user1 unlocked uANC  90312565 - 74152109 = 16160456
-//
-// Result
-// ---
-// total bond units     84191717789575
-// total debt units     76525551428571
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
-// user1 bond units     0
-// user1 debt units     20735125714286
-// user1 unlocked uANC  16160456
-// user1 unlocked uusd  1
-// user1 unlocked uLP   0
-// user2 bond units     84191717789575
-// user2 debt units     55790425714285
-// user2 unlocked uANC  0
-// user2 unlocked uusd  1
-// user2 unlocked uLP   0
-// bond                 84677832
-// debt                 80351829
-// pool uANC            182987435
-// pool uusd            445485046
-// pool uLP             285086179
-//
-// ancPrice = computeXykSwapOutput(1000000, 182987435, 445485046) / 1000000
-// = 2.421280 uusd
-//
-// State health:
-// bondValue = (182987435 * 2.421280 + 445485046) * 84677832 / 285086179
-// = 263921567 uusd
-// debtValue = 80351829
-// ltv = 80351829 / 263921567 = 0.304453440138903085
-//
-// User1 health:
-// bondValue = 0
-// debtValue = 80351829 * 20735125714286 / 76525551428571 = 21771882
-// ltv = null
-//
-// User2 health:
-// bondValue = 263921567 (same as state)
-// debtValue = 80351829 * 55790425714285 / 76525551428571 = 58579946
-// ltv = 58579946 / 263921567 = 0.221959677891727582
-//----------------------------------------------------------------------------------------
-
-async function testLiquidation1() {
-  const { txhash } = await sendTransaction(terra, liquidator1, [
-    new MsgExecuteContract(liquidator1.key.accAddress, field, {
-      close_position: {
-        user: user1.key.accAddress,
-      },
-    }),
-    new MsgExecuteContract(
-      liquidator1.key.accAddress,
-      field,
-      {
-        liquidate: {
-          user: user1.key.accAddress,
-          deposit: {
-            info: {
-              native_token: {
-                denom: "uusd",
-              },
-            },
-            amount: "100000000",
-          },
-        },
-      },
-      {
-        uusd: "100000000",
-      }
-    ),
-  ]);
-
-  await checker.check(txhash, "testLiquidation1", {
-    bond: {
-      bond_amount: "84677832",
-    },
-    debt: {
-      debts: [
-        // uluna
-        { amount: "0" },
-        // uusd
-        { amount: "80351829" },
-      ],
-    },
-    pool: {
-      assets: [
-        // uusd
-        { amount: "445485046" },
-        // uANC
-        { amount: "182987435" },
-      ],
-      total_share: "285086179",
-    },
-    strategy: {
-      state: {
-        total_bond_units: "84191717789575",
-        total_debt_units: "76525551428571",
-      },
-      health: {
-        bond_value: "263921567",
-        debt_value: "80351829",
-        ltv: "0.304453440138903085",
-      },
-    },
-    users: [
-      // user 1
-      {
-        address: user1.key.accAddress,
-        position: {
-          bond_units: "0",
-          debt_units: "20735125714286",
-          unlocked_assets: [
-            // uANC
-            { amount: "16160456" },
-            // uusd
-            { amount: "1" },
-            // uLP
-            { amount: "0" },
-          ],
-        },
-        health: {
-          bond_value: "0",
-          debt_value: "21771882",
-          ltv: null,
-        },
-      },
-      // user 2
-      {
-        address: user2.key.accAddress,
-        position: {
-          bond_units: "84191717789575",
-          debt_units: "55790425714285",
-          unlocked_assets: [
-            // uANC
-            { amount: "0" },
-            // uusd
-            { amount: "1" },
-            // uLP
-            { amount: "0" },
-          ],
-        },
-        health: {
-          bond_value: "263921567",
-          debt_value: "58579946",
-          ltv: "0.221959677891727582",
-        },
-      },
-    ],
-  });
-}
-
-//----------------------------------------------------------------------------------------
-// Test 10. Liquidation, Pt. 2
-//
-// Prior to execution:
-// ---
-// total bond units     84191717789575
-// total debt units     76525551428571
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
-// user1 bond units     0
-// user1 debt units     20735125714286
-// user1 unlocked uANC  16160456
-// user1 unlocked uusd  1
-// user1 unlocked uLP   0
-// user2 bond units     84191717789575
-// user2 debt units     55790425714285
-// user2 unlocked uANC  0
-// user2 unlocked uusd  1
-// user2 unlocked uLP   0
-// bond                 84677832
-// debt                 80351829
-// pool uANC            182987435
-// pool uusd            445485046
-// pool uLP             285086179
-//
-// Step 1. deposit
-// user1 has 21771882 uusd remaining debt
-// liquidator provides 200000000 uusd (more than enough)
-// percentage: 1
-// ---
-// user1 unlocked uusd  1 + 200000000 = 200000001
-//
-// Step 2. repay
-// repay all the remaining debt: 21771882 uusd
-// transaction cost: addTax(21771882) = 21793653
-// reduce debt units to zero
-// ---
-// debt                 80351829 - 21771882 = 58579947
-// total debt units     76525551428571 - 20735125714286 = 55790425714285
-// user1 debt units     0
-// user1 unlocked uusd  200000001 - 21793653 = 178206348
-//
-// Step 3. refund
-// refund all ANC
-// UST to refund: deductTax(178206348) = 178028319
-// transaction cost: addTax(178028319) = 178206347
-// ---
-// user1 unlocked uANC  0
-// user1 unlocked uusd  178206348 - 178206347 = 1
+// user1 unlocked uusd  9179425 - 9179424 = 1
 //
 // Result
 // ---
 // total bond units     84191717789575
 // total debt units     55790425714285
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
 // user1 bond units     0
 // user1 debt units     0
 // user1 unlocked uANC  0
@@ -1779,16 +1454,17 @@ async function testLiquidation1() {
 // user2 unlocked uLP   0
 // bond                 84677832
 // debt                 58579947
-// pool uANC            182987435
-// pool uusd            445485046
-// pool uLP             285086179
+// pool uANC            261019229
+// pool uusd            250143489
+// pool uLP             254912963
 //
-// ancPrice = 2.421280 uusd (unchanged)
+// ancPrice = computeSwapOutput(1000000, 261019229, 250143489) / 1000000
+// = 0.954677 uusd per uANC
 //
 // State health:
-// bondValue = 263921567 uusd (unchanged)
-// debtValue = 58579947
-// ltv = 58579947 / 263921567 = 0.221959681680732063
+// totalBondValue = (261019229 * 0.954677 + 250143489) * 84677832 / 254912963
+// = 165869937 uusd
+// totalDebtValue = 58579947
 //
 // User1 health:
 // bondValue = 0
@@ -1796,64 +1472,43 @@ async function testLiquidation1() {
 // ltv = null
 //
 // User2 health:
-// same as state
-//----------------------------------------------------------------------------------------
+// same as state as user2 is the only active position
+// ltv = 58579947 / 165869937 = 0.353167958338345543
+//--------------------------------------------------------------------------------------------------
 
-async function testLiquidation2() {
-  const { txhash } = await sendTransaction(terra, liquidator2, [
-    new MsgExecuteContract(
-      liquidator2.key.accAddress,
-      field,
-      {
-        liquidate: {
-          user: user1.key.accAddress,
-          deposit: {
-            info: {
-              native_token: {
-                denom: "uusd",
-              },
-            },
-            amount: "200000000",
-          },
-        },
+async function testLiquidation() {
+  const { txhash } = await sendTransaction(terra, liquidator, [
+    new MsgExecuteContract(liquidator.key.accAddress, field.address, {
+      liquidate: {
+        user: user1.key.accAddress,
       },
-      {
-        uusd: "200000000",
-      }
-    ),
+    }),
   ]);
 
-  await checker.check(txhash, "testLiquidation2", {
+  await verifier.verify(txhash, "testLiquidation", {
     bond: {
       bond_amount: "84677832",
     },
     debt: {
       debts: [
         // uluna
-        { amount: "0" },
+        { amount_scaled: "0" },
         // uusd
-        { amount: "58579947" },
+        { amount_scaled: "58579947" },
       ],
     },
     pool: {
       assets: [
         // uusd
-        { amount: "445485046" },
+        { amount: "250143489" },
         // uANC
-        { amount: "182987435" },
+        { amount: "261019229" },
       ],
-      total_share: "285086179",
+      total_share: "254912963",
     },
-    strategy: {
-      state: {
-        total_bond_units: "84191717789575",
-        total_debt_units: "55790425714285",
-      },
-      health: {
-        bond_value: "263921567",
-        debt_value: "58579947",
-        ltv: "0.221959681680732063",
-      },
+    state: {
+      total_bond_units: "84191717789575",
+      total_debt_units: "55790425714285",
     },
     users: [
       // user 1
@@ -1863,12 +1518,10 @@ async function testLiquidation2() {
           bond_units: "0",
           debt_units: "0",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
@@ -1884,34 +1537,29 @@ async function testLiquidation2() {
           bond_units: "84191717789575",
           debt_units: "55790425714285",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
-          bond_value: "263921567",
+          bond_value: "165869937",
           debt_value: "58579947",
-          ltv: "0.221959681680732063",
+          ltv: "0.353167958338345543",
         },
       },
     ],
   });
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Test 11. Reduce Position, Pt. 2
 //
 // Prior to execution:
 // ---
 // total bond units     84191717789575
 // total debt units     55790425714285
-// field unlocked uANC  0
-// field unlocked uusd  1
-// field unlocked uLP   0
 // user1 bond units     0
 // user1 debt units     0
 // user1 unlocked uANC  0
@@ -1924,45 +1572,49 @@ async function testLiquidation2() {
 // user2 unlocked uLP   0
 // bond                 84677832
 // debt                 58579947
-// pool uANC            182987435
-// pool uusd            445485046
-// pool uLP             285086179
+// pool uANC            261019229
+// pool uusd            250143489
+// pool uLP             254912963
 //
 // Step 1. unbond
-// amount to unbond: 84677832 (all)
+// unbond all of user2's 84677832 uLP
 // ---
 // bond                 0
 // total bond units     0
-// user1 bond units     0
-// user1 unlocked uLP   0 + 84677832 = 84677832
+// user2 bond units     0
+// user2 unlocked uLP   0 + 84677832 = 84677832
 //
 // Step 2. remove liquidity
-// burn of of user2's 84677832 uLP
-// ANC to be released: 182987435 * 84677832 / 285086179 = 54351913
-// UST to be released: 445485046 * 84677832 / 285086179 = 132320367
-// UST to receive: deductTax(132320367) = 132188178
-// transaction cost for pool: addTax(132188178) = 132320366
+// burn all of user2's 84677832 uLP
+// ANC to be released: 261019229 * 84677832 / 254912963 = 86706231
+// UST to be released: 250143489 * 84677832 / 254912963 = 83093492
+// UST to receive: deductTax(83093492) = 83010481
+// transaction cost for pool: addTax(83010481) = 83093491
 // ---
-// pool uANC            182987435 - 54351913 = 128635522
-// pool uusd            445485046 - 132320366 = 313164680
-// pool uLP             285086179 - 84677832 = 200408347
-// user2 unlocked uANC  0 + 54351913 = 54351913
-// user2 unlocked uusd  1 + 132320367 = 132320368
+// pool uANC            261019229 - 86706231 = 174312998
+// pool uusd            250143489 - 83093491 = 167049998
+// pool uLP             254912963 - 84677832 = 170235131
+// user2 unlocked uANC  0 + 86706231 = 86706231
+// user2 unlocked uusd  1 + 83010481 = 83010482
 // user2 unlocked uLP   0
 //
-// Step 3. repay
-// repay all remaining debts: 58579947 uusd
-// transaction cost: addTax(58579947) = 58638526 uusd
+// Step 3. swap
+// skipped as `swap_amount` is zero
+//
+// Step 4. repay
+// user2's remaining debts: 58579947 uusd
+// we try paying a bit more than that: 58600000
+// transaction cost: addTax(58600000) = 58658600 uusd
 // ---
 // debt                 0
 // total debt units     0
 // user2 debt units     0
-// user2 unlocked uusd  132320368 - 58638526 = 73681842
+// user2 unlocked uusd  83010482 - 58658600 = 24351882
 //
-// Step 4. refund
-// send all 54351913 uANC to user2
-// UST to send: deductTax(73681842) = 73608233
-// transaction cost: addTax(73608233) = 73681841
+// Step 5. refund
+// send all 24351882 uANC to user2
+// UST to send: deductTax(24351882) = 24327554
+// transaction cost: addTax(24327554) = 24351881
 // ---
 // user2 unlocked uANC  0
 // user2 unlocked uusd  1
@@ -1986,53 +1638,47 @@ async function testLiquidation2() {
 // user2 unlocked uLP   0
 // bond                 0
 // debt                 0
-// pool uANC            128635522
-// pool uusd            313164680
-// pool uLP             200408347
-//----------------------------------------------------------------------------------------
+// pool uANC            174312998
+// pool uusd            167049998
+// pool uLP             170235131
+//--------------------------------------------------------------------------------------------------
 
 async function testReducePosition2() {
   const { txhash } = await sendTransaction(terra, user2, [
-    new MsgExecuteContract(user2.key.accAddress, field, {
+    new MsgExecuteContract(user2.key.accAddress, field.address, {
       reduce_position: {
-        bond_units: undefined, // gives `signature verification failed` error if use `null`
-        remove: true,
-        repay: true,
+        bond_units: "84191717789575",
+        swap_amount: "0",
+        repay_amount: "58600000",
+        // repay_amount: "0",
       },
     }),
   ]);
 
-  await checker.check(txhash, "testReducePosition2", {
+  await verifier.verify(txhash, "testReducePosition2", {
     bond: {
       bond_amount: "0",
     },
     debt: {
       debts: [
         // uluna
-        { amount: "0" },
+        { amount_scaled: "0" },
         // uusd
-        { amount: "0" },
+        { amount_scaled: "0" },
       ],
     },
     pool: {
       assets: [
         // uusd
-        { amount: "313164680" },
+        { amount: "167049998" },
         // uANC
-        { amount: "128635522" },
+        { amount: "174312998" },
       ],
-      total_share: "200408347",
+      total_share: "170235131",
     },
-    strategy: {
-      state: {
-        total_bond_units: "0",
-        total_debt_units: "0",
-      },
-      health: {
-        bond_value: "0",
-        debt_value: "0",
-        ltv: null,
-      },
+    state: {
+      total_bond_units: "0",
+      total_debt_units: "0",
     },
     users: [
       // user 1
@@ -2042,12 +1688,10 @@ async function testReducePosition2() {
           bond_units: "0",
           debt_units: "0",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
@@ -2063,12 +1707,10 @@ async function testReducePosition2() {
           bond_units: "0",
           debt_units: "0",
           unlocked_assets: [
-            // uANC
-            { amount: "0" },
+            // uANC - 0
             // uusd
             { amount: "1" },
-            // uLP
-            { amount: "0" },
+            // uLP - 0
           ],
         },
         health: {
@@ -2081,9 +1723,9 @@ async function testReducePosition2() {
   });
 }
 
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Main
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 (async () => {
   console.log(chalk.yellow("\nTest: Info"));
@@ -2092,14 +1734,13 @@ async function testReducePosition2() {
   console.log(`Use ${chalk.cyan(treasury.key.accAddress)} as treasury`);
   console.log(`Use ${chalk.cyan(user1.key.accAddress)} as user 1`);
   console.log(`Use ${chalk.cyan(user2.key.accAddress)} as user 2`);
-  console.log(`Use ${chalk.cyan(liquidator1.key.accAddress)} as liquidator 1`);
-  console.log(`Use ${chalk.cyan(liquidator2.key.accAddress)} as liquidator 2`);
+  console.log(`Use ${chalk.cyan(liquidator.key.accAddress)} as liquidator`);
 
   console.log(chalk.yellow("\nTest: Setup"));
 
   await setupTest();
 
-  console.log(chalk.yellow("\nTest: Martian Field: ANC-UST LP"));
+  console.log(chalk.yellow("\nTest: Martian Field"));
 
   await testConfig();
   await testOpenPosition1();
@@ -2109,8 +1750,7 @@ async function testReducePosition2() {
   await testPayDebt();
   await testReducePosition1();
   await testDump();
-  await testLiquidation1();
-  await testLiquidation2();
+  await testLiquidation();
   await testReducePosition2();
 
   console.log(chalk.green("\nAll tests successfully completed. Hooray!\n"));
