@@ -7,9 +7,35 @@ use cw20::Cw20ExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use mars::asset::Asset as MarsAsset;
 use red_bank::msg::{DebtResponse, ExecuteMsg, QueryMsg, ReceiveMsg};
 
 use crate::adapters::{Asset, AssetInfo};
+
+//--------------------------------------------------------------------------------------------------
+// Asset: conversion from Fields of Mars asset type to Mars asset type
+//--------------------------------------------------------------------------------------------------
+
+impl From<AssetInfo> for MarsAsset {
+    fn from(asset_info: AssetInfo) -> Self {
+        match asset_info {
+            AssetInfo::Cw20 {
+                contract_addr,
+            } => Self::Cw20 {
+                contract_addr: contract_addr.to_string(),
+            },
+            AssetInfo::Native {
+                denom,
+            } => Self::Native {
+                denom,
+            },
+        }
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Red Bank
+//--------------------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RedBankBase<T> {

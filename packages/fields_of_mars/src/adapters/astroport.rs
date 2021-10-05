@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use cosmwasm_std::{
     to_binary, Addr, Api, Coin, Event, QuerierWrapper, QueryRequest, StdError, StdResult, SubMsg,
     Uint128, WasmMsg, WasmQuery,
@@ -7,13 +9,79 @@ use cw20::Cw20ExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use astroport::asset::{Asset as AstroportAsset, AssetInfo as AstroportAssetInfo};
 use astroport::pair::{Cw20HookMsg, ExecuteMsg, PoolResponse, QueryMsg};
 
 use crate::adapters::{Asset, AssetInfo};
 
 use self::helpers::*;
 
-use std::str::FromStr;
+//--------------------------------------------------------------------------------------------------
+// Asset: conversions and comparisons between Fields of Mars asset types and Astroport asset types
+//--------------------------------------------------------------------------------------------------
+
+impl From<Asset> for AstroportAsset {
+    fn from(asset: Asset) -> Self {
+        Self {
+            info: asset.info.into(),
+            amount: asset.amount,
+        }
+    }
+}
+
+impl From<AssetInfo> for AstroportAssetInfo {
+    fn from(asset_info: AssetInfo) -> Self {
+        match asset_info {
+            AssetInfo::Cw20 {
+                contract_addr,
+            } => Self::Token {
+                contract_addr,
+            },
+            AssetInfo::Native {
+                denom,
+            } => Self::NativeToken {
+                denom,
+            },
+        }
+    }
+}
+
+impl PartialEq<AssetInfo> for AstroportAssetInfo {
+    fn eq(&self, other: &AssetInfo) -> bool {
+        match self {
+            Self::Token {
+                contract_addr,
+            } => {
+                let self_contract_addr = contract_addr;
+                if let AssetInfo::Cw20 {
+                    contract_addr,
+                } = other
+                {
+                    self_contract_addr == contract_addr
+                } else {
+                    false
+                }
+            }
+            Self::NativeToken {
+                denom,
+            } => {
+                let self_denom = denom;
+                if let AssetInfo::Native {
+                    denom,
+                } = other
+                {
+                    self_denom == denom
+                } else {
+                    false
+                }
+            }
+        }
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Pair
+//--------------------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairBase<T> {
@@ -240,7 +308,7 @@ impl Pair {
         events: &[Event],
         primary_asset_info: &AssetInfo,
         secondary_asset_info: &AssetInfo,
-    ) -> StdResult<(Uint128, Uint128)> {
+    ) -> StdResult<(Asset, Asset)> {
         let event = events
             .iter()
             .find(|event| event_contains_attr(event, "action", "withdraw_liquidity"))
@@ -263,16 +331,18 @@ impl Pair {
             .ok_or_else(|| StdError::generic_err("failed to parse primary withdrawn amount"))?;
 
         let secondary_asset_denom = secondary_asset_info.get_denom();
-        let secondary_withdarwn_amount_str = asset_strs
+        let secondary_withdrawn_amount_str = asset_strs
             .iter()
             .find(|asset_str| asset_str.contains(&secondary_asset_denom))
             .map(|asset_str| asset_str.replace(&secondary_asset_denom, ""))
             .ok_or_else(|| StdError::generic_err("failed to parse secondary withdrawn amount"))?;
 
-        Ok((
-            Uint128::from_str(&primary_withdrawn_amount_str)?,
-            Uint128::from_str(&secondary_withdarwn_amount_str)?,
-        ))
+        let primary_asset_withdrawn =
+            Asset::new(primary_asset_info, Uint128::from_str(&primary_withdrawn_amount_str)?);
+        let secondary_asset_withdrawn =
+            Asset::new(secondary_asset_info, Uint128::from_str(&secondary_withdrawn_amount_str)?);
+
+        Ok((primary_asset_withdrawn, secondary_asset_withdrawn))
     }
 }
 
@@ -313,13 +383,14 @@ mod tests {
             .add_attribute("refund_assets", "89uusd, 64anchor_token");
         let event1 = Event::new("another-event").add_attribute("ngmi", "hfsp");
 
-        let withdrawn_amounts = Pair::parse_withdraw_events(
+        let assets_withdrawn = Pair::parse_withdraw_events(
             &[event0, event1],
             &primary_asset_info,
             &secondary_asset_info,
         )
         .unwrap();
 
-        assert_eq!(withdrawn_amounts, (Uint128::new(64), Uint128::new(89)));
+        assert_eq!(assets_withdrawn.0.amount, Uint128::new(64));
+        assert_eq!(assets_withdrawn.1.amount, Uint128::new(89));
     }
 }

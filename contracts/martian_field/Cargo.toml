@@ -1,6 +1,6 @@
 [package]
 name = "martian-field"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["larry_0x <larry@delphidigital.io>"]
 edition = "2018"
 license = "UNLICENSED"
@@ -16,7 +16,6 @@ backtraces = ["cosmwasm-std/backtraces"]
 fields-of-mars = { path = "../../packages/fields_of_mars" }
 
 cosmwasm-std = "0.16.0"
-cw20 = "0.8.0"
 cw-storage-plus = "0.8.0"
 
 schemars = "0.8.1"

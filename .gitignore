@@ -26,3 +26,8 @@ artifacts/
 
 # Temporary files
 **/tmp.*
+
+packages/astroport
+packages/mars_core
+packages/mars_periphery
+packages/red_bank

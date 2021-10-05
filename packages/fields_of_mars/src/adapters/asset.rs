@@ -1,18 +1,21 @@
+use std::ops;
+
 use cosmwasm_std::{
-    to_binary, Addr, Api, BalanceResponse, BankMsg, BankQuery, Coin, CosmosMsg, QuerierWrapper,
-    QueryRequest, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
+    to_binary, Addr, Api, BalanceResponse, BankMsg, BankQuery, Coin, CosmosMsg, Decimal,
+    QuerierWrapper, QueryRequest, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
 
 use terra_cosmwasm::TerraQuerier;
 
-use astroport;
-use mars;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
+
+//--------------------------------------------------------------------------------------------------
+// AssetInfo
+//--------------------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -62,72 +65,9 @@ impl AssetInfoUnchecked {
     }
 }
 
-impl From<AssetInfo> for mars::asset::Asset {
-    fn from(asset_info: AssetInfo) -> Self {
-        match asset_info {
-            AssetInfo::Cw20 {
-                contract_addr,
-            } => Self::Cw20 {
-                contract_addr: contract_addr.to_string(),
-            },
-            AssetInfo::Native {
-                denom,
-            } => Self::Native {
-                denom,
-            },
-        }
-    }
-}
-
-impl From<AssetInfo> for astroport::asset::AssetInfo {
-    fn from(asset_info: AssetInfo) -> Self {
-        match asset_info {
-            AssetInfo::Cw20 {
-                contract_addr,
-            } => Self::Token {
-                contract_addr,
-            },
-            AssetInfo::Native {
-                denom,
-            } => Self::NativeToken {
-                denom,
-            },
-        }
-    }
-}
-
-impl PartialEq<AssetInfo> for astroport::asset::AssetInfo {
-    fn eq(&self, other: &AssetInfo) -> bool {
-        match self {
-            Self::Token {
-                contract_addr,
-            } => {
-                let self_contract_addr = contract_addr;
-                if let AssetInfo::Cw20 {
-                    contract_addr,
-                } = other
-                {
-                    self_contract_addr == contract_addr
-                } else {
-                    false
-                }
-            }
-            Self::NativeToken {
-                denom,
-            } => {
-                let self_denom = denom;
-                if let AssetInfo::Native {
-                    denom,
-                } = other
-                {
-                    self_denom == denom
-                } else {
-                    false
-                }
-            }
-        }
-    }
-}
+//--------------------------------------------------------------------------------------------------
+// Asset
+//--------------------------------------------------------------------------------------------------
 
 impl AssetInfo {
     // INSTANCE CREATION
@@ -146,6 +86,21 @@ impl AssetInfo {
 
     // UTILITIES
 
+    pub fn is_cw20(&self) -> bool {
+        match self {
+            Self::Cw20 {
+                ..
+            } => true,
+            Self::Native {
+                ..
+            } => false,
+        }
+    }
+
+    pub fn is_native(&self) -> bool {
+        !self.is_cw20()
+    }
+
     /// Get the asset's label, which is used in `red_bank::msg::DebtResponse`
     /// For native tokens, it's the denom, e.g. uusd, uluna
     /// For CW20 tokens, it's the contract address
@@ -163,6 +118,16 @@ impl AssetInfo {
     /// Get the asset's reference, used in `oracle::msg::QueryMsg::AssetPriceByReference`
     pub fn get_reference(&self) -> Vec<u8> {
         self.get_denom().as_bytes().to_vec()
+    }
+
+    // Find how many tokens of the specified denom is sent with the message
+    // Zero if the asset is a CW20
+    pub fn find_sent_amount(&self, funds: &[Coin]) -> Uint128 {
+        let denom = self.get_denom();
+        match funds.iter().find(|fund| fund.denom == denom) {
+            Some(fund) => fund.amount,
+            None => Uint128::zero(),
+        }
     }
 
     // QUERIES
@@ -223,11 +188,19 @@ impl AssetUnchecked {
     }
 }
 
-impl From<Asset> for astroport::asset::Asset {
-    fn from(asset: Asset) -> Self {
-        Self {
-            info: asset.info.into(),
-            amount: asset.amount,
+impl ops::Mul<Decimal> for Asset {
+    type Output = Self;
+    fn mul(self, rhs: Decimal) -> Self {
+        &self * rhs
+    }
+}
+
+impl ops::Mul<Decimal> for &Asset {
+    type Output = Asset;
+    fn mul(self, rhs: Decimal) -> Asset {
+        Asset {
+            info: self.info.clone(),
+            amount: self.amount * rhs,
         }
     }
 }
@@ -314,32 +287,12 @@ impl Asset {
 
     // UTILITIES
 
-    /// Check if native token of specified amount was sent along a message
-    /// Skip if asset if CW20
-    pub fn assert_sent_fund(&self, funds: &[Coin]) -> StdResult<()> {
-        let denom = match &self.info {
-            AssetInfo::Cw20 {
-                ..
-            } => {
-                return Ok(());
-            }
-            AssetInfo::Native {
-                denom,
-            } => denom,
-        };
-
-        let sent_amount = match funds.iter().find(|fund| &fund.denom == denom) {
-            Some(fund) => fund.amount,
-            None => Uint128::zero(),
-        };
-
-        if sent_amount == self.amount {
+    /// Check if tokens of the specified amount was sent along a message
+    pub fn assert_sent_amount(&self, funds: &[Coin]) -> StdResult<()> {
+        if self.amount == self.info.find_sent_amount(funds) {
             Ok(())
         } else {
-            Err(StdError::generic_err(format!(
-                "sent fund mismatch: expected {}{}, received {}{}",
-                self.amount, denom, sent_amount, denom
-            )))
+            Err(StdError::generic_err("sent fund mismatch"))
         }
     }
 

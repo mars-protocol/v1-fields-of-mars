@@ -81,6 +81,9 @@ fn execute_set_asset(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
+        QueryMsg::AssetPrice {
+            asset,
+        } => to_binary(&query_asset_price(deps, env, &asset.get_reference())?),
         QueryMsg::AssetPriceByReference {
             asset_reference,
         } => to_binary(&query_asset_price(deps, env, &asset_reference)?),

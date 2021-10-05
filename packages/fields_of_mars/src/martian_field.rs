@@ -7,9 +7,19 @@ use crate::adapters::{AssetBase, AssetInfoBase, OracleBase, PairBase, RedBankBas
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigBase<T> {
-    /// Info of the asset to be deposited by the user
+    /// Info of the primary asset
+    ///
+    /// Primary asset is the token that staking reward is paid in. By utilizing Martian Field, the
+    /// user takes an implicit long position on the primary asset.
+    ///
+    /// E.g. In ANC-UST LP strategy, ANC is the primary asset.
     pub primary_asset_info: AssetInfoBase<T>,
-    /// Info of the asset to be either deposited by user or borrowed from Mars
+    /// Info of the secondary asset
+    ///
+    /// Secondary asset is the token to be borrowed from Red Bank. By utilizing Martian Field, the
+    /// user takes an implicit short position on the secondary asset.
+    ///
+    /// E.g. In ANC-UST LP strategy, UST is the secondary asset.
     pub secondary_asset_info: AssetInfoBase<T>,
     /// Mars money market aka Red Bank
     pub red_bank: RedBankBase<T>,
@@ -17,7 +27,10 @@ pub struct ConfigBase<T> {
     pub oracle: OracleBase<T>,
     /// Astroport pair of primary/secondary assets
     pub pair: PairBase<T>,
-    /// Staking contract where LP tokens can be bonded to earn rewards
+    /// Staking contract where share tokens can be bonded to earn rewards
+    ///
+    /// NOTE: It is assumed that the token to be staked is `pair.share_token`, and the reward in paid
+    /// in the primary asset.
     pub staking: StakingBase<T>,
     /// Account to receive fee payments
     pub treasury: T,
@@ -27,6 +40,8 @@ pub struct ConfigBase<T> {
     pub max_ltv: Decimal,
     /// Percentage of profit to be charged as performance fee
     pub fee_rate: Decimal,
+    /// During liquidation, percentage of the user's asset to be awared to the liquidator as bonus
+    pub bonus_rate: Decimal,
 }
 
 pub type ConfigUnchecked = ConfigBase<String>;
@@ -45,6 +60,7 @@ impl From<Config> for ConfigUnchecked {
             governance: config.governance.into(),
             max_ltv: config.max_ltv,
             fee_rate: config.fee_rate,
+            bonus_rate: config.bonus_rate,
         }
     }
 }
@@ -62,6 +78,7 @@ impl ConfigUnchecked {
             governance: api.addr_validate(&self.governance)?,
             max_ltv: self.max_ltv,
             fee_rate: self.fee_rate,
+            bonus_rate: self.bonus_rate,
         })
     }
 }
@@ -123,7 +140,7 @@ impl Default for Position {
 pub mod msg {
     use super::*;
 
-    use crate::adapters::{Asset, AssetUnchecked};
+    use crate::adapters::AssetUnchecked;
 
     pub type InstantiateMsg = ConfigUnchecked;
 
@@ -136,24 +153,48 @@ pub mod msg {
             new_config: ConfigUnchecked,
         },
         /// Open a new position or add to an existing position
+        ///
+        /// Deposit primary asset and optionally secondary asset that is no more in value than the
+        /// primary asset deposit. The contract will compute the market value of the assets, and borrow
+        /// secondary asset from Red Bank to make the two even in value.
         IncreasePosition {
             deposits: Vec<AssetUnchecked>,
         },
         /// Reduce a position, or close it completely
+        ///
+        /// Liquidity are withdrawn from the AMM; primary asset of `swap_amount` is swapped for the
+        /// secondary asset; then, secondary asset of `repay_amount` is repaid to Red Bank. If the user's
+        /// LTV is no greater than `max_ltv` after these actions are completed, the remaining withdrawn
+        /// assets are refunded to the user.
+        ///
+        /// NOTE: `repay_amount` is the actual amount to be delivered to Red Bank. Due to tax, tf the
+        /// secondary asset is a native token, an amount slightly greater than `repay_amount` needs
+        /// to be available in the user's position after performing the swap.
         ReducePosition {
-            bond_units: Option<Uint128>,
+            bond_units: Uint128,
             swap_amount: Uint128,
-            repay: bool,
+            repay_amount: Uint128,
         },
         /// Pay down debt owed to Mars, reduce debt units
+        ///
+        /// NOTE: `repay_amount` is the actual amount to be delivered to Red Bank. Due to tax, if the
+        /// secondary asset is a native token, an amount slightly greater than `repay_amount` needs
+        /// to be deposited. The excess amount will be refunded to the user.
+        ///
+        /// E.g. Suppose the tax associated with transferring 100 UST is 0.1 UST. To reduce the user's
+        /// debt by 100 UST, set `repay_amount` as 100.1e6 and transfer at least 1_001_000 uusd with
+        /// the message.
         PayDebt {
-            user: Option<String>,
-            deposit: AssetUnchecked,
+            repay_amount: Uint128,
         },
-        /// Pay down remaining debt of a closed position and be awarded its unlocked assets
+        /// Close an underfunded position
+        ///
+        /// Liquidity are withdrawn from the AMM; all primary assets are swapped for the secondary
+        /// asset; debt is fully paid with the proceedings. Among the remaining secondary assets, a
+        /// portion corresponding to `bonus_rate` is awarded to the liquidator, while the rest is
+        /// refunded to the user.
         Liquidate {
             user: String,
-            deposit: AssetUnchecked,
         },
         /// Claim staking reward and reinvest
         Harvest {},
@@ -166,44 +207,62 @@ pub mod msg {
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum CallbackMsg {
-        /// Provide the user's unlocked primary/secondary assets to the AMM, receive share tokens
+        /// Provide unlocked primary & secondary assets to the AMM pool, receive share tokens;
+        /// Reduce the user's unlocked primary & secondary asset amounts to zero;
+        /// Increase the user's unlocked share token amount
         ProvideLiquidity {
             user_addr: Addr,
         },
-        /// Burn the user's unlocked share tokens, receive primary/secondary assets
-        RemoveLiquidity {
+        /// Burn the user's unlocked share tokens, receive primary & secondary assets;
+        /// Reduce the user's unlocked share token amount to zero;
+        /// Increase the user's unlocked primary & secondary asset amounts
+        WithdrawLiquidity {
             user_addr: Addr,
         },
-        /// Bond share tokens to the staking contract
+        /// Bond share tokens to the staking contract;
+        /// Reduce the user's unlocked share token amount to zero;
+        /// Increase the user's bond units
         Bond {
             user_addr: Addr,
         },
-        /// Unbond share tokens from the staking contract
+        /// Unbond share tokens from the staking contract;
+        /// Reduce the user's bond units;
+        /// Increase the user's unlocked share token amount
         Unbond {
             user_addr: Addr,
-            bond_units: Option<Uint128>,
+            bond_units: Uint128,
         },
-        /// Borrow specified amount of short asset from Mars
+        /// Borrow specified amount of secondary asset from Red Bank;
+        /// Increase the user's debt units;
+        /// Increase the user's unlocked secondary asset amount
         Borrow {
             user_addr: Addr,
-            amount: Uint128,
+            borrow_amount: Uint128,
         },
-        /// Use the user's unlocked short asset to repay debt
+        /// Repay specified amount of secondary asset to Red Bank;
+        /// Reduce the user's debt units;
+        /// Reduce the user's unlocked secondary asset amount
         Repay {
             user_addr: Addr,
+            repay_amount: Uint128,
         },
-        /// Send a percentage of a user's unlocked assets to a specified recipient
+        /// Swap a specified amount of primary asset to secondary asset;
+        /// Reduce the user's unlocked primary asset amount;
+        /// Increase the user's unlocked secondary asset amount;
+        ///
+        /// If `swap_amount` is not provided, then use all available unlocked primary asset
+        Swap {
+            user_addr: Addr,
+            swap_amount: Option<Uint128>,
+        },
+        /// Send a percentage of a user's unlocked primary & seoncdary asset to the specified recipient;
+        /// Reduce the user's primary & secondary asset amound
         Refund {
             user_addr: Addr,
             recipient: Addr,
             percentage: Decimal,
         },
-        /// Collect a portion of rewards as performance fee, swap half of the rest for UST
-        Swap {
-            user_addr: Addr,
-            offer_asset: Asset,
-        },
-        /// Check if a user's LTV is below liquidation threshold; throw an error if not
+        /// Calculate a user's current LTV; throw error if it is above the maximum LTV specified in config
         AssertHealth {
             user_addr: Addr,
         },
