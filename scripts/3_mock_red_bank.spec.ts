@@ -11,6 +11,11 @@ const user = terra.wallets.test2;
 
 let redBank: Contract;
 
+interface UserAssetDebtResponse {
+  denom: string;
+  amount: string;
+}
+
 //--------------------------------------------------------------------------------------------------
 // Setup
 //--------------------------------------------------------------------------------------------------
@@ -32,10 +37,10 @@ async function setupTest() {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Test 1. Borrow, Pt. 1
+// Test 1. Borrow
 //--------------------------------------------------------------------------------------------------
 
-async function testBorrow1() {
+async function testBorrow() {
   process.stdout.write("1. Borrow Luna... ");
 
   const userLunaBalanceBefore = await queryNativeBalance(terra, user.key.accAddress, "uluna");
@@ -60,88 +65,28 @@ async function testBorrow1() {
     42000000 - GAS_AMOUNT
   );
 
-  const debtResponse = await terra.wasm.contractQuery(redBank.address, {
-    user_debt: {
+  const response: UserAssetDebtResponse = await terra.wasm.contractQuery(redBank.address, {
+    user_asset_debt: {
       user_address: user.key.accAddress,
-    },
-  });
-
-  expect(debtResponse).to.deep.equal({
-    debts: [
-      {
-        denom: "uluna",
-        amount_scaled: "42000000",
-      },
-      {
-        denom: "uusd",
-        amount_scaled: "0",
-      },
-    ],
-  });
-
-  console.log(chalk.green("Passed!"));
-}
-
-//--------------------------------------------------------------------------------------------------
-// Test 2. Borrow, Pt. 2
-//--------------------------------------------------------------------------------------------------
-
-async function testBorrow2() {
-  process.stdout.write("2. Borrow UST... ");
-
-  const userUstBalanceBefore = await queryNativeBalance(terra, user.key.accAddress, "uusd");
-
-  await sendTransaction(terra, user, [
-    new MsgExecuteContract(user.key.accAddress, redBank.address, {
-      borrow: {
-        asset: {
-          native: {
-            denom: "uusd",
-          },
+      asset: {
+        native: {
+          denom: "uluna",
         },
-        amount: "69000000", // borrow 69 UST
       },
-    }),
-  ]);
-
-  const userUstBalanceAfter = await queryNativeBalance(terra, user.key.accAddress, "uusd");
-
-  // User should have received correct amount of UST
-  // Note: 0.1% tax is charged on all UST transfers. If we borrow 69 UST, should expect to
-  // receive 69 * 99.9% = 68.931 UST (68931000 uusd)
-  expect(parseInt(userUstBalanceAfter) - parseInt(userUstBalanceBefore)).to.equal(
-    deductTax(69000000) - GAS_AMOUNT
-  );
-
-  // With mockInterestRate = 1.1, debt amount should be 69000000 * 1.1 = 75900000 uusd
-  const debtResponse = await terra.wasm.contractQuery(redBank.address, {
-    user_debt: {
-      user_address: user.key.accAddress,
     },
   });
 
-  expect(debtResponse).to.deep.equal({
-    debts: [
-      {
-        denom: "uluna",
-        amount_scaled: "42000000",
-      },
-      {
-        denom: "uusd",
-        amount_scaled: "69000000",
-      },
-    ],
-  });
+  expect(response.amount).to.equal("42000000");
 
   console.log(chalk.green("Passed!"));
 }
 
 //--------------------------------------------------------------------------------------------------
-// Test 3. Repay, Pt. 1
+// Test 2. Repay
 //--------------------------------------------------------------------------------------------------
 
-async function testRepay1() {
-  process.stdout.write("3. Repay LUNA... ");
+async function testRepay() {
+  process.stdout.write("2. Repay LUNA... ");
 
   await sendTransaction(terra, user, [
     new MsgExecuteContract(
@@ -157,106 +102,51 @@ async function testRepay1() {
   ]);
 
   // 42000000 - 12345678 = 29654322 uluna
-  const debtResponse = await terra.wasm.contractQuery(redBank.address, {
-    user_debt: {
+  const response: UserAssetDebtResponse = await terra.wasm.contractQuery(redBank.address, {
+    user_asset_debt: {
       user_address: user.key.accAddress,
-    },
-  });
-
-  expect(debtResponse).to.deep.equal({
-    debts: [
-      {
-        denom: "uluna",
-        amount_scaled: "29654322",
-      },
-      {
-        denom: "uusd",
-        amount_scaled: "69000000",
-      },
-    ],
-  });
-
-  console.log(chalk.green("Passed!"));
-}
-
-//--------------------------------------------------------------------------------------------------
-// Test 4. Repay, Pt. 2
-//--------------------------------------------------------------------------------------------------
-
-async function testRepay2() {
-  process.stdout.write("4. Repay UST... ");
-
-  await sendTransaction(terra, user, [
-    new MsgExecuteContract(
-      user.key.accAddress,
-      redBank.address,
-      {
-        repay_native: {
-          denom: "uusd",
+      asset: {
+        native: {
+          denom: "uluna",
         },
       },
-      { uusd: 8888888 }
-    ),
-  ]);
-
-  // 69000000 - 8888888 = 60111112 uusd
-  const debtResponse = await terra.wasm.contractQuery(redBank.address, {
-    user_debt: {
-      user_address: user.key.accAddress,
     },
   });
 
-  expect(debtResponse).to.deep.equal({
-    debts: [
-      {
-        denom: "uluna",
-        amount_scaled: "29654322",
-      },
-      {
-        denom: "uusd",
-        amount_scaled: "60111112",
-      },
-    ],
-  });
+  expect(response.amount).to.equal("29654322");
 
   console.log(chalk.green("Passed!"));
 }
 
 //--------------------------------------------------------------------------------------------------
-// Test 5. Set Debt
+// Test 3. Set Debt
 //--------------------------------------------------------------------------------------------------
 
 async function testSetUserDebt() {
-  process.stdout.write("4. [mock] Set user debt... ");
+  process.stdout.write("3. [mock] Set user debt... ");
 
   await sendTransaction(terra, deployer, [
     new MsgExecuteContract(deployer.key.accAddress, redBank.address, {
       set_user_debt: {
         user_address: user.key.accAddress,
-        denom: "uusd",
+        denom: "uluna",
         amount: "69420",
       },
     }),
   ]);
 
-  const debtResponse = await terra.wasm.contractQuery(redBank.address, {
-    user_debt: {
+  const response: UserAssetDebtResponse = await terra.wasm.contractQuery(redBank.address, {
+    user_asset_debt: {
       user_address: user.key.accAddress,
+      asset: {
+        native: {
+          denom: "uluna",
+        },
+      },
     },
   });
 
-  expect(debtResponse).to.deep.equal({
-    debts: [
-      {
-        denom: "uluna",
-        amount_scaled: "29654322",
-      },
-      {
-        denom: "uusd",
-        amount_scaled: "69420",
-      },
-    ],
-  });
+  expect(response.amount).to.equal("69420");
 
   console.log(chalk.green("Passed!"));
 }
@@ -277,10 +167,8 @@ async function testSetUserDebt() {
 
   console.log(chalk.yellow("\nTest: Mock Red Bank"));
 
-  await testBorrow1();
-  await testBorrow2();
-  await testRepay1();
-  await testRepay2();
+  await testBorrow();
+  await testRepay();
   await testSetUserDebt();
 
   console.log("");

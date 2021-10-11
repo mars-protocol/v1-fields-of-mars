@@ -7,8 +7,9 @@ use cw20::Cw20ExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use mars::asset::Asset as MarsAsset;
-use red_bank::msg::{DebtResponse, ExecuteMsg, QueryMsg, ReceiveMsg};
+use mars_core::asset::Asset as MarsAsset;
+use mars_core::red_bank::msg::{ExecuteMsg, QueryMsg, ReceiveMsg};
+use mars_core::red_bank::UserAssetDebtResponse;
 
 use crate::adapters::{Asset, AssetInfo};
 
@@ -110,20 +111,14 @@ impl RedBank {
         user_address: &Addr,
         asset_info: &AssetInfo,
     ) -> StdResult<Uint128> {
-        let response: DebtResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: self.contract_addr.to_string(),
-            msg: to_binary(&QueryMsg::UserDebt {
-                user_address: user_address.to_string(),
-            })?,
-        }))?;
-
-        let amount = response
-            .debts
-            .iter()
-            .find(|debt| debt.denom == asset_info.get_denom())
-            .map(|debt| debt.amount_scaled)
-            .unwrap_or_else(Uint128::zero);
-
-        Ok(amount)
+        let response: UserAssetDebtResponse =
+            querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: self.contract_addr.to_string(),
+                msg: to_binary(&QueryMsg::UserAssetDebt {
+                    user_address: user_address.to_string(),
+                    asset: asset_info.clone().into(), // cast fields_of_mars::adapters::asset::AssetInfo to mars_core::asset::Asset
+                })?,
+            }))?;
+        Ok(response.amount)
     }
 }

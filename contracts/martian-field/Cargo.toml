@@ -13,7 +13,7 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-fields-of-mars = { path = "../../packages/fields_of_mars" }
+fields-of-mars = { path = "../../packages/fields-of-mars" }
 
 cosmwasm-std = "0.16.0"
 cw-storage-plus = "0.8.0"

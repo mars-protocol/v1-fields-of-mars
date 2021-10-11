@@ -48,7 +48,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::Withdraw {
             asset_token,
         } => execute_withdraw(deps, env, info, asset_token),
-
         _ => Err(StdError::generic_err("unimplemented")),
     }
 }
@@ -72,7 +71,6 @@ fn execute_receive_cw20(
 
             execute_bond(deps, env, info, cw20_msg.sender, asset_token, cw20_msg.amount)
         }
-
         _ => Err(StdError::generic_err("unimplemented")),
     }
 }
@@ -158,7 +156,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             staker_addr,
             asset_token,
         } => to_binary(&query_reward_info(deps, env, staker_addr, asset_token)?),
-
         _ => Err(StdError::generic_err("unimplemented")),
     }
 }
@@ -183,9 +180,8 @@ fn query_reward_info(
 // HELPERS
 
 mod helpers {
-    use cosmwasm_std::{Api, Storage};
-
     use super::*;
+    use cosmwasm_std::{Api, Storage};
 
     pub fn load_bond_amount(
         storage: &dyn Storage,

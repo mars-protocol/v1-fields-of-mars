@@ -4,7 +4,7 @@ use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use mars;
+use mars_core::asset::Asset as MarsAsset;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {}
@@ -14,7 +14,7 @@ pub struct InstantiateMsg {}
 pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
     Borrow {
-        asset: mars::asset::Asset,
+        asset: MarsAsset,
         amount: Uint128,
     },
     RepayNative {

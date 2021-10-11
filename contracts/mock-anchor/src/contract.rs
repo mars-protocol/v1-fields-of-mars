@@ -58,7 +58,6 @@ fn execute_receive_cw20(
             if info.sender != config.staking_token {
                 return Err(StdError::generic_err("unauthorized"));
             }
-
             execute_bond(deps, env, info, cw20_msg.sender, cw20_msg.amount)
         }
     }
@@ -116,7 +115,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             staker,
             ..
         } => to_binary(&query_staker_info(deps, env, staker)?),
-
         _ => Err(StdError::generic_err("Unimplemented")),
     }
 }
@@ -135,9 +133,8 @@ fn query_staker_info(deps: Deps, _env: Env, staker: String) -> StdResult<StakerI
 }
 
 mod helpers {
-    use cosmwasm_std::Storage;
-
     use super::*;
+    use cosmwasm_std::Storage;
 
     pub fn load_bond_amount(storage: &dyn Storage, staker_addr: &Addr) -> Uint128 {
         BOND_AMOUNT.load(storage, staker_addr).unwrap_or_else(|_| Uint128::zero())

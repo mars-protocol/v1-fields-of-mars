@@ -6,15 +6,12 @@ use cw20::Cw20ReceiveMsg;
 
 use fields_of_mars::adapters::Asset;
 
-use mars::asset::Asset as MarsAsset;
-use red_bank::msg::{DebtInfo, DebtResponse, QueryMsg, ReceiveMsg};
+use mars_core::asset::{Asset as MarsAsset, AssetType as MarsAssetType};
+use mars_core::red_bank::msg::{QueryMsg, ReceiveMsg};
+use mars_core::red_bank::UserAssetDebtResponse;
 
 use crate::msg::{ExecuteMsg, InstantiateMsg};
 use crate::state::DEBT_AMOUNT;
-
-// This mock contract currently only supports borrowing uluna and uusd
-// Borrowing of CW20 is not needed for testing purpose, so not implemented
-static SUPPORTED_ASSETS: [&str; 2] = ["uluna", "uusd"];
 
 // INIT
 
@@ -68,7 +65,6 @@ pub fn execute_receive_cw20(
             let denom = info.sender.to_string();
             execute_repay(deps, env, info, repayer_addr, &denom, cw20_msg.amount)
         }
-
         _ => Err(StdError::generic_err("Unimplemented")),
     }
 }
@@ -80,18 +76,10 @@ fn execute_borrow(
     asset: MarsAsset,
     amount: Uint128,
 ) -> StdResult<Response> {
-    let denom = match &asset {
-        MarsAsset::Cw20 {
-            contract_addr,
-        } => &contract_addr[..],
-        MarsAsset::Native {
-            denom,
-        } => &denom[..],
-    };
+    let denom = helpers::get_asset_denom(&deps.querier, &asset)?;
+    let debt_amount = helpers::load_debt_amount(deps.storage, &info.sender, &denom);
 
-    let debt_amount = helpers::load_debt_amount(deps.storage, &info.sender, denom);
-
-    DEBT_AMOUNT.save(deps.storage, (&info.sender, denom), &(debt_amount + amount))?;
+    DEBT_AMOUNT.save(deps.storage, (&info.sender, &denom), &(debt_amount + amount))?;
 
     let outbound_asset = match &asset {
         MarsAsset::Cw20 {
@@ -136,7 +124,6 @@ fn execute_set_debt(
     amount: Uint128,
 ) -> StdResult<Response> {
     DEBT_AMOUNT.save(deps.storage, (&user_addr, denom), &amount)?;
-
     Ok(Response::default())
 }
 
@@ -145,36 +132,42 @@ fn execute_set_debt(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::UserDebt {
+        QueryMsg::UserAssetDebt {
             user_address,
-        } => to_binary(&query_debt(deps, env, user_address)?),
+            asset,
+        } => to_binary(&query_debt(deps, env, user_address, asset)?),
 
         _ => Err(StdError::generic_err("Unimplemented")),
     }
 }
 
-fn query_debt(deps: Deps, _env: Env, user_address: String) -> StdResult<DebtResponse> {
+fn query_debt(
+    deps: Deps,
+    _env: Env,
+    user_address: String,
+    asset: MarsAsset,
+) -> StdResult<UserAssetDebtResponse> {
     let user_addr = deps.api.addr_validate(&user_address)?;
-
-    let debts = SUPPORTED_ASSETS
-        .iter()
-        .map(|denom| DebtInfo {
-            denom: denom.to_string(),
-            amount_scaled: helpers::load_debt_amount(deps.storage, &user_addr, denom),
-        })
-        .collect();
-
-    Ok(DebtResponse {
-        debts,
+    let denom = helpers::get_asset_denom(&deps.querier, &asset)?;
+    let debt_amount = helpers::load_debt_amount(deps.storage, &user_addr, &denom);
+    Ok(UserAssetDebtResponse {
+        // only amount matters for our testing
+        amount: debt_amount,
+        // for other attributes we just fill in some random value
+        denom: "".to_string(),
+        asset_label: "".to_string(),
+        asset_reference: vec![],
+        asset_type: MarsAssetType::Native,
+        amount_scaled: Uint128::zero(),
     })
 }
 
 // HELPERS
 
 pub mod helpers {
-    use cosmwasm_std::{Addr, Coin, Storage, Uint128};
-
-    use crate::state::DEBT_AMOUNT;
+    use super::*;
+    use cosmwasm_std::{Coin, QuerierWrapper, QueryRequest, Storage, WasmQuery};
+    use cw20::{Cw20QueryMsg, TokenInfoResponse};
 
     pub fn load_debt_amount(storage: &dyn Storage, user: &Addr, denom: &str) -> Uint128 {
         DEBT_AMOUNT.load(storage, (user, denom)).unwrap_or_else(|_| Uint128::zero())
@@ -186,5 +179,24 @@ pub mod helpers {
             .find(|coin| coin.denom == denom)
             .map(|coin| coin.amount)
             .unwrap_or_else(Uint128::zero)
+    }
+
+    pub fn get_asset_denom(querier: &QuerierWrapper, asset: &MarsAsset) -> StdResult<String> {
+        let denom = match asset {
+            MarsAsset::Native {
+                denom,
+            } => denom.clone(),
+            MarsAsset::Cw20 {
+                contract_addr,
+            } => {
+                let response: TokenInfoResponse =
+                    querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                        contract_addr: contract_addr.clone(),
+                        msg: to_binary(&Cw20QueryMsg::TokenInfo {})?,
+                    }))?;
+                response.symbol
+            }
+        };
+        Ok(denom)
     }
 }

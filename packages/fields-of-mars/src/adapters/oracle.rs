@@ -5,7 +5,8 @@ use cosmwasm_std::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use mars::oracle::msg::{AssetPriceResponse, QueryMsg};
+use mars_core::oracle::msg::QueryMsg;
+use mars_core::oracle::AssetPriceResponse;
 
 use crate::adapters::AssetInfo;
 
@@ -49,7 +50,7 @@ impl Oracle {
                 })?,
             }))?;
 
-        Ok(response.price)
+        Ok(response.price.to_std_decimal()) // cast mars_core::math::decimal::Decimal to cosmwasm_std::Decimal
     }
 
     pub fn query_prices(

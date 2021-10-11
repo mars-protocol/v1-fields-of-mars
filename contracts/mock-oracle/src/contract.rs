@@ -1,13 +1,14 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, QueryRequest,
-    Response, StdError, StdResult, WasmQuery,
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response,
+    StdError, StdResult, WasmQuery,
 };
 
 use fields_of_mars::adapters::Asset;
 
-use mars::asset::Asset as MarsAsset;
-use mars::oracle::msg::{AssetPriceResponse, ExecuteMsg, QueryMsg};
-use mars::oracle::{PriceSourceChecked, PriceSourceUnchecked};
+use mars_core::asset::Asset as MarsAsset;
+use mars_core::math::decimal::Decimal;
+use mars_core::oracle::msg::{ExecuteMsg, QueryMsg};
+use mars_core::oracle::{AssetPriceResponse, PriceSourceChecked, PriceSourceUnchecked};
 
 use astroport::pair::{QueryMsg as AstroportQueryMsg, SimulationResponse};
 
@@ -37,7 +38,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset,
             price_source,
         } => execute_set_asset(deps, env, info, asset, price_source),
-
         _ => Err(StdError::generic_err("Unimplemented")),
     }
 }
@@ -57,7 +57,6 @@ fn execute_set_asset(
         } => PriceSourceChecked::Fixed {
             price,
         },
-
         PriceSourceUnchecked::AstroportSpot {
             pair_address,
             asset_address,
@@ -65,7 +64,6 @@ fn execute_set_asset(
             pair_address: deps.api.addr_validate(&pair_address)?,
             asset_address: deps.api.addr_validate(&asset_address)?,
         },
-
         _ => {
             return Err(StdError::generic_err("Unimplemented"));
         }
@@ -87,7 +85,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::AssetPriceByReference {
             asset_reference,
         } => to_binary(&query_asset_price(deps, env, &asset_reference)?),
-
         _ => Err(StdError::generic_err("Unimplemented")),
     }
 }

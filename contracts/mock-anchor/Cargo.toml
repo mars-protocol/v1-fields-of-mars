@@ -1,6 +1,6 @@
 [package]
-name = "mock-red-bank"
-version = "0.4.1"
+name = "mock-anchor"
+version = "0.5.0"
 authors = ["larry_0x <larry@delphidigital.io>"]
 edition = "2018"
 license = "UNLICENSED"
@@ -13,14 +13,14 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-fields-of-mars = { path = "../../packages/fields_of_mars" }
+fields-of-mars = { path = "../../packages/fields-of-mars" }
 
-mars = { path = "../../packages/mars_core" }
-red-bank = { path = "../../packages/red_bank" } 
+anchor-token = "0.2.0"
 
 cosmwasm-std = "0.16.0"
+# Anchor uses cw80 0.8.0 which is not compatible with the latest (0.9.1)
 cw20 = "0.8.0"
-cw-storage-plus = "0.8.0"
+cw-storage-plus = "0.9.1"
 
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }

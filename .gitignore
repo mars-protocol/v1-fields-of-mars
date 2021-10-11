@@ -28,6 +28,6 @@ artifacts/
 **/tmp.*
 
 packages/astroport
-packages/mars_core
-packages/mars_periphery
+packages/mars-core
+packages/mars-periphery
 packages/red_bank

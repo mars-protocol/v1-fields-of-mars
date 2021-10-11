@@ -29,6 +29,7 @@ const COLUMBUS_CONTRACTS = {
     astroportLpToken: "",
   },
   redBank: "",
+  oracle: "",
 };
 
 const BOMBAY_CONTRACTS = {
@@ -45,12 +46,13 @@ const BOMBAY_CONTRACTS = {
     astroportLpToken: "terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j",
   },
   mars: {
-    token: "",
-    staking: "",
-    astroportPair: "",
-    astroportLpToken: "",
+    token: "terra1qs7h830ud0a4hj72yr8f7jmlppyx7z524f7gw6",
+    staking: "terra1y3p80ff5mrlpa4lzc32q0g40wlpe40gnav86sq",
+    astroportPair: "terra139cu2x35jx24fcjrvjxt6kvgtslm50fcguptd3",
+    astroportLpToken: "terra1vlrzw388xyg6fju5m3vxz3m8p5vrz33lzsv07z",
   },
-  redBank: "",
+  redBank: "terra1hau5xeu3jk7aaf78tufwa4em8ruag2nasa2cp4",
+  oracle: "terra1a8pde6qjct5vr6vjn8dpsgsxzk9z5a034xj23s",
 };
 
 const INSTANTIATE_MSG = (
@@ -60,38 +62,42 @@ const INSTANTIATE_MSG = (
     astroportPair: string;
     astroportLpToken: string;
   },
-  redBank: string
+  redBank: string,
+  oracle: string
 ) => {
   return {
-    long_asset: {
-      token: {
+    primary_asset_info: {
+      cw20: {
         contract_addr: contracts.token,
       },
     },
-    short_asset: {
-      native_token: {
+    secondary_asset_info: {
+      native: {
         denom: "uusd",
       },
     },
     red_bank: {
       contract_addr: redBank,
     },
-    swap: {
-      pair: contracts.astroportPair,
+    oracle: {
+      contract_addr: oracle,
+    },
+    pair: {
+      contract_addr: contracts.astroportPair,
       share_token: contracts.astroportLpToken,
     },
     staking: {
-      anchor: {
+      mars: {
         contract_addr: contracts.staking,
         asset_token: contracts.token,
         staking_token: contracts.astroportLpToken,
       },
     },
-    keepers: [deployer.key.accAddress],
     treasury: deployer.key.accAddress,
     governance: deployer.key.accAddress,
-    max_ltv: "0.67",
+    max_ltv: "0.80",
     fee_rate: "0.10",
+    bonus_rate: "0.05",
   };
 };
 
@@ -140,7 +146,7 @@ if (!["columbus", "bombay"].includes(argv.network)) {
         })
       : new LCDClient({
           URL: "https://bombay-lcd.terra.dev",
-          chainID: "bombay-11",
+          chainID: "bombay-12",
         });
 
   contracts = argv.network == "columbus" ? COLUMBUS_CONTRACTS : BOMBAY_CONTRACTS;
@@ -149,10 +155,7 @@ if (!["columbus", "bombay"].includes(argv.network)) {
 }
 
 if (!["anchor", "mirror", "mars"].includes(argv.strategy)) {
-  console.log(
-    chalk.red("Error!"),
-    "Invalid strategy: must be 'anchor' | 'mirror' | 'mars'"
-  );
+  console.log(chalk.red("Error!"), "Invalid strategy: must be 'anchor' | 'mirror' | 'mars'");
   process.exit(0);
 } else {
   console.log(`strategy : ${chalk.cyan(argv.strategy)}`);
@@ -186,7 +189,8 @@ const instantiateMsg = INSTANTIATE_MSG(
     : argv.strategy === "mirror"
     ? contracts.mirror
     : contracts.mars,
-  contracts.redBank
+  contracts.redBank,
+  contracts.oracle
 );
 
 console.log("instantiateMsg =", instantiateMsg, "\n");
