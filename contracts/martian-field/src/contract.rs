@@ -95,7 +95,7 @@ fn execute_increase_position(
     let config = CONFIG.load(deps.storage)?;
     let mut position = POSITION.load(deps.storage, &info.sender).unwrap_or_default();
 
-    // Find how much long and short assets were received, respectively
+    // Find how much primary and secondary assets were received, respectively
     let primary_asset_deposited = deposits
         .iter()
         .find(|deposit| deposit.info == config.primary_asset_info)
@@ -107,11 +107,19 @@ fn execute_increase_position(
         .cloned()
         .unwrap_or_else(|| Asset::new(&config.secondary_asset_info, Uint128::zero()));
 
+    // Increment the user's unlocked assets by the amount deposited
     let primary_asset_unlocked = add_unlocked_asset(&mut position, &primary_asset_deposited);
     let secondary_asset_unlocked = add_unlocked_asset(&mut position, &secondary_asset_deposited);
     POSITION.save(deps.storage, &info.sender, &position)?;
 
     // Calculate the amount of secondary asset to be borrowed
+    //
+    // We provide all unlocked primary assets to the liquidity pool. The amount of secondary asset
+    // needed for liquidity provision is:
+    // primary_asset_unlocked.amount * secondary_depth / primary_depth
+    //
+    // If the amount needed is bigger than the amount of secondary asset deposited, we borrow the
+    // difference from Red Bank. Otherwise, we borrow zero
     let (primary_depth, secondary_depth, _) = config.pair.query_pool(
         &deps.querier,
         &config.primary_asset_info,
@@ -225,16 +233,29 @@ fn execute_pay_debt(
     let config = CONFIG.load(deps.storage)?;
     let mut position = POSITION.load(deps.storage, &info.sender)?;
 
+    // Find how much asset was deposited
+    //
+    // If secondary asset is a CW20, the deposit amount is exactly the amount to be repaid, and we
+    // later transfer the amount from the user's wallet to us
+    //
+    // If secondary asset is a native token, we find how much was transferred with the message.
+    // `deposit_amount` is the amount that's received by us
+    // `repay_amount` is the amount to be repaid
+    // Typically, `deposit_amount` needs to be slightly greater than `repay_amount` because repayment
+    // requires tax. The unused amount will be refunded to the user
     let deposit_amount = if config.secondary_asset_info.is_cw20() {
         repay_amount
     } else {
         config.secondary_asset_info.find_sent_amount(&info.funds)
     };
 
+    // Increment the user's unlocked secondary asset by the deposited amount
     let secondary_asset_deposited = Asset::new(&config.secondary_asset_info, deposit_amount);
     add_unlocked_asset(&mut position, &secondary_asset_deposited);
     POSITION.save(deps.storage, &info.sender, &position)?;
 
+    // Construct messages. If secondary asset is a CW20, we transfer it from the user's wallet to us
+    // (must be allowance). If it's a native token, we do nothing because we have already received it
     let msgs = if secondary_asset_deposited.info.is_cw20() {
         vec![secondary_asset_deposited.transfer_from_msg(&info.sender, &env.contract.address)?]
     } else {
@@ -345,9 +366,13 @@ fn execute_harvest(deps: DepsMut, env: Env, _info: MessageInfo) -> StdResult<Res
     let config = CONFIG.load(deps.storage)?;
     let mut position = POSITION.load(deps.storage, &reward_addr).unwrap_or_default();
 
+    // Find how much reward is available to be claimed
     let (_, reward_amount) =
         config.staking.query_reward_info(&deps.querier, &env.contract.address)?;
 
+    // We assume the reward is in the primary asset
+    // Among the claimable reward, a portion corresponding to `config.fee_rate` is charged as fee
+    // and sent to the treasury address. Among the rest, half is to be swapped for the secondary asset
     let fee_amount = reward_amount * config.fee_rate;
     let reward_amount_after_fee = reward_amount - fee_amount;
     let swap_amount = reward_amount_after_fee.multiply_ratio(1u128, 2u128);
@@ -454,7 +479,9 @@ fn callback_provide_liquidity(
     let config = CONFIG.load(deps.storage)?;
     let mut position = POSITION.load(deps.storage, &user_addr)?;
 
-    // We deposit *all* unlocked primary and secondary assets to AMM
+    // We deposit *all* unlocked primary and secondary assets to AMM, assuming the functions invoking
+    // this callback have already did borrowing or swaps such that the values of the assets are about
+    // the same
     // NOTE: must deduct tax here!
     let primary_asset_to_provide = position
         .unlocked_assets
