@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { LocalTerra, MsgExecuteContract, MsgSend } from "@terra-money/terra.js";
+import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
 import { deployCw20Token, deployAstroport, deployOracle } from "./fixture";
 import { sendTransaction, toUtf8Array, computeSwapOutput } from "./helpers";

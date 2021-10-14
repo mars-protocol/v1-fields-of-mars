@@ -1,74 +1,99 @@
 import * as path from "path";
-import chalk from "chalk";
 import dotenv from "dotenv";
 import yargs from "yargs/yargs";
 import { LCDClient, MnemonicKey, Wallet } from "@terra-money/terra.js";
 import { storeCode, instantiateContract } from "./helpers";
 
-//----------------------------------------------------------------------------------------
-// Contract Addresses
-//----------------------------------------------------------------------------------------
-
-const COLUMBUS_CONTRACTS = {
+const MAINNET_CONTRACTS = {
   anchor: {
     token: "terra14z56l0fp2lsf86zy3hty2z47ezkhnthtr9yq76",
     staking: "terra1897an2xux840p9lrh6py3ryankc6mspw49xse3",
-    astroportPair: "terra1gm5p3ner9x9xpwugn9sp6gvhd0lwrtkyrecdn3",
-    astroportLpToken: "terra1gecs98vcuktyfkrve9czrpgtg0m3aq586x6gzm",
+    pair: "terra1gm5p3ner9x9xpwugn9sp6gvhd0lwrtkyrecdn3",
+    shareToken: "terra1gecs98vcuktyfkrve9czrpgtg0m3aq586x6gzm",
   },
   mirror: {
     token: "terra15gwkyepfc6xgca5t5zefzwy42uts8l2m4g40k6",
     staking: "terra17f7zu97865jmknk7p2glqvxzhduk78772ezac5",
-    astroportPair: "terra1amv303y8kzxuegvurh0gug2xe9wkgj65enq2ux",
-    astroportLpToken: "terra17gjf2zehfvnyjtdgua9p9ygquk6gukxe7ucgwh",
+    pair: "terra1amv303y8kzxuegvurh0gug2xe9wkgj65enq2ux",
+    shareToken: "terra17gjf2zehfvnyjtdgua9p9ygquk6gukxe7ucgwh",
+  },
+  pylon: {
+    token: "",
+    staking: "",
+    pair: "",
+    shareToken: "",
   },
   mars: {
     token: "",
     staking: "",
-    astroportPair: "",
-    astroportLpToken: "",
+    pair: "",
+    shareToken: "",
   },
   redBank: "",
   oracle: "",
 };
 
-const BOMBAY_CONTRACTS = {
+const TESTNET_CONTRACTS = {
   anchor: {
     token: "terra1747mad58h0w4y589y3sk84r5efqdev9q4r02pc",
     staking: "terra19nxz35c8f7t3ghdxrxherym20tux8eccar0c3k",
-    astroportPair: "terra1wfvczps2865j0awnurk9m04u7wdmd6qv3fdnvz",
-    astroportLpToken: "terra1vg0qyq92ky9z9dp0j9fv5rmr2s80sg605dah6f",
+    pair: "terra1wfvczps2865j0awnurk9m04u7wdmd6qv3fdnvz",
+    shareToken: "terra1vg0qyq92ky9z9dp0j9fv5rmr2s80sg605dah6f",
   },
   mirror: {
     token: "terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u",
     staking: "terra1a06dgl27rhujjphsn4drl242ufws267qxypptx",
-    astroportPair: "terra1cz6qp8lfwht83fh9xm9n94kj04qc35ulga5dl0",
-    astroportLpToken: "terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j",
+    pair: "terra1cz6qp8lfwht83fh9xm9n94kj04qc35ulga5dl0",
+    shareToken: "terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j",
+  },
+  pylon: {
+    token: "terra1lqm5tutr5xcw9d5vc4457exa3ghd4sr9mzwdex",
+    staking: "terra17av0lfhqymusm6j9jpepzerg6u54q57jp7xnrz",
+    pair: "terra1n2xmlwqpp942nfqq2muxn0u0mqk3sylekdpqfv",
+    shareToken: "terra1st9me79vkk4erw3apydt5z48n6ahgj4qdclp4u",
   },
   mars: {
     token: "terra1qs7h830ud0a4hj72yr8f7jmlppyx7z524f7gw6",
     staking: "terra1y3p80ff5mrlpa4lzc32q0g40wlpe40gnav86sq",
-    astroportPair: "terra139cu2x35jx24fcjrvjxt6kvgtslm50fcguptd3",
-    astroportLpToken: "terra1vlrzw388xyg6fju5m3vxz3m8p5vrz33lzsv07z",
+    pair: "terra139cu2x35jx24fcjrvjxt6kvgtslm50fcguptd3",
+    shareToken: "terra1vlrzw388xyg6fju5m3vxz3m8p5vrz33lzsv07z",
   },
-  redBank: "terra1hau5xeu3jk7aaf78tufwa4em8ruag2nasa2cp4",
+  redBank: "terra10fnunr0md5t72vhxxx9544uv4nxhhnfjysnjq7",
   oracle: "terra1a8pde6qjct5vr6vjn8dpsgsxzk9z5a034xj23s",
 };
 
-const INSTANTIATE_MSG = (
-  contracts: {
+function generateInitMsg(network: string, strategy: string) {
+  let contracts: typeof MAINNET_CONTRACTS | typeof TESTNET_CONTRACTS;
+  if (network === "mainnet") {
+    contracts = MAINNET_CONTRACTS;
+  } else if (network === "testnet") {
+    contracts = TESTNET_CONTRACTS;
+  } else {
+    throw new Error("invalid network: must be `mainnet` | `testnet`");
+  }
+
+  let protocol: {
     token: string;
     staking: string;
-    astroportPair: string;
-    astroportLpToken: string;
-  },
-  redBank: string,
-  oracle: string
-) => {
+    pair: string;
+    shareToken: string;
+  };
+  let stakingType: "anchor" | "mirror" | "mars";
+  if (strategy === "anchor" || strategy === "mirror" || strategy === "mars") {
+    protocol = contracts[strategy];
+    stakingType = strategy;
+  } else if (strategy === "pylon") {
+    protocol = contracts.pylon;
+    // for pylon we use the anchor staking type as their staking contracts use the same messages
+    stakingType = "anchor";
+  } else {
+    throw new Error("invalid strategy: must be `anchor` | `mirror` | `pylon` | `mars`");
+  }
+
   return {
     primary_asset_info: {
       cw20: {
-        contract_addr: contracts.token,
+        contract_addr: protocol.token,
       },
     },
     secondary_asset_info: {
@@ -77,20 +102,20 @@ const INSTANTIATE_MSG = (
       },
     },
     red_bank: {
-      contract_addr: redBank,
+      contract_addr: contracts.redBank,
     },
     oracle: {
-      contract_addr: oracle,
+      contract_addr: contracts.oracle,
     },
     pair: {
-      contract_addr: contracts.astroportPair,
-      share_token: contracts.astroportLpToken,
+      contract_addr: protocol.pair,
+      share_token: protocol.shareToken,
     },
     staking: {
-      mars: {
-        contract_addr: contracts.staking,
-        asset_token: contracts.token,
-        staking_token: contracts.astroportLpToken,
+      [stakingType]: {
+        contract_addr: protocol.staking,
+        asset_token: protocol.token,
+        staking_token: protocol.shareToken,
       },
     },
     treasury: deployer.key.accAddress,
@@ -99,16 +124,8 @@ const INSTANTIATE_MSG = (
     fee_rate: "0.10",
     bonus_rate: "0.05",
   };
-};
+}
 
-//----------------------------------------------------------------------------------------
-// Parse Input Parameters
-//----------------------------------------------------------------------------------------
-
-// Parse .env
-dotenv.config();
-
-// Parse options
 const argv = yargs(process.argv)
   .options({
     network: {
@@ -127,106 +144,71 @@ const argv = yargs(process.argv)
       default: 0,
       demandOption: false,
     },
+    "fee-denom": {
+      alias: "f",
+      type: "string",
+      default: "uusd",
+      demandOption: false,
+    },
   })
   .parseSync();
 
-let deployer: Wallet;
 let terra: LCDClient;
-let contracts: typeof COLUMBUS_CONTRACTS | typeof BOMBAY_CONTRACTS;
-
-if (!["columbus", "bombay"].includes(argv.network)) {
-  console.log(chalk.red("Error!"), "invalid network: must be 'columbus' or 'bombay'");
-  process.exit(0);
+if (argv.network === "mainnet") {
+  terra = new LCDClient({
+    chainID: "columbus-5",
+    URL: "https://lcd.terra.dev",
+  });
+} else if (argv.network === "testnet") {
+  terra = new LCDClient({
+    chainID: "bombay-12",
+    URL: "https://bombay-lcd.terra.dev",
+  });
 } else {
-  terra =
-    argv.network == "columbus"
-      ? new LCDClient({
-          URL: "https://lcd.terra.dev",
-          chainID: "columbus-5",
-        })
-      : new LCDClient({
-          URL: "https://bombay-lcd.terra.dev",
-          chainID: "bombay-12",
-        });
-
-  contracts = argv.network == "columbus" ? COLUMBUS_CONTRACTS : BOMBAY_CONTRACTS;
-
-  console.log(`\nnetwork  : ${chalk.cyan(argv.network)}`);
+  throw new Error("invalid network: must be `mainnet` | `testnet`");
 }
 
-if (!["anchor", "mirror", "mars"].includes(argv.strategy)) {
-  console.log(chalk.red("Error!"), "Invalid strategy: must be 'anchor' | 'mirror' | 'mars'");
-  process.exit(0);
-} else {
-  console.log(`strategy : ${chalk.cyan(argv.strategy)}`);
-}
-
-if (argv["code-id"] == 0) {
-  console.log(`code     : ${chalk.yellow("unspecified")}`);
-} else {
-  console.log(`code     : ${chalk.cyan(argv["code-id"])}`);
-}
-
+let deployer: Wallet;
+dotenv.config();
 if (!process.env.MNEMONIC) {
-  console.log(chalk.red("Error!"), "MNEMONIC not provided");
-  process.exit(0);
+  throw new Error("mnemonic not provided");
 } else {
   deployer = terra.wallet(
     new MnemonicKey({
       mnemonic: process.env.MNEMONIC,
     })
   );
-  console.log(`deployer : ${chalk.cyan(deployer.key.accAddress)}\n`);
 }
 
-//----------------------------------------------------------------------------------------
-// Deploy Martian Field
-//----------------------------------------------------------------------------------------
+console.log(`network  : ${argv.network}`);
+console.log(`strategy : ${argv.strategy}`);
+console.log(`codeId   : ${argv["code-id"] == 0 ? "unspecified" : argv["code-id"]}`);
+console.log(`deployer : ${deployer.key.accAddress}`);
 
-const instantiateMsg = INSTANTIATE_MSG(
-  argv.strategy === "anchor"
-    ? contracts.anchor
-    : argv.strategy === "mirror"
-    ? contracts.mirror
-    : contracts.mars,
-  contracts.redBank,
-  contracts.oracle
-);
+const initMsg = generateInitMsg(argv.network, argv.strategy);
+console.log("instantiateMsg =", JSON.stringify(initMsg, null, 2));
 
-console.log("instantiateMsg =", instantiateMsg, "\n");
-
-process.stdout.write("Ready to deploy; press any key to continue, CTRL+C to abort...");
-
+process.stdout.write("ready to execute! press any key to continue, CTRL+C to abort...");
 process.stdin.once("data", async function () {
-  // If CODE_ID is not provided, we upload the code first
-  if (!argv["code-id"]) {
-    process.stdout.write("Uploading contract code... ");
-
-    const codeId = await storeCode(
-      terra,
-      deployer,
-      path.resolve("../artifacts/martian_field.wasm")
-    );
-
-    console.log("Done!", `${chalk.blue("codeId")}=${codeId}`);
-    argv["code-id"] = codeId;
+  // if code id is not provided, we upload the code first
+  let codeId = argv["code-id"];
+  if (codeId == 0) {
+    process.stdout.write("iploading contract code... ");
+    codeId = await storeCode(terra, deployer, path.resolve("../artifacts/martian_field.wasm"));
+    console.log(`success! codeId=${codeId}`);
   }
 
-  // Deploy the contract
-  process.stdout.write("Instantiating Martian Field... ");
-
+  // deploy the contract
+  process.stdout.write("instantiating contract... ");
   const result = await instantiateContract(
     terra,
     deployer, // deployer
     deployer, // admin
-    argv["code-id"],
-    instantiateMsg
+    codeId,
+    initMsg
   );
-
-  console.log(
-    "Done!",
-    `${chalk.blue("contractAddress")}=${result.logs[0].events[0].attributes[3].value}\n`
-  );
+  const contractAddress = result.logs[0].eventsByType.instantiate_contract.contract_address[0];
+  console.log(`success! contractAddress=${contractAddress}`);
 
   process.exit(0);
 });

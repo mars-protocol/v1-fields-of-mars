@@ -7,7 +7,6 @@ import {
   deployRedBank,
   deployOracle,
   deployAnchorStaking,
-  deployMirrorStaking,
   deployMartianField,
 } from "./fixture";
 import { Contract, Protocols, MartianField } from "./types";

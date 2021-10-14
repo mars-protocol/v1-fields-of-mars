@@ -3,7 +3,7 @@ import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
 import { deployCw20Token, deployAstroport, deployAnchorStaking } from "./fixture";
 import { queryCw20Balance, sendTransaction, toEncodedBinary } from "./helpers";
-import { Contract, Protocols } from "./types";
+import { Protocols } from "./types";
 
 const terra = new LocalTerra();
 const deployer = terra.wallets.test1;

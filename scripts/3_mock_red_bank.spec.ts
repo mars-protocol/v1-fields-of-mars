@@ -2,7 +2,7 @@ import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract, MsgSend } from "@terra-money/terra.js";
 import { expect } from "chai";
 import { deployRedBank } from "./fixture";
-import { GAS_AMOUNT, deductTax, queryNativeBalance, sendTransaction } from "./helpers";
+import { queryNativeBalance, sendTransaction } from "./helpers";
 import { Contract } from "./types";
 
 const terra = new LocalTerra();
@@ -45,7 +45,7 @@ async function testBorrow() {
 
   const userLunaBalanceBefore = await queryNativeBalance(terra, user.key.accAddress, "uluna");
 
-  await sendTransaction(terra, user, [
+  const result = await sendTransaction(terra, user, [
     new MsgExecuteContract(user.key.accAddress, redBank.address, {
       borrow: {
         asset: {
@@ -61,9 +61,8 @@ async function testBorrow() {
   const userLunaBalanceAfter = await queryNativeBalance(terra, user.key.accAddress, "uluna");
 
   // Note: transfer of LUNA is not subject to tax
-  expect(parseInt(userLunaBalanceAfter) - parseInt(userLunaBalanceBefore)).to.equal(
-    42000000 - GAS_AMOUNT
-  );
+  // we also paid tx fee in uusd so no need to deduct here
+  expect(parseInt(userLunaBalanceAfter) - parseInt(userLunaBalanceBefore)).to.equal(42000000);
 
   const response: UserAssetDebtResponse = await terra.wasm.contractQuery(redBank.address, {
     user_asset_debt: {
