@@ -6,14 +6,13 @@ use cosmwasm_std::{
 };
 
 use fields_of_mars::adapters::{Asset, AssetInfo, Pair};
-use fields_of_mars::martian_field::msg::{
-    CallbackMsg, ConfigResponse, ExecuteMsg, HealthResponse, InstantiateMsg, MigrateMsg,
-    PositionResponse, QueryMsg, StateResponse,
+use fields_of_mars::martian_field::msg::{CallbackMsg, ExecuteMsg, MigrateMsg, QueryMsg};
+use fields_of_mars::martian_field::{
+    Config, ConfigUnchecked, Health, PositionUnchecked, Snapshot, State,
 };
-use fields_of_mars::martian_field::{Config, State};
 
 use crate::helpers::*;
-use crate::state::{CONFIG, POSITION, STATE, TEMP_USER_ADDR};
+use crate::state::{CONFIG, POSITION, SNAPSHOT, STATE, TEMP_USER_ADDR};
 
 static DEFAULT_BOND_UNITS_PER_SHARE_BONDED: Uint128 = Uint128::new(1_000_000);
 static DEFAULT_DEBT_UNITS_PER_ASSET_BORROWED: Uint128 = Uint128::new(1_000_000);
@@ -27,7 +26,7 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: ConfigUnchecked,
 ) -> StdResult<Response> {
     CONFIG.save(deps.storage, &msg.check(deps.api)?)?;
     STATE.save(deps.storage, &State::default())?;
@@ -163,6 +162,9 @@ fn execute_increase_position(
             user_addr: info.sender.clone(),
         },
         CallbackMsg::AssertHealth {
+            user_addr: info.sender.clone(),
+        },
+        CallbackMsg::Snapshot {
             user_addr: info.sender,
         },
     ];
@@ -209,8 +211,11 @@ fn execute_reduce_position(
         },
         CallbackMsg::Refund {
             user_addr: info.sender.clone(),
-            recipient: info.sender,
+            recipient: info.sender.clone(),
             percentage: Decimal::one(),
+        },
+        CallbackMsg::Snapshot {
+            user_addr: info.sender,
         },
     ];
 
@@ -276,8 +281,11 @@ fn execute_pay_debt(
         // unlocked in the user's position. We do a refund to return it to the user
         CallbackMsg::Refund {
             user_addr: info.sender.clone(),
-            recipient: info.sender,
+            recipient: info.sender.clone(),
             percentage: Decimal::one(),
+        },
+        CallbackMsg::Snapshot {
+            user_addr: info.sender,
         },
     ];
 
@@ -467,6 +475,9 @@ fn execute_callback(
         CallbackMsg::AssertHealth {
             user_addr,
         } => callback_assert_health(deps, env, info, user_addr),
+        CallbackMsg::Snapshot {
+            user_addr,
+        } => callback_snapshot(deps, env, info, user_addr),
     }
 }
 
@@ -530,6 +541,7 @@ fn callback_withdraw_liquidity(
     let config = CONFIG.load(deps.storage)?;
     let mut position = POSITION.load(deps.storage, &user_addr)?;
 
+    // We burn *all* of the user's unlocked share tokens
     let share_asset_to_burn = position
         .unlocked_assets
         .iter()
@@ -558,13 +570,15 @@ fn callback_bond(
     let mut state = STATE.load(deps.storage)?;
     let mut position = POSITION.load(deps.storage, &user_addr)?;
 
+    // We bond *all* of the user's unlocked share tokens
     let share_asset_to_bond = position
         .unlocked_assets
         .iter()
-        .cloned() // ????
+        .cloned()
         .find(|asset| asset.info == AssetInfo::cw20(&config.pair.share_token))
         .ok_or_else(|| StdError::generic_err("no unlocked share token available"))?;
 
+    // Query how many share tokens is currently being bonded by us
     let (total_bonded_amount, _) =
         config.staking.query_reward_info(&deps.querier, &env.contract.address)?;
 
@@ -606,9 +620,11 @@ fn callback_unbond(
     let mut state = STATE.load(deps.storage)?;
     let mut position = POSITION.load(deps.storage, &user_addr)?;
 
+    // Query how many share tokens is currently being bonded by us
     let (total_bonded_amount, _) =
         config.staking.query_reward_info(&deps.querier, &env.contract.address)?;
 
+    // Calculate how many share tokens to unbond according the `bond_units_to_deduct`
     let amount_to_unbond =
         total_bonded_amount.multiply_ratio(bond_units_to_deduct, state.total_bond_units);
 
@@ -836,7 +852,6 @@ fn callback_assert_health(
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
     let position = POSITION.load(deps.storage, &user_addr)?;
-
     let health = compute_health(&deps.querier, &env.contract.address, &config, &state, &position)?;
 
     // If ltv is Some(ltv), we assert it is no larger than `config.max_ltv`
@@ -871,6 +886,29 @@ fn callback_assert_health(
     Ok(Response::new()
         .add_attribute("action", "martian_field :: callback :: assert_health")
         .add_event(event))
+}
+
+fn callback_snapshot(
+    deps: DepsMut,
+    env: Env,
+    _info: MessageInfo,
+    user_addr: Addr,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let state = STATE.load(deps.storage)?;
+    let position = POSITION.load(deps.storage, &user_addr)?;
+    let health = compute_health(&deps.querier, &env.contract.address, &config, &state, &position)?;
+
+    let snapshot = Snapshot {
+        time: env.block.time.seconds(),
+        height: env.block.height,
+        position: position.into(),
+        health,
+    };
+
+    SNAPSHOT.save(deps.storage, &user_addr, &snapshot)?;
+
+    Ok(Response::new().add_attribute("action", "martian_field :: callback :: snapshot"))
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -998,30 +1036,38 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Health {
             user,
         } => to_binary(&query_health(deps, env, user)?),
+        QueryMsg::Snapshot {
+            user,
+        } => to_binary(&query_snapshot(deps, env, user)?),
     }
 }
 
-fn query_config(deps: Deps, _env: Env) -> StdResult<ConfigResponse> {
+fn query_config(deps: Deps, _env: Env) -> StdResult<ConfigUnchecked> {
     let config = CONFIG.load(deps.storage)?;
     Ok(config.into())
 }
 
-fn query_state(deps: Deps, _env: Env) -> StdResult<StateResponse> {
+fn query_state(deps: Deps, _env: Env) -> StdResult<State> {
     STATE.load(deps.storage)
 }
 
-fn query_position(deps: Deps, _env: Env, user: String) -> StdResult<PositionResponse> {
+fn query_position(deps: Deps, _env: Env, user: String) -> StdResult<PositionUnchecked> {
     let user_addr = deps.api.addr_validate(&user)?;
     let position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
     Ok(position.into())
 }
 
-fn query_health(deps: Deps, env: Env, user: String) -> StdResult<HealthResponse> {
+fn query_health(deps: Deps, env: Env, user: String) -> StdResult<Health> {
     let user_addr = deps.api.addr_validate(&user)?;
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
     let position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
     compute_health(&deps.querier, &env.contract.address, &config, &state, &position)
+}
+
+fn query_snapshot(deps: Deps, _env: Env, user: String) -> StdResult<Snapshot> {
+    let user_addr = deps.api.addr_validate(&user)?;
+    SNAPSHOT.load(deps.storage, &user_addr)
 }
 
 //--------------------------------------------------------------------------------------------------

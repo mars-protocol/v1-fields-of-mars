@@ -230,12 +230,7 @@ async function testConfig() {
       bond_amount: "0",
     },
     debt: {
-      debts: [
-        // uluna
-        { amount_scaled: "0" },
-        // uusd
-        { amount_scaled: "0" },
-      ],
+      amount: "0",
     },
     pool: {
       assets: [
@@ -354,12 +349,7 @@ async function testOpenPosition1() {
       bond_amount: "169895170",
     },
     debt: {
-      debts: [
-        // uluna
-        { amount_scaled: "0" },
-        // uusd
-        { amount_scaled: "420000000" },
-      ],
+      amount: "420000000",
     },
     pool: {
       assets: [
@@ -497,12 +487,7 @@ async function testHarvest() {
       bond_amount: "170876125",
     },
     debt: {
-      debts: [
-        // uluna
-        { amount_scaled: "0" },
-        // uusd
-        { amount_scaled: "420000000" },
-      ],
+      amount: "420000000",
     },
     pool: {
       assets: [
@@ -601,12 +586,7 @@ async function testAccrueInterest() {
       bond_amount: "170876125",
     },
     debt: {
-      debts: [
-        // uluna
-        { amount_scaled: "0" },
-        // uusd
-        { amount_scaled: "441000000" },
-      ],
+      amount: "441000000",
     },
     pool: {
       assets: [
@@ -783,12 +763,7 @@ async function testOpenPosition2() {
       bond_amount: "255553956",
     },
     debt: {
-      debts: [
-        // uluna
-        { amount_scaled: "0" },
-        // uusd
-        { amount_scaled: "499579947" },
-      ],
+      amount: "499579947",
     },
     pool: {
       assets: [
@@ -945,12 +920,7 @@ async function testPayDebt() {
       bond_amount: "255553956",
     },
     debt: {
-      debts: [
-        // uluna
-        { amount_scaled: "0" },
-        // uusd
-        { amount_scaled: "399579947" },
-      ],
+      amount: "399579947",
     },
     pool: {
       assets: [
@@ -1123,12 +1093,7 @@ async function testReducePosition1() {
       bond_amount: "225380740",
     },
     debt: {
-      debts: [
-        // uluna
-        { amount_scaled: "0" },
-        // uusd
-        { amount_scaled: "399579947" },
-      ],
+      amount: "399579947",
     },
     pool: {
       assets: [
@@ -1283,12 +1248,7 @@ async function testDump() {
       bond_amount: "225380740",
     },
     debt: {
-      debts: [
-        // uluna
-        { amount_scaled: "0" },
-        // uusd
-        { amount_scaled: "399579947" },
-      ],
+      amount: "399579947",
     },
     pool: {
       assets: [
@@ -1490,12 +1450,7 @@ async function testLiquidation() {
       bond_amount: "84677832",
     },
     debt: {
-      debts: [
-        // uluna
-        { amount_scaled: "0" },
-        // uusd
-        { amount_scaled: "58579947" },
-      ],
+      amount: "58579947",
     },
     pool: {
       assets: [
@@ -1660,12 +1615,7 @@ async function testReducePosition2() {
       bond_amount: "0",
     },
     debt: {
-      debts: [
-        // uluna
-        { amount_scaled: "0" },
-        // uusd
-        { amount_scaled: "0" },
-      ],
+      amount: "0",
     },
     pool: {
       assets: [

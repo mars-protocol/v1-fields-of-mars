@@ -7,7 +7,7 @@ import { Astroport, RedBank, Staking, MartianField } from "./types";
 // Data to check
 export interface CheckData {
   bond: Staking.StakerInfoResponse | Staking.RewardInfoResponse;
-  debt: RedBank.DebtResponse;
+  debt: RedBank.UserAssetDebtResponse;
   pool: Astroport.PoolResponse;
   state: MartianField.StateResponse;
   users: {
@@ -71,11 +71,16 @@ export class Verifier {
             },
           })) as Staking.RewardInfoResponse);
 
-    const debt: RedBank.DebtResponse = await this.terra.wasm.contractQuery(
+    const debt: RedBank.UserAssetDebtResponse = await this.terra.wasm.contractQuery(
       this.config.red_bank.contract_addr,
       {
-        user_debt: {
+        user_asset_debt: {
           user_address: this.field,
+          asset: {
+            native: {
+              denom: "uusd",
+            },
+          },
         },
       }
     );
@@ -139,16 +144,7 @@ export class Verifier {
           : "0"
       ),
       // debt
-      _generateRow(
-        "debt[0].amount",
-        expected.debt.debts[0].amount_scaled,
-        actual.debt.debts[0].amount_scaled
-      ),
-      _generateRow(
-        "debt[1].amount",
-        expected.debt.debts[1].amount_scaled,
-        actual.debt.debts[1].amount_scaled
-      ),
+      _generateRow("debt.amount", expected.debt.amount, actual.debt.amount),
       // pool
       _generateRow("pool.assets[0]", expected.pool.assets[0].amount, actual.pool.assets[0].amount),
       _generateRow("pool.assets[1]", expected.pool.assets[1].amount, actual.pool.assets[1].amount),

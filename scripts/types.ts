@@ -54,11 +54,14 @@ export namespace Astroport {
 
 export namespace RedBank {
   // mars_core::red_bank::DebtResponse
-  export type DebtResponse = {
-    debts: {
-      denom?: string;
-      amount_scaled: string;
-    }[];
+  export type UserAssetDebtResponse = {
+    amount: string;
+    // amount is the only parameter we care about. set others to optional
+    denom?: string;
+    asset_label?: string;
+    asset_reference?: number[];
+    asset_type?: { native: {} } | { cw20: {} };
+    amount_scaled?: string;
   };
 }
 

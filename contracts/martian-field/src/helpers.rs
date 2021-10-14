@@ -1,8 +1,7 @@
 use cosmwasm_std::{Addr, Decimal, QuerierWrapper, StdError, StdResult, Uint128};
 
 use fields_of_mars::adapters::{Asset, AssetInfo};
-use fields_of_mars::martian_field::msg::HealthResponse;
-use fields_of_mars::martian_field::{Config, Position, State};
+use fields_of_mars::martian_field::{Config, Health, Position, State};
 
 pub fn find_unlocked_asset(position: &Position, asset_info: &AssetInfo) -> Asset {
     match position.unlocked_assets.iter().find(|asset| &asset.info == asset_info) {
@@ -51,7 +50,7 @@ pub fn compute_health(
     config: &Config,
     state: &State,
     position: &Position,
-) -> StdResult<HealthResponse> {
+) -> StdResult<Health> {
     // Query information necessary for computing values and LTV:
     // 1. bond
     // 2. debt
@@ -100,7 +99,7 @@ pub fn compute_health(
         Some(Decimal::from_ratio(debt_value, bond_value))
     };
 
-    Ok(HealthResponse {
+    Ok(Health {
         bond_value,
         debt_value,
         ltv,

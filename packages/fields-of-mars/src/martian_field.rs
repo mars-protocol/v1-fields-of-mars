@@ -137,12 +137,31 @@ impl Default for Position {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Health {
+    /// Value of the position's asset, measured in the short asset
+    pub bond_value: Uint128,
+    /// Value of the position's debt, measured in the short asset
+    pub debt_value: Uint128,
+    /// The ratio of `debt_value` to `bond_value`; None if `bond_value` is zero
+    pub ltv: Option<Decimal>,
+}
+
+/// Every time the user changes the position- increase, reduce, of repay debt, we record a snaphot
+/// of the position's value. This snapshot does not actually impact the functioning of this
+/// contract, but rather used by the frontend to calculate PnL. Once we have infrastructure
+/// available for calculating PnL off-chain, we will migrate the contract to delete this callback
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Snapshot {
+    pub time: u64,
+    pub height: u64,
+    pub position: PositionUnchecked,
+    pub health: Health,
+}
+
 pub mod msg {
     use super::*;
-
     use crate::adapters::AssetUnchecked;
-
-    pub type InstantiateMsg = ConfigUnchecked;
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
@@ -274,6 +293,10 @@ pub mod msg {
         AssertHealth {
             user_addr: Addr,
         },
+        /// See the comment on struct `Snapshot`
+        Snapshot {
+            user_addr: Addr,
+        },
     }
 
     // Modified from
@@ -291,34 +314,24 @@ pub mod msg {
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum QueryMsg {
-        /// Return strategy configurations
+        /// Return strategy configurations. Response: `ConfigUnchecked`
         Config {},
-        /// Return the global state of the strategy
+        /// Return the global state of the strategy. Response: `State`
         State {},
-        /// Return data on an individual user's position
+        /// Return data on an individual user's position. Response: `PositionUnchecked`
         Position {
             user: String,
         },
-        /// Query the health of a user's position: value of assets, debts, and LTV
+        /// Query the health of a user's position: value of assets, debts, and LTV. Response: `Health`
         Health {
+            user: String,
+        },
+        /// See the comment on struct `Snapshot`. Response: `Snapshot`
+        Snapshot {
             user: String,
         },
     }
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct MigrateMsg {}
-
-    pub type ConfigResponse = ConfigUnchecked;
-    pub type StateResponse = State;
-    pub type PositionResponse = PositionUnchecked;
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct HealthResponse {
-        /// Value of the position's asset, measured in the short asset
-        pub bond_value: Uint128,
-        /// Value of the position's debt, measured in the short asset
-        pub debt_value: Uint128,
-        /// The ratio of `debt_value` to `bond_value`; None if `bond_value` is zero
-        pub ltv: Option<Decimal>,
-    }
 }
