@@ -144,7 +144,7 @@ impl Staking {
 
         let msg = match self {
             Staking::Anchor(..) => to_binary(&anchor_staking::ExecuteMsg::Withdraw {})?,
-            Staking::Mars(..) => to_binary(&anchor_staking::ExecuteMsg::Withdraw {})?,
+            Staking::Mars(..) => to_binary(&mars_staking::ExecuteMsg::Claim {})?,
             Staking::Mirror(config) => to_binary(&mirror_staking::ExecuteMsg::Withdraw {
                 asset_token: Some(config.asset_token.to_string()),
             })?,
