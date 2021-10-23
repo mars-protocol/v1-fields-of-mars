@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Decimal, QuerierWrapper, StdError, StdResult, Uint128};
+use cosmwasm_std::{Decimal, Env, QuerierWrapper, StdError, StdResult, Uint128};
 
 use fields_of_mars::adapters::{Asset, AssetInfo};
 use fields_of_mars::martian_field::{Config, Health, Position, State};
@@ -46,7 +46,7 @@ pub fn deduct_unlocked_asset(position: &mut Position, asset_to_deduct: &Asset) -
 
 pub fn compute_health(
     querier: &QuerierWrapper,
-    contract_addr: &Addr,
+    env: &Env,
     config: &Config,
     state: &State,
     position: &Position,
@@ -56,10 +56,14 @@ pub fn compute_health(
     // 2. debt
     // 3. pair
     // 4. price; NOTE: Price of the primary asset is quoted in the secondary asset, not in UST or USD
-    let (total_bonded_amount, _) = config.staking.query_reward_info(querier, contract_addr)?;
+    let (total_bonded_amount, _) =
+        config.staking.query_reward_info(querier, &env.contract.address, env.block.height)?;
 
-    let total_debt_amount =
-        config.red_bank.query_user_debt(querier, contract_addr, &config.secondary_asset_info)?;
+    let total_debt_amount = config.red_bank.query_user_debt(
+        querier,
+        &env.contract.address,
+        &config.secondary_asset_info,
+    )?;
 
     let (primary_asset_depth, secondary_asset_depth, total_shares) = config.pair.query_pool(
         querier,
@@ -109,6 +113,7 @@ pub fn compute_health(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cosmwasm_std::Addr;
     use fields_of_mars::adapters::AssetInfo;
     use fields_of_mars::testing::{assert_eq_vec, assert_generic_error_message};
 

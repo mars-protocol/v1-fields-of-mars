@@ -162,6 +162,7 @@ impl Staking {
         &self,
         querier: &QuerierWrapper,
         staker_addr: &Addr,
+        block_height: u64,
     ) -> StdResult<(Uint128, Uint128)> {
         let (bonded_amount, pending_reward_amount) = match self {
             Staking::Anchor(config) => {
@@ -170,7 +171,7 @@ impl Staking {
                         contract_addr: config.contract_addr.to_string(),
                         msg: to_binary(&anchor_staking::QueryMsg::StakerInfo {
                             staker: staker_addr.to_string(),
-                            block_height: None,
+                            block_height: Some(block_height), // NOTE: for anchor, block height must be provided
                         })?,
                     }))?;
 

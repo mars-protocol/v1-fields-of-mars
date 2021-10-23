@@ -312,7 +312,7 @@ fn execute_liquidate(
     let position = POSITION.load(deps.storage, &user_addr)?;
 
     // The position must be active (LTV is not `None`) and the LTV must be greater than `max_ltv`
-    let health = compute_health(&deps.querier, &env.contract.address, &config, &state, &position)?;
+    let health = compute_health(&deps.querier, &env, &config, &state, &position)?;
     let ltv = health.ltv.ok_or_else(|| StdError::generic_err("position is closed"))?;
 
     if ltv <= config.max_ltv {
@@ -376,7 +376,12 @@ fn execute_harvest(deps: DepsMut, env: Env, _info: MessageInfo) -> StdResult<Res
 
     // Find how much reward is available to be claimed
     let (_, reward_amount) =
-        config.staking.query_reward_info(&deps.querier, &env.contract.address)?;
+        config.staking.query_reward_info(&deps.querier, &env.contract.address, env.block.height)?;
+
+    // If there is no reward to claim, then we do nothing
+    if reward_amount.is_zero() {
+        return Ok(Response::default());
+    }
 
     // We assume the reward is in the primary asset
     // Among the claimable reward, a portion corresponding to `config.fee_rate` is charged as fee
@@ -580,7 +585,7 @@ fn callback_bond(
 
     // Query how many share tokens is currently being bonded by us
     let (total_bonded_amount, _) =
-        config.staking.query_reward_info(&deps.querier, &env.contract.address)?;
+        config.staking.query_reward_info(&deps.querier, &env.contract.address, env.block.height)?;
 
     // Calculate how by many the user's bond units should be increased
     // 1. If user address is the `reward` (meaning this is a harvest transaction) then we don't
@@ -622,7 +627,7 @@ fn callback_unbond(
 
     // Query how many share tokens is currently being bonded by us
     let (total_bonded_amount, _) =
-        config.staking.query_reward_info(&deps.querier, &env.contract.address)?;
+        config.staking.query_reward_info(&deps.querier, &env.contract.address, env.block.height)?;
 
     // Calculate how many share tokens to unbond according the `bond_units_to_deduct`
     let amount_to_unbond =
@@ -852,7 +857,7 @@ fn callback_assert_health(
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
     let position = POSITION.load(deps.storage, &user_addr)?;
-    let health = compute_health(&deps.querier, &env.contract.address, &config, &state, &position)?;
+    let health = compute_health(&deps.querier, &env, &config, &state, &position)?;
 
     // If ltv is Some(ltv), we assert it is no larger than `config.max_ltv`
     // If it is None, meaning `bond_value` is zero, we assert debt is also zero
@@ -897,7 +902,7 @@ fn callback_snapshot(
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
     let position = POSITION.load(deps.storage, &user_addr)?;
-    let health = compute_health(&deps.querier, &env.contract.address, &config, &state, &position)?;
+    let health = compute_health(&deps.querier, &env, &config, &state, &position)?;
 
     let snapshot = Snapshot {
         time: env.block.time.seconds(),
@@ -1062,7 +1067,7 @@ fn query_health(deps: Deps, env: Env, user: String) -> StdResult<Health> {
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
     let position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
-    compute_health(&deps.querier, &env.contract.address, &config, &state, &position)
+    compute_health(&deps.querier, &env, &config, &state, &position)
 }
 
 fn query_snapshot(deps: Deps, _env: Env, user: String) -> StdResult<Snapshot> {
