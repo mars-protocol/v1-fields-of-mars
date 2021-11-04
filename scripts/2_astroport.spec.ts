@@ -108,7 +108,11 @@ async function testProvideInitialLiquidity() {
   const poolUMir = await queryCw20Balance(terra, astroport.pair.address, cw20Token.address);
   expect(poolUMir).to.equal("100000000");
 
-  const poolULp = await queryCw20Balance(terra, user1.key.accAddress, astroport.shareToken.address);
+  const poolULp = await queryCw20Balance(
+    terra,
+    user1.key.accAddress,
+    astroport.liquidityToken.address
+  );
   expect(poolULp).to.equal("316227766");
 
   console.log(chalk.green("Passed!"));
@@ -179,7 +183,11 @@ async function testProvideFurtherLiquidity() {
   const poolUMir = await queryCw20Balance(terra, astroport.pair.address, cw20Token.address);
   expect(poolUMir).to.equal("169000000");
 
-  const poolULp = await queryCw20Balance(terra, user1.key.accAddress, astroport.shareToken.address);
+  const poolULp = await queryCw20Balance(
+    terra,
+    user1.key.accAddress,
+    astroport.liquidityToken.address
+  );
   expect(poolULp).to.equal("534424924");
 
   console.log(chalk.green("Passed!"));
@@ -231,7 +239,11 @@ async function testSwap() {
   const poolUMir = await queryCw20Balance(terra, astroport.pair.address, cw20Token.address);
   expect(poolUMir).to.equal("269000000");
 
-  const poolULp = await queryCw20Balance(terra, user1.key.accAddress, astroport.shareToken.address);
+  const poolULp = await queryCw20Balance(
+    terra,
+    user1.key.accAddress,
+    astroport.liquidityToken.address
+  );
   expect(poolULp).to.equal("534424924");
 
   console.log(chalk.green("Passed!"));
@@ -255,7 +267,7 @@ async function testRemoveLiquidity() {
   process.stdout.write("4. Remove liquidity... ");
 
   await sendTransaction(terra, user1, [
-    new MsgExecuteContract(user1.key.accAddress, astroport.shareToken.address, {
+    new MsgExecuteContract(user1.key.accAddress, astroport.liquidityToken.address, {
       send: {
         amount: "420000000",
         contract: astroport.pair.address,
@@ -272,7 +284,11 @@ async function testRemoveLiquidity() {
   const poolUMir = await queryCw20Balance(terra, astroport.pair.address, cw20Token.address);
   expect(poolUMir).to.equal("57595190");
 
-  const poolULp = await queryCw20Balance(terra, user1.key.accAddress, astroport.shareToken.address);
+  const poolULp = await queryCw20Balance(
+    terra,
+    user1.key.accAddress,
+    astroport.liquidityToken.address
+  );
   expect(poolULp).to.equal("114424924");
 
   console.log(chalk.green("Passed!"));

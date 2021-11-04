@@ -103,12 +103,12 @@ export async function deployAstroport(terra: LCDClient, deployer: Wallet, cw20To
   ]);
 
   const pairAddress = pairResult.logs[0].events[2].attributes[3].value;
-  const shareTokenAddress = pairResult.logs[0].events[2].attributes[7].value;
+  const liquidityTokenAddress = pairResult.logs[0].events[2].attributes[7].value;
 
   console.log(
     chalk.green("Done!"),
     `${chalk.blue("pair.address")}=${pairAddress}`,
-    `${chalk.blue("shareToken.address")}=${shareTokenAddress}`
+    `${chalk.blue("liquidityToken.address")}=${liquidityTokenAddress}`
   );
 
   return {
@@ -120,9 +120,9 @@ export async function deployAstroport(terra: LCDClient, deployer: Wallet, cw20To
       codeId: pairCodeId,
       address: pairAddress,
     },
-    shareToken: {
+    liquidityToken: {
       codeId: cw20Token.codeId,
-      address: shareTokenAddress,
+      address: liquidityTokenAddress,
     },
   };
 }
@@ -191,7 +191,7 @@ export async function deployAnchorStaking(
 
   const result = await instantiateContract(terra, deployer, deployer, codeId, {
     anchor_token: anchorToken.address,
-    staking_token: astroport.shareToken.address,
+    staking_token: astroport.liquidityToken.address,
   });
 
   const address = result.logs[0].events[0].attributes[3].value;

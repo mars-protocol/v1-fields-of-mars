@@ -11,7 +11,7 @@ export namespace Protocols {
   export type Astroport = {
     factory: Contract;
     pair: Contract;
-    shareToken: Contract;
+    liquidityToken: Contract;
   };
 
   export type Mars = {
@@ -97,7 +97,7 @@ export namespace MartianField {
     };
     pair: {
       contract_addr: string;
-      share_token: string;
+      liquidity_token: string;
     };
     staking: {
       [key: string]: {

@@ -54,12 +54,12 @@ const TESTNET_CONTRACTS = {
   },
   mars: {
     token: "terra1qs7h830ud0a4hj72yr8f7jmlppyx7z524f7gw6",
-    staking: "terra1y3p80ff5mrlpa4lzc32q0g40wlpe40gnav86sq",
-    pair: "terra139cu2x35jx24fcjrvjxt6kvgtslm50fcguptd3",
-    shareToken: "terra1vlrzw388xyg6fju5m3vxz3m8p5vrz33lzsv07z",
+    staking: "terra16vc4ahvj45k8efmvz5x9k2fvrnjqcuzzs6fqf5",
+    pair: "terra1lpfkyxkzhdmf80vhpyyy9esn794arqrjm73yq6",
+    shareToken: "terra1rftsfyrgg5qz2268ckx5thvlhv0n26k4dfj54p",
   },
-  redBank: "terra10fnunr0md5t72vhxxx9544uv4nxhhnfjysnjq7",
-  oracle: "terra1a8pde6qjct5vr6vjn8dpsgsxzk9z5a034xj23s",
+  redBank: "terra19fy8q4vx6uzv4rmhvvp329fgr5343qrunntq60",
+  oracle: "terra1uxs9f90kr2lgt3tpkpyk5dllqrwra5tgwv0pc5",
 };
 
 function generateInitMsg(network: string, strategy: string) {
@@ -109,7 +109,7 @@ function generateInitMsg(network: string, strategy: string) {
     },
     pair: {
       contract_addr: protocol.pair,
-      share_token: protocol.shareToken,
+      liquidity_token: protocol.shareToken,
     },
     staking: {
       [stakingType]: {
@@ -193,7 +193,7 @@ process.stdin.once("data", async function () {
   // if code id is not provided, we upload the code first
   let codeId = argv["code-id"];
   if (codeId == 0) {
-    process.stdout.write("iploading contract code... ");
+    process.stdout.write("uploading contract code... ");
     codeId = await storeCode(terra, deployer, path.resolve("../artifacts/martian_field.wasm"));
     console.log(`success! codeId=${codeId}`);
   }

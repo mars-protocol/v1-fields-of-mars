@@ -88,7 +88,7 @@ pub struct PairBase<T> {
     /// Address of the Astroport contract_addr contract
     pub contract_addr: T,
     /// Address of the Astroport LP token
-    pub share_token: T,
+    pub liquidity_token: T,
 }
 
 pub type PairUnchecked = PairBase<String>;
@@ -98,7 +98,7 @@ impl From<Pair> for PairUnchecked {
     fn from(pair: Pair) -> Self {
         PairUnchecked {
             contract_addr: pair.contract_addr.to_string(),
-            share_token: pair.share_token.to_string(),
+            liquidity_token: pair.liquidity_token.to_string(),
         }
     }
 }
@@ -107,7 +107,7 @@ impl PairUnchecked {
     pub fn check(&self, api: &dyn Api) -> StdResult<Pair> {
         Ok(Pair {
             contract_addr: api.addr_validate(&self.contract_addr)?,
-            share_token: api.addr_validate(&self.share_token)?,
+            liquidity_token: api.addr_validate(&self.liquidity_token)?,
         })
     }
 }
@@ -115,10 +115,10 @@ impl PairUnchecked {
 impl Pair {
     // INSTANCE CREATION
 
-    pub fn new(contract_addr: &Addr, share_token: &Addr) -> Self {
+    pub fn new(contract_addr: &Addr, liquidity_token: &Addr) -> Self {
         Self {
             contract_addr: contract_addr.clone(),
-            share_token: share_token.clone(),
+            liquidity_token: liquidity_token.clone(),
         }
     }
 
@@ -171,7 +171,7 @@ impl Pair {
     pub fn withdraw_submsg(&self, id: u64, shares: Uint128) -> StdResult<SubMsg> {
         Ok(SubMsg::reply_on_success(
             WasmMsg::Execute {
-                contract_addr: self.share_token.to_string(),
+                contract_addr: self.liquidity_token.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: self.contract_addr.to_string(),
                     amount: shares,
@@ -227,7 +227,7 @@ impl Pair {
 
     /// Query an account's balance of the pool's share token
     pub fn query_share(&self, querier: &QuerierWrapper, account: &Addr) -> StdResult<Uint128> {
-        AssetInfo::cw20(&self.share_token).query_balance(querier, account)
+        AssetInfo::cw20(&self.liquidity_token).query_balance(querier, account)
     }
 
     /// Query the Astroport pool, parse response, and return the following 3-tuple:

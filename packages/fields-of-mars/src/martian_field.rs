@@ -29,7 +29,7 @@ pub struct ConfigBase<T> {
     pub pair: PairBase<T>,
     /// Staking contract where share tokens can be bonded to earn rewards
     ///
-    /// NOTE: It is assumed that the token to be staked is `pair.share_token`, and the reward in paid
+    /// NOTE: It is assumed that the token to be staked is `pair.liquidity_token`, and the reward in paid
     /// in the primary asset.
     pub staking: StakingBase<T>,
     /// Account to receive fee payments

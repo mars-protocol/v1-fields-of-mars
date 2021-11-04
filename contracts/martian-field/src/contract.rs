@@ -551,7 +551,7 @@ fn callback_withdraw_liquidity(
         .unlocked_assets
         .iter()
         .cloned()
-        .find(|asset| asset.info == AssetInfo::cw20(&config.pair.share_token))
+        .find(|asset| asset.info == AssetInfo::cw20(&config.pair.liquidity_token))
         .ok_or_else(|| StdError::generic_err("no unlocked share token available"))?;
 
     deduct_unlocked_asset(&mut position, &share_asset_to_burn)?;
@@ -580,7 +580,7 @@ fn callback_bond(
         .unlocked_assets
         .iter()
         .cloned()
-        .find(|asset| asset.info == AssetInfo::cw20(&config.pair.share_token))
+        .find(|asset| asset.info == AssetInfo::cw20(&config.pair.liquidity_token))
         .ok_or_else(|| StdError::generic_err("no unlocked share token available"))?;
 
     // Query how many share tokens is currently being bonded by us
@@ -636,7 +636,7 @@ fn callback_unbond(
     state.total_bond_units -= bond_units_to_deduct;
     position.bond_units -= bond_units_to_deduct;
 
-    add_unlocked_asset(&mut position, &Asset::cw20(&config.pair.share_token, amount_to_unbond));
+    add_unlocked_asset(&mut position, &Asset::cw20(&config.pair.liquidity_token, amount_to_unbond));
 
     STATE.save(deps.storage, &state)?;
     POSITION.save(deps.storage, &user_addr, &position)?;
@@ -947,7 +947,7 @@ fn reply_after_provide_liquidity(
     let mut position = POSITION.load(deps.storage, &user_addr)?;
 
     let share_minted_amount = Pair::parse_provide_events(&response.events)?;
-    let shares_to_add = Asset::cw20(&config.pair.share_token, share_minted_amount);
+    let shares_to_add = Asset::cw20(&config.pair.liquidity_token, share_minted_amount);
 
     add_unlocked_asset(&mut position, &shares_to_add);
 

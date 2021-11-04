@@ -70,13 +70,13 @@ async function setupTest() {
     },
     pair: {
       contract_addr: astroport.pair.address,
-      share_token: astroport.shareToken.address,
+      liquidity_token: astroport.liquidityToken.address,
     },
     staking: {
       anchor: {
         contract_addr: anchor.staking.address,
         asset_token: anchor.token.address,
-        staking_token: astroport.shareToken.address,
+        staking_token: astroport.liquidityToken.address,
       },
     },
     treasury: treasury.key.accAddress,

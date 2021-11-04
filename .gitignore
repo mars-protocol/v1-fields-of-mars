@@ -27,6 +27,9 @@ artifacts/
 # Temporary files
 **/tmp.*
 
+# Private TypeScript files are preceeded by an underscore
+**/_*.ts
+
 packages/astroport
 packages/mars-core
 packages/mars-periphery

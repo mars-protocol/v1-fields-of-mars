@@ -29,7 +29,7 @@ async function setupTest() {
     new MsgExecuteContract(deployer.key.accAddress, mirror.staking.address, {
       register_asset: {
         asset_token: mirror.mAsset.address,
-        staking_token: astroport.shareToken.address,
+        staking_token: astroport.liquidityToken.address,
       },
     }),
   ]);
@@ -115,7 +115,7 @@ async function testBond() {
   process.stdout.write("1. Bond... ");
 
   await sendTransaction(terra, user, [
-    new MsgExecuteContract(user.key.accAddress, astroport.shareToken.address, {
+    new MsgExecuteContract(user.key.accAddress, astroport.liquidityToken.address, {
       send: {
         contract: mirror.staking.address,
         amount: "170235131",
@@ -131,7 +131,7 @@ async function testBond() {
   const userLpTokenBalance = await queryCw20Balance(
     terra,
     user.key.accAddress,
-    astroport.shareToken.address
+    astroport.liquidityToken.address
   );
 
   expect(userLpTokenBalance).to.equal("0");
@@ -139,7 +139,7 @@ async function testBond() {
   const contractLpTokenBalance = await queryCw20Balance(
     terra,
     mirror.staking.address,
-    astroport.shareToken.address
+    astroport.liquidityToken.address
   );
 
   expect(contractLpTokenBalance).to.equal("170235131");
@@ -240,7 +240,7 @@ async function testUnbond() {
   const userLpTokenBalance = await queryCw20Balance(
     terra,
     user.key.accAddress,
-    astroport.shareToken.address
+    astroport.liquidityToken.address
   );
 
   expect(userLpTokenBalance).to.equal("123456789");
@@ -249,7 +249,7 @@ async function testUnbond() {
   const contractLpTokenBalance = await queryCw20Balance(
     terra,
     mirror.staking.address,
-    astroport.shareToken.address
+    astroport.liquidityToken.address
   );
 
   expect(contractLpTokenBalance).to.equal("46778342");
