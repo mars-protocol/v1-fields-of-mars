@@ -272,8 +272,8 @@ fn execute_pay_debt(
             user_addr: info.sender.clone(),
             repay_amount,
         },
-        // We don't really need to assert health here, but doing assert health emits a `position_changed`
-        // event which is useful for logging
+        // We don't really need to assert health here, but doing assert health emits a
+        // `field_position_changed` event which is useful for logging
         CallbackMsg::AssertHealth {
             user_addr: info.sender.clone(),
         },
@@ -878,7 +878,7 @@ fn callback_assert_health(
         return Err(StdError::generic_err(format!("ltv greater than threshold: {}", ltv_str)));
     }
 
-    let event = Event::new("position_changed")
+    let event = Event::new("field_position_changed")
         .add_attribute("timestamp", env.block.time.seconds().to_string())
         .add_attribute("height", env.block.height.to_string())
         .add_attribute("user_addr", &user_addr)
