@@ -3,7 +3,7 @@ import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
 import { deployCw20Token, deployAstroport, deployOracle } from "./fixture";
 import { sendTransaction, toUtf8Array, computeSwapOutput } from "./helpers";
-import { Protocols, Contract, Oracle } from "./types";
+import { Protocols, Contract } from "./types";
 
 const terra = new LocalTerra();
 const deployer = terra.wallets.test1;
@@ -128,13 +128,13 @@ async function setupTest() {
 async function testFixedPrice() {
   process.stdout.write("1. Fixed price... ");
 
-  const response: Oracle.AssetPriceResponse = await terra.wasm.contractQuery(oracle.address, {
+  const response: string = await terra.wasm.contractQuery(oracle.address, {
     asset_price_by_reference: {
       asset_reference: toUtf8Array("uusd"),
     },
   });
 
-  expect(response.price).to.equal("12345");
+  expect(response).to.equal("12345");
 
   console.log(chalk.green("Done!"));
 }
@@ -146,16 +146,16 @@ async function testFixedPrice() {
 async function testSpotPrice() {
   process.stdout.write("2. Spot price... ");
 
-  const response: Oracle.AssetPriceResponse = await terra.wasm.contractQuery(oracle.address, {
+  const response: string = await terra.wasm.contractQuery(oracle.address, {
     asset_price_by_reference: {
       asset_reference: toUtf8Array(cw20Token.address),
     },
   });
 
-  const swapOutput = computeSwapOutput(1000000, 694200000000, 888888000000);
-  const price = (parseInt(swapOutput.returnAmount) + parseInt(swapOutput.commission)) / 1000000;
+  const { returnAmount, commission } = computeSwapOutput(1000000, 694200000000, 888888000000);
+  const price = (parseInt(returnAmount) + parseInt(commission)) / 1000000;
 
-  expect(response.price).to.equal(price.toString());
+  expect(response).to.equal(price.toString());
 
   console.log(chalk.green("Done!"));
 }

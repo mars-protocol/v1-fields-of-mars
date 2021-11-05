@@ -158,6 +158,7 @@ impl Pair {
                 msg: to_binary(&ExecuteMsg::ProvideLiquidity {
                     assets: [assets[0].clone().into(), assets[1].clone().into()],
                     slippage_tolerance: None, // to be added in a future version
+                    auto_stack: None,
                 })?,
                 funds,
             },

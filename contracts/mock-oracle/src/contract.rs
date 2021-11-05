@@ -1,3 +1,5 @@
+use std::str;
+
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response,
     StdError, StdResult, WasmQuery,
@@ -6,9 +8,9 @@ use cosmwasm_std::{
 use fields_of_mars::adapters::Asset;
 
 use mars_core::asset::Asset as MarsAsset;
-use mars_core::math::decimal::Decimal;
+use mars_core::math::decimal::Decimal as MarsDecimal;
 use mars_core::oracle::msg::{ExecuteMsg, QueryMsg};
-use mars_core::oracle::{AssetPriceResponse, PriceSourceChecked, PriceSourceUnchecked};
+use mars_core::oracle::{PriceSourceChecked, PriceSourceUnchecked};
 
 use astroport::pair::{QueryMsg as AstroportQueryMsg, SimulationResponse};
 
@@ -59,10 +61,8 @@ fn execute_set_asset(
         },
         PriceSourceUnchecked::AstroportSpot {
             pair_address,
-            asset_address,
         } => PriceSourceChecked::AstroportSpot {
             pair_address: deps.api.addr_validate(&pair_address)?,
-            asset_address: deps.api.addr_validate(&asset_address)?,
         },
         _ => {
             return Err(StdError::generic_err("Unimplemented"));
@@ -89,11 +89,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_asset_price(
-    deps: Deps,
-    env: Env,
-    asset_reference: &[u8],
-) -> StdResult<AssetPriceResponse> {
+fn query_asset_price(deps: Deps, _env: Env, asset_reference: &[u8]) -> StdResult<MarsDecimal> {
     let price_source = PRICE_SOURCE.load(deps.storage, asset_reference)?;
 
     let price = match price_source {
@@ -103,8 +99,11 @@ fn query_asset_price(
 
         PriceSourceChecked::AstroportSpot {
             pair_address,
-            asset_address,
         } => {
+            // for this mock contract, we assume asset is a CW20, in which case `asset_reference`
+            // is the token contract address
+            let asset_address_str = str::from_utf8(asset_reference)?;
+            let asset_address = deps.api.addr_validate(asset_address_str)?;
             let offer_asset = Asset::cw20(&asset_address, PROBE_AMOUNT);
 
             let response: SimulationResponse =
@@ -115,14 +114,14 @@ fn query_asset_price(
                     })?,
                 }))?;
 
-            Decimal::from_ratio(response.return_amount + response.commission_amount, PROBE_AMOUNT)
+            MarsDecimal::from_ratio(
+                response.return_amount + response.commission_amount,
+                PROBE_AMOUNT,
+            )
         }
 
         _ => return Err(StdError::generic_err("Unimplemented")),
     };
 
-    Ok(AssetPriceResponse {
-        price,
-        last_updated: env.block.time.seconds(),
-    })
+    Ok(price)
 }

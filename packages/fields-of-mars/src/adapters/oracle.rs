@@ -5,8 +5,8 @@ use cosmwasm_std::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use mars_core::math::decimal::Decimal as MarsDecimal;
 use mars_core::oracle::msg::QueryMsg;
-use mars_core::oracle::AssetPriceResponse;
 
 use crate::adapters::AssetInfo;
 
@@ -42,15 +42,14 @@ impl Oracle {
         querier: &QuerierWrapper,
         asset_info: &AssetInfo,
     ) -> StdResult<Decimal> {
-        let response: AssetPriceResponse =
-            querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: self.contract_addr.to_string(),
-                msg: to_binary(&QueryMsg::AssetPriceByReference {
-                    asset_reference: asset_info.get_reference(),
-                })?,
-            }))?;
+        let response: MarsDecimal = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: self.contract_addr.to_string(),
+            msg: to_binary(&QueryMsg::AssetPriceByReference {
+                asset_reference: asset_info.get_reference(),
+            })?,
+        }))?;
 
-        Ok(response.price.to_std_decimal()) // cast mars_core::math::decimal::Decimal to cosmwasm_std::Decimal
+        Ok(response.to_std_decimal()) // cast mars_core::math::decimal::Decimal to cosmwasm_std::Decimal
     }
 
     pub fn query_prices(

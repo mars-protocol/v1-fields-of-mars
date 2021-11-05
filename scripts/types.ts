@@ -65,14 +65,6 @@ export namespace RedBank {
   };
 }
 
-export namespace Oracle {
-  // mars_core::oracle::AssetPriceResponse
-  export type AssetPriceResponse = {
-    price: string;
-    last_updated: number;
-  };
-}
-
 export namespace Staking {
   // anchor_token::staking::StakerInfoResponse
   export interface StakerInfoResponse {
