@@ -8,7 +8,7 @@ repository = "https://github.com/mars-protocol/field-of-mars"
 
 [dependencies]
 anchor-token = "0.2.0"
-astroport = { path = "../astroport" }
+astroport = { git = "https://github.com/astroport-fi/astroport" }
 mars-core = { path = "../mars-core" }
 mars-periphery = { path = "../mars-periphery" }
 mirror-protocol = "2.1.1"

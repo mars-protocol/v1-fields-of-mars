@@ -19,10 +19,11 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "2.4.0"
+version = "0.2.0"
+source = "git+https://github.com/astroport-fi/astroport#c28cd91aafc425d441eb331e60b7565a0f89d5ab"
 dependencies = [
- "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-storage-plus 0.8.0",
  "cw20 0.8.0",
  "schemars",
  "serde",
@@ -105,16 +106,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ac17a14b4ab09a5d89b5301218067acca33d9311376e5c34c9877f09e562395"
 dependencies = [
  "syn",
-]
-
-[[package]]
-name = "cosmwasm-schema"
-version = "0.16.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c04830bc186c970ea400c0ea56f8a61b19aea1aa8d2442b9f9f9de96a61f0bf0"
-dependencies = [
- "schemars",
- "serde_json",
 ]
 
 [[package]]
