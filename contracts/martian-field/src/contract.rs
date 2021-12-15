@@ -1072,7 +1072,8 @@ fn query_health(deps: Deps, env: Env, user: String) -> StdResult<Health> {
 
 fn query_snapshot(deps: Deps, _env: Env, user: String) -> StdResult<Snapshot> {
     let user_addr = deps.api.addr_validate(&user)?;
-    SNAPSHOT.load(deps.storage, &user_addr)
+    let snapshot = SNAPSHOT.load(deps.storage, &user_addr).unwrap_or_default();
+    Ok(snapshot)
 }
 
 //--------------------------------------------------------------------------------------------------
