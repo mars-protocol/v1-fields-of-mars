@@ -83,21 +83,12 @@ impl ConfigUnchecked {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     /// Total amount of bond units; used to calculate each user's share of bonded LP tokens
     pub total_bond_units: Uint128,
     /// Total amount of debt units; used to calculate each user's share of the debt
     pub total_debt_units: Uint128,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        State {
-            total_bond_units: Uint128::zero(),
-            total_debt_units: Uint128::zero(),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -108,6 +99,17 @@ pub struct PositionBase<T> {
     pub debt_units: Uint128,
     /// Amount of assets not locked in Astroport pool; pending refund or liquidation
     pub unlocked_assets: Vec<AssetBase<T>>,
+}
+
+// `Addr` does not have `Default` implemented, so we can't derive it
+impl<T> Default for PositionBase<T> {
+    fn default() -> Self {
+        PositionBase {
+            bond_units: Uint128::zero(),
+            debt_units: Uint128::zero(),
+            unlocked_assets: vec![],
+        }
+    }
 }
 
 pub type PositionUnchecked = PositionBase<String>;
@@ -127,17 +129,7 @@ impl From<Position> for PositionUnchecked {
     }
 }
 
-impl Default for Position {
-    fn default() -> Self {
-        Self {
-            bond_units: Uint128::zero(),
-            debt_units: Uint128::zero(),
-            unlocked_assets: vec![],
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Health {
     /// Value of the position's asset, measured in the short asset
     pub bond_value: Uint128,
@@ -151,7 +143,7 @@ pub struct Health {
 /// of the position's value. This snapshot does not actually impact the functioning of this
 /// contract, but rather used by the frontend to calculate PnL. Once we have infrastructure
 /// available for calculating PnL off-chain, we will migrate the contract to delete this callback
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Snapshot {
     pub time: u64,
     pub height: u64,
