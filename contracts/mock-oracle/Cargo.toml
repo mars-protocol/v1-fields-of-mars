@@ -15,7 +15,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 [dependencies]
 fields-of-mars = { path = "../../packages/fields-of-mars" }
 
-astroport = { git = "https://github.com/astroport-fi/astroport" }
+astroport = "0.3.1"
 mars-core = { path = "../../packages/mars-core" }
 
 cosmwasm-std = "0.16.0"

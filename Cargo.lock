@@ -19,8 +19,9 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "0.2.0"
-source = "git+https://github.com/astroport-fi/astroport#c28cd91aafc425d441eb331e60b7565a0f89d5ab"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e584f958fdd1eba188f5c45fd174f670e04db9bf5ca5d60edcc89de581135434"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.8.0",
