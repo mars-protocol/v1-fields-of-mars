@@ -53,14 +53,10 @@ async function setupTest() {
   // Deploy Martian Field
   config = {
     primary_asset_info: {
-      cw20: {
-        contract_addr: anchor.token.address,
-      },
+      cw20: anchor.token.address,
     },
     secondary_asset_info: {
-      native: {
-        denom: "uusd",
-      },
+      native: "uusd",
     },
     red_bank: {
       contract_addr: mars.redBank.address,
@@ -328,20 +324,27 @@ async function testOpenPosition1() {
       },
     }),
     new MsgExecuteContract(user1.key.accAddress, field.address, {
-      increase_position: {
-        deposits: [
-          {
+      update_position: [
+        {
+          deposit: {
             info: {
-              cw20: {
-                contract_addr: anchor.token.address,
-              },
+              cw20: anchor.token.address,
             },
             amount: "69000000",
           },
-        ],
-      },
+        },
+        {
+          borrow: {
+            amount: "420000000",
+          },
+        },
+        {
+          bond: {},
+        },
+      ],
     }),
   ]);
+  console.log("txhash:", txhash);
 
   await verifier.verify(txhash, "testOpenPosition1", {
     bond: {
@@ -730,26 +733,32 @@ async function testOpenPosition2() {
       user2.key.accAddress,
       field.address,
       {
-        increase_position: {
-          deposits: [
-            {
+        update_position: [
+          {
+            deposit: {
               info: {
-                cw20: {
-                  contract_addr: anchor.token.address,
-                },
+                cw20: anchor.token.address,
               },
               amount: "34500000",
             },
-            {
+          },
+          {
+            deposit: {
               info: {
-                native: {
-                  denom: "uusd",
-                },
+                native: "uusd",
               },
               amount: "150000000",
             },
-          ],
-        },
+          },
+          {
+            borrow: {
+              amount: "58579947",
+            },
+          },
+          {
+            bond: {},
+          },
+        ],
       },
       {
         uusd: "150000000",
@@ -904,9 +913,21 @@ async function testPayDebt() {
       user1.key.accAddress,
       field.address,
       {
-        pay_debt: {
-          repay_amount: "100000000",
-        },
+        update_position: [
+          {
+            deposit: {
+              info: {
+                native: "uusd",
+              },
+              amount: "100500000",
+            },
+          },
+          {
+            repay: {
+              amount: "100000000",
+            },
+          },
+        ],
       },
       {
         uusd: "100500000", // 100.1 is actually needed; should refund us ~0.4 UST
@@ -1079,11 +1100,13 @@ async function testPayDebt() {
 async function testReducePosition1() {
   const { txhash } = await sendTransaction(terra, user1, [
     new MsgExecuteContract(user1.key.accAddress, field.address, {
-      reduce_position: {
-        bond_units: "30000000000000",
-        swap_amount: "0",
-        repay_amount: "0",
-      },
+      update_position: [
+        {
+          unbond: {
+            bond_units_to_reduce: "30000000000000",
+          },
+        },
+      ],
     }),
   ]);
 
@@ -1600,12 +1623,18 @@ async function testLiquidation() {
 async function testReducePosition2() {
   const { txhash } = await sendTransaction(terra, user2, [
     new MsgExecuteContract(user2.key.accAddress, field.address, {
-      reduce_position: {
-        bond_units: "84191717789575",
-        swap_amount: "0",
-        repay_amount: "58600000",
-        // repay_amount: "0",
-      },
+      update_position: [
+        {
+          unbond: {
+            bond_units_to_reduce: "84191717789575",
+          },
+        },
+        {
+          repay: {
+            amount: "58600000",
+          },
+        },
+      ],
     }),
   ]);
 
