@@ -11,7 +11,7 @@ pub fn after_provide_liquidity(
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let user_addr = CACHED_USER_ADDR.load(deps.storage)?;
-    let mut position = POSITION.load(deps.storage, &user_addr)?;
+    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
     let share_minted_amount = Pair::parse_provide_events(&response.events)?;
     let shares_to_add = Asset::cw20(&config.pair.liquidity_token, share_minted_amount);
@@ -33,7 +33,7 @@ pub fn after_withdraw_liquidity(
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let user_addr = CACHED_USER_ADDR.load(deps.storage)?;
-    let mut position = POSITION.load(deps.storage, &user_addr)?;
+    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
     let (primary_asset_withdrawn, secondary_asset_withdrawn) = Pair::parse_withdraw_events(
         &response.events,
@@ -65,7 +65,7 @@ pub fn after_withdraw_liquidity(
 pub fn after_swap(deps: DepsMut, response: SubMsgExecutionResponse) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let user_addr = CACHED_USER_ADDR.load(deps.storage)?;
-    let mut position = POSITION.load(deps.storage, &user_addr)?;
+    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
     let secondary_asset_returned_amount = Pair::parse_swap_events(&response.events)?;
     let secondary_asset_returned =

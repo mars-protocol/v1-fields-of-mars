@@ -150,7 +150,7 @@ fn handle_deposit(
     }
 
     // increase the user's unlocked asset amount
-    let mut position = POSITION.load(storage, &info.sender)?;
+    let mut position = POSITION.load(storage, &info.sender).unwrap_or_default();
     add_unlocked_asset(&mut position, &asset);
     POSITION.save(storage, &info.sender, &position)?;
 
@@ -242,7 +242,7 @@ pub fn liquidate(
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
-    let position = POSITION.load(deps.storage, &user_addr)?;
+    let position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
     // position must be active (LTV is not `None`) and the LTV must be greater than `max_ltv`
     let health = compute_health(&deps.querier, &env, &config, &state, &position)?;

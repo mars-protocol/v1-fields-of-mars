@@ -22,7 +22,7 @@ pub fn provide_liquidity(
     slippage_tolerance: Option<Decimal>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
-    let mut position = POSITION.load(deps.storage, &user_addr)?;
+    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
     // We deposit *all* unlocked primary and secondary assets to AMM, assuming the functions invoking
     // this callback have already did borrowing or swaps such that the values of the assets are about
@@ -69,7 +69,7 @@ pub fn provide_liquidity(
 
 pub fn withdraw_liquidity(deps: DepsMut, user_addr: Addr) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
-    let mut position = POSITION.load(deps.storage, &user_addr)?;
+    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
     // We burn *all* of the user's unlocked share tokens
     let share_asset_to_burn = position
@@ -93,7 +93,7 @@ pub fn withdraw_liquidity(deps: DepsMut, user_addr: Addr) -> StdResult<Response>
 pub fn bond(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
-    let mut position = POSITION.load(deps.storage, &user_addr)?;
+    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
     // We bond *all* of the user's unlocked share tokens
     let share_asset_to_bond = position
@@ -142,7 +142,7 @@ pub fn unbond(
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
-    let mut position = POSITION.load(deps.storage, &user_addr)?;
+    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
     // Query how many share tokens is currently being bonded by us
     let (total_bonded_amount, _) =
@@ -180,7 +180,7 @@ pub fn borrow(
 
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
-    let mut position = POSITION.load(deps.storage, &user_addr)?;
+    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
     let secondary_asset_to_borrow = Asset::new(&config.secondary_asset_info, borrow_amount);
 
@@ -231,7 +231,7 @@ pub fn repay(
 
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
-    let mut position = POSITION.load(deps.storage, &user_addr)?;
+    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
     let total_debt_amount = config.red_bank.query_user_debt(
         &deps.querier,
@@ -280,7 +280,7 @@ pub fn swap(
     max_spread: Option<Decimal>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
-    let mut position = POSITION.load(deps.storage, &user_addr)?;
+    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
     // if offer amount is unspecified, we offer all the user's unlocked amount minux tax
     let offer_asset = if let Some(swap_amount) = swap_amount_option {
@@ -321,7 +321,7 @@ pub fn refund(
     recipient_addr: Addr,
     percentage: Decimal,
 ) -> StdResult<Response> {
-    let mut position = POSITION.load(deps.storage, &user_addr)?;
+    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
     // NOTE:
     // 1. Must deduct tax
@@ -369,7 +369,7 @@ pub fn refund(
 pub fn assert_health(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
-    let position = POSITION.load(deps.storage, &user_addr)?;
+    let position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
     let health = compute_health(&deps.querier, &env, &config, &state, &position)?;
 
     // If ltv is Some(ltv), we assert it is no larger than `config.max_ltv`
@@ -409,7 +409,7 @@ pub fn assert_health(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Resp
 pub fn snapshot(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
-    let position = POSITION.load(deps.storage, &user_addr)?;
+    let position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
     let health = compute_health(&deps.querier, &env, &config, &state, &position)?;
 
     let snapshot = Snapshot {
