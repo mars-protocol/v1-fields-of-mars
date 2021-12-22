@@ -362,6 +362,7 @@ pub fn refund(
     Ok(Response::new()
         .add_messages(msgs)
         .add_attribute("action", "martian_field :: callback :: refund")
+        .add_attribute("recipient", recipient_addr.to_string())
         .add_attributes(refund_attrs)
         .add_attributes(deduct_attrs))
 }

@@ -122,7 +122,8 @@ pub fn update_position(
     Ok(Response::new()
         .add_messages(msgs)
         .add_messages(callback_msgs)
-        .add_attribute("action", "martian_field :: excute :: update_position"))
+        .add_attribute("action", "martian_field :: excute :: update_position")
+        .add_attributes(attrs))
 }
 
 fn handle_deposit(
