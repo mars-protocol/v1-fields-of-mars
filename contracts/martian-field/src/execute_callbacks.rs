@@ -33,14 +33,16 @@ pub fn provide_liquidity(
         .iter()
         .cloned()
         .find(|asset| asset.info == config.primary_asset_info)
-        .map(|asset| asset.deduct_tax(&deps.querier).unwrap())
+        .map(|asset| asset.deduct_tax(&deps.querier))
+        .transpose()?
         .ok_or_else(|| StdError::generic_err("no unlocked primary asset available"))?;
     let secondary_asset_to_provide = position
         .unlocked_assets
         .iter()
         .cloned()
         .find(|asset| asset.info == config.secondary_asset_info)
-        .map(|asset| asset.deduct_tax(&deps.querier).unwrap())
+        .map(|asset| asset.deduct_tax(&deps.querier))
+        .transpose()?
         .ok_or_else(|| StdError::generic_err("no unlocked secondary asset available"))?;
 
     // The total cost for providing liquidity is the amount to be provided plus tax. We deduct these
