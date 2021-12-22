@@ -352,14 +352,10 @@ pub fn refund(
     let msgs: Vec<CosmosMsg> =
         assets_to_refund.iter().map(|asset| asset.transfer_msg(&recipient_addr).unwrap()).collect();
 
-    let refund_attrs: Vec<Attribute> = assets_to_refund
-        .iter()
-        .map(|asset| attr("asset_refunded", format!("{}{}", asset.amount, asset.info.get_denom())))
-        .collect();
-    let deduct_attrs: Vec<Attribute> = assets_to_deduct
-        .iter()
-        .map(|asset| attr("asset_deducted", format!("{}{}", asset.amount, asset.info.get_denom())))
-        .collect();
+    let refund_attrs: Vec<Attribute> =
+        assets_to_refund.iter().map(|asset| attr("asset_refunded", asset.to_string())).collect();
+    let deduct_attrs: Vec<Attribute> =
+        assets_to_deduct.iter().map(|asset| attr("asset_deducted", asset.to_string())).collect();
 
     Ok(Response::new()
         .add_messages(msgs)
@@ -385,9 +381,9 @@ pub fn assert_health(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Resp
 
     // Convert `ltv` to String so that it can be recorded in logs
     let ltv_str = if let Some(ltv) = health.ltv {
-        format!("{}", ltv)
+        ltv.to_string()
     } else {
-        "null".to_string()
+        "undefined".to_string()
     };
 
     if !healthy {
