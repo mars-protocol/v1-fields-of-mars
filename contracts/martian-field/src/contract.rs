@@ -9,6 +9,7 @@ pub mod entry {
         CallbackMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
     };
 
+    use crate::helpers::unwrap_reply;
     use crate::{execute, execute_callbacks as callbacks, execute_replies as replies, queries};
 
     #[entry_point]
@@ -103,9 +104,9 @@ pub mod entry {
     #[entry_point]
     pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> StdResult<Response> {
         match reply.id {
-            0 => replies::after_provide_liquidity(deps, reply.result.unwrap()),
-            1 => replies::after_withdraw_liquidity(deps, reply.result.unwrap()),
-            2 => replies::after_swap(deps, reply.result.unwrap()),
+            0 => replies::after_provide_liquidity(deps, unwrap_reply(reply)?),
+            1 => replies::after_withdraw_liquidity(deps, unwrap_reply(reply)?),
+            2 => replies::after_swap(deps, unwrap_reply(reply)?),
             id => Err(StdError::generic_err(format!("invalid reply id: {}", id))),
         }
     }

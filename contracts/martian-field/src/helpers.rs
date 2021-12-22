@@ -1,8 +1,18 @@
-use cosmwasm_std::{Decimal, Env, QuerierWrapper, StdError, StdResult, Uint128};
+use cosmwasm_std::{
+    Decimal, Env, QuerierWrapper, Reply, StdError, StdResult, SubMsgExecutionResponse, Uint128,
+};
 
 use fields_of_mars::adapters::{Asset, AssetInfo};
 use fields_of_mars::martian_field::{Config, Health, Position, State};
 
+/// Extract response from reply
+pub fn unwrap_reply(reply: Reply) -> StdResult<SubMsgExecutionResponse> {
+    reply.result.into_result().map_err(|e| StdError::generic_err(e))
+}
+
+/// Given an array of assets, find the one that match given asset info
+///
+/// If not found, returns an asset of zero amount
 pub fn find_unlocked_asset(position: &Position, asset_info: &AssetInfo) -> Asset {
     match position.unlocked_assets.iter().find(|asset| &asset.info == asset_info) {
         Some(asset) => asset.clone(),
