@@ -1,3 +1,5 @@
+use std::fmt;
+
 use cosmwasm_std::{to_binary, Addr, Api, CosmosMsg, Decimal, StdResult, Uint128, WasmMsg};
 
 use schemars::JsonSchema;
@@ -102,7 +104,7 @@ pub struct PositionBase<T> {
 }
 
 // `Addr` does not have `Default` implemented, so we can't derive it
-impl<T> Default for PositionBase<T> {
+impl<T: fmt::Display> Default for PositionBase<T> {
     fn default() -> Self {
         PositionBase {
             bond_units: Uint128::zero(),
@@ -139,10 +141,11 @@ pub struct Health {
     pub ltv: Option<Decimal>,
 }
 
-/// Every time the user changes the position- increase, reduce, of repay debt, we record a snaphot
-/// of the position's value. This snapshot does not actually impact the functioning of this
-/// contract, but rather used by the frontend to calculate PnL. Once we have infrastructure
-/// available for calculating PnL off-chain, we will migrate the contract to delete this callback
+/// Every time the user changes the executes `update_position`, we record a snaphot of the position.
+///
+/// This snapshot does not actually impact the functioning of this contract in any way, but rather
+/// used by the frontend to calculate PnL. Once we have the infrastructure for calculating PnL
+/// off-chain available, we will migrate the contract to delete this callback
 #[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Snapshot {
     pub time: u64,
@@ -154,69 +157,84 @@ pub struct Snapshot {
 pub mod msg {
     use super::*;
     use crate::adapters::AssetUnchecked;
+    use cosmwasm_std::Empty;
+
+    pub type InstantiateMsg = ConfigUnchecked;
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    #[serde(rename_all = "snake_case")]
+    pub enum Action {
+        /// Deposit asset of specified type and amount
+        ///
+        /// If the asset is a native token such as UST, the contract verifies the token greater or
+        /// equal in amount has been received with the transaction
+        ///
+        /// If the asset is a CW20 token, the contract will attempt to draw it from the sender's
+        /// wallet. NOTE: sender must have approved spending first
+        Deposit(AssetUnchecked),
+        /// Borrow secondary asset of specified amount from Red Bank
+        Borrow {
+            amount: Uint128,
+        },
+        /// Repay secondary asset of specified amount to Red Bank
+        ///
+        /// NOTE: sender must make sure the position has sufficient amount of secondary asset
+        /// (repay amount + tax), either by depositing or swapping
+        Repay {
+            amount: Uint128,
+        },
+        /// Provide all unlocked primary and secondary asset to Astroport pair, and bond the
+        /// received liquidity tokens to the staking pool
+        ///
+        /// NOTE: we provide **all** unlocked assets to the pair. Sender must make sure the unlocked
+        /// primary and secondary assets are similar in value, or provide a `slippage_tolerance`
+        /// parameter
+        Bond {
+            slippage_tolerance: Option<Decimal>,
+        },
+        /// Burn a specified amount bond units, unbond liquidity tokens of corresponding amount from
+        /// the staking pool and withdraw liquidity
+        Unbond {
+            bond_units_to_reduce: Uint128,
+        },
+        /// Swap a specified amount of unlocked primary asset to the secondary asset
+        Swap {
+            swap_amount: Uint128,
+            belief_price: Option<Decimal>,
+            max_spread: Option<Decimal>,
+        },
+    }
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     #[allow(clippy::large_enum_variant)]
     pub enum ExecuteMsg {
-        /// Update data stored in config (governance only)
-        UpdateConfig {
-            new_config: ConfigUnchecked,
+        /// Update the sender's position by executing a list of actions
+        ///
+        /// After the actions are executed, the contract executes three more callbacks:
+        ///
+        /// 1. Refund all unlocked assets to the user.
+        ///
+        /// 2. Assert the position's LTV is below the liquidation threshold. If not, throw an error
+        /// and revert all previous actions
+        ///
+        /// 3. Delete cached data in storage
+        UpdatePosition(Vec<Action>),
+        /// Claim staking reward and reinvest
+        Harvest {
+            belief_price: Option<Decimal>,
+            max_spread: Option<Decimal>,
+            slippage_tolerance: Option<Decimal>,
         },
-        /// Open a new position or add to an existing position
-        ///
-        /// Deposit primary asset and optionally secondary asset that is no more in value than the
-        /// primary asset deposit. The contract will compute the market value of the assets, and borrow
-        /// secondary asset from Red Bank to make the two even in value.
-        IncreasePosition {
-            deposits: Vec<AssetUnchecked>,
-        },
-        /// Reduce a position, or close it completely
-        ///
-        /// Liquidity are withdrawn from the AMM; primary asset of `swap_amount` is swapped for the
-        /// secondary asset; then, secondary asset of `repay_amount` is repaid to Red Bank. If the user's
-        /// LTV is no greater than `max_ltv` after these actions are completed, the remaining withdrawn
-        /// assets are refunded to the user.
-        ///
-        /// NOTE: `repay_amount` is the maximum amount to be repaid. The contract will calculate the
-        /// amount of debt the user's owes (which can be queried by `QueryMsg::Health`) repay whichever
-        /// is smaller.
-        ///
-        /// NOTE: `repay_amount` denotes actual amount to be delivered to Red Bank. Due to tax, if the
-        /// secondary asset is a native token, an amount slightly greater than `repay_amount` needs
-        /// to be available in the user's position after performing the swap.
-        ReducePosition {
-            bond_units: Uint128,
-            swap_amount: Uint128,
-            repay_amount: Uint128,
-        },
-        /// Pay down debt owed to Mars, reduce debt units
-        ///
-        /// NOTE: `repay_amount` is the maximum amount to be repaid. The contract will calculate the
-        /// amount of debt the user's owes (which can be queried by `QueryMsg::Health`) repay whichever
-        /// is smaller.
-        ///
-        /// NOTE: `repay_amount` denotes actual amount to be delivered to Red Bank. Due to tax, if the
-        /// secondary asset is a native token, an amount slightly greater than `repay_amount` needs
-        /// to be available in the user's position after performing the swap.
-        ///
-        /// E.g. Suppose the tax associated with transferring 100 UST is 0.1 UST. To reduce the user's
-        /// debt by 100 UST, set `repay_amount` as 100.1e6 and transfer at least 1_001_000 uusd with
-        /// the message.
-        PayDebt {
-            repay_amount: Uint128,
-        },
-        /// Close an underfunded position
-        ///
-        /// Liquidity are withdrawn from the AMM; all primary assets are swapped for the secondary
-        /// asset; debt is fully paid with the proceedings. Among the remaining secondary assets, a
-        /// portion corresponding to `bonus_rate` is awarded to the liquidator, while the rest is
-        /// refunded to the user.
+        /// Force close an underfunded position, repay all debts, and return all remaining funds to
+        /// the position's owner. The liquidator is awarded a portion of the remaining funds.
         Liquidate {
             user: String,
         },
-        /// Claim staking reward and reinvest
-        Harvest {},
+        /// Update data stored in config (only governance can call)
+        UpdateConfig {
+            new_config: ConfigUnchecked,
+        },
         /// Callbacks; only callable by the strategy itself.
         Callback(CallbackMsg),
     }
@@ -231,6 +249,7 @@ pub mod msg {
         /// Increase the user's unlocked share token amount
         ProvideLiquidity {
             user_addr: Addr,
+            slippage_tolerance: Option<Decimal>,
         },
         /// Burn the user's unlocked share tokens, receive primary & secondary assets;
         /// Reduce the user's unlocked share token amount to zero;
@@ -249,7 +268,7 @@ pub mod msg {
         /// Increase the user's unlocked share token amount
         Unbond {
             user_addr: Addr,
-            bond_units: Uint128,
+            bond_units_to_reduce: Uint128,
         },
         /// Borrow specified amount of secondary asset from Red Bank;
         /// Increase the user's debt units;
@@ -269,23 +288,28 @@ pub mod msg {
         /// Reduce the user's unlocked primary asset amount;
         /// Increase the user's unlocked secondary asset amount;
         ///
-        /// If `swap_amount` is not provided, then use all available unlocked primary asset
+        /// If `swap_amount` is not provided, then use all available unlocked asset
         Swap {
             user_addr: Addr,
             swap_amount: Option<Uint128>,
+            belief_price: Option<Decimal>,
+            max_spread: Option<Decimal>,
         },
-        /// Send a percentage of a user's unlocked primary & seoncdary asset to the specified recipient;
-        /// Reduce the user's primary & secondary asset amound
+        /// Send a percentage of a user's unlocked primary & seoncdary asset to a recipient; default
+        /// to the user if unspecified
+        ///
+        /// Reduce the user's primary & secondary asset amounts
         Refund {
             user_addr: Addr,
-            recipient: Addr,
+            recipient_addr: Addr,
             percentage: Decimal,
         },
-        /// Calculate a user's current LTV; throw error if it is above the maximum LTV specified in config
+        /// Calculate a user's current LTV; throw error if it is above the maximum LTV
         AssertHealth {
             user_addr: Addr,
         },
-        /// See the comment on struct `Snapshot`
+        /// See the comment on struct `Snapshot`. This callback should be removed at some pointer
+        /// after launch when our tx indexing infrastructure is ready
         Snapshot {
             user_addr: Addr,
         },
@@ -324,6 +348,6 @@ pub mod msg {
         },
     }
 
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    pub struct MigrateMsg {}
+    /// We currently don't need any input parameter for migration
+    pub type MigrateMsg = Empty;
 }

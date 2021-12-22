@@ -1,4 +1,4 @@
-use std::ops;
+use std::{fmt, ops};
 
 use cosmwasm_std::{
     to_binary, Addr, Api, BalanceResponse, BankMsg, BankQuery, Coin, CosmosMsg, Decimal,
@@ -65,9 +65,18 @@ impl AssetInfoUnchecked {
     }
 }
 
-//--------------------------------------------------------------------------------------------------
-// Asset
-//--------------------------------------------------------------------------------------------------
+impl fmt::Display for AssetInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AssetInfoBase::Cw20 {
+                contract_addr,
+            } => write!(f, "{}", contract_addr),
+            AssetInfoBase::Native {
+                denom,
+            } => write!(f, "{}", denom),
+        }
+    }
+}
 
 impl AssetInfo {
     // INSTANCE CREATION
@@ -161,6 +170,10 @@ impl AssetInfo {
     }
 }
 
+//--------------------------------------------------------------------------------------------------
+// Asset
+//--------------------------------------------------------------------------------------------------
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AssetBase<T> {
     pub info: AssetInfoBase<T>,
@@ -205,12 +218,18 @@ impl ops::Mul<Decimal> for &Asset {
     }
 }
 
+impl fmt::Display for Asset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.info, self.amount)
+    }
+}
+
 impl Asset {
     // INSTANCE CREATION
 
-    pub fn new<A: Into<Uint128>>(asset_info: &AssetInfo, amount: A) -> Self {
+    pub fn new<A: Into<Uint128>>(info: &AssetInfo, amount: A) -> Self {
         Asset {
-            info: asset_info.clone(),
+            info: info.clone(),
             amount: amount.into(),
         }
     }

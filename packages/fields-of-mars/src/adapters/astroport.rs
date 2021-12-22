@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use cosmwasm_std::{
-    to_binary, Addr, Api, Coin, Event, QuerierWrapper, QueryRequest, StdError, StdResult, SubMsg,
-    Uint128, WasmMsg, WasmQuery,
+    to_binary, Addr, Api, Coin, Decimal, Event, QuerierWrapper, QueryRequest, StdError, StdResult,
+    SubMsg, Uint128, WasmMsg, WasmQuery,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -126,7 +126,12 @@ impl Pair {
 
     /// Generate submessages for providing specified assets
     /// NOTE: For now, we don't specify a slippage tolerance
-    pub fn provide_submsgs(&self, id: u64, assets: &[Asset; 2]) -> StdResult<Vec<SubMsg>> {
+    pub fn provide_submsgs(
+        &self,
+        id: u64,
+        assets: &[Asset; 2],
+        slippage_tolerance: Option<Decimal>,
+    ) -> StdResult<Vec<SubMsg>> {
         let mut submsgs: Vec<SubMsg> = vec![];
         let mut funds: Vec<Coin> = vec![];
 
@@ -157,7 +162,7 @@ impl Pair {
                 contract_addr: self.contract_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::ProvideLiquidity {
                     assets: [assets[0].clone().into(), assets[1].clone().into()],
-                    slippage_tolerance: None, // to be added in a future version
+                    slippage_tolerance,
                     auto_stake: None,
                     receiver: None,
                 })?,
@@ -187,7 +192,13 @@ impl Pair {
 
     /// @notice Generate submsg for swapping specified asset
     /// NOTE: For now, we don't specify a slippage tolerance
-    pub fn swap_submsg(&self, id: u64, asset: &Asset) -> StdResult<SubMsg> {
+    pub fn swap_submsg(
+        &self,
+        id: u64,
+        asset: &Asset,
+        belief_price: Option<Decimal>,
+        max_spread: Option<Decimal>,
+    ) -> StdResult<SubMsg> {
         let wasm_msg = match &asset.info {
             AssetInfo::Cw20 {
                 contract_addr,
@@ -197,8 +208,8 @@ impl Pair {
                     contract: self.contract_addr.to_string(),
                     amount: asset.amount,
                     msg: to_binary(&Cw20HookMsg::Swap {
-                        belief_price: None,
-                        max_spread: None,
+                        belief_price,
+                        max_spread,
                         to: None,
                     })?,
                 })?,
@@ -211,8 +222,8 @@ impl Pair {
                 contract_addr: self.contract_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::Swap {
                     offer_asset: asset.clone().into(),
-                    belief_price: None,
-                    max_spread: None,
+                    belief_price,
+                    max_spread,
                     to: None,
                 })?,
                 funds: vec![Coin {
