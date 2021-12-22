@@ -76,7 +76,7 @@ pub fn withdraw_liquidity(deps: DepsMut, user_addr: Addr) -> StdResult<Response>
         .unlocked_assets
         .iter()
         .cloned()
-        .find(|asset| asset.info == AssetInfo::cw20(&config.pair.liquidity_token))
+        .find(|asset| asset.info == AssetInfo::Cw20(config.pair.liquidity_token.clone()))
         .ok_or_else(|| StdError::generic_err("no unlocked share token available"))?;
 
     deduct_unlocked_asset(&mut position, &share_asset_to_burn)?;
@@ -100,7 +100,7 @@ pub fn bond(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Response> {
         .unlocked_assets
         .iter()
         .cloned()
-        .find(|asset| asset.info == AssetInfo::cw20(&config.pair.liquidity_token))
+        .find(|asset| asset.info == AssetInfo::Cw20(config.pair.liquidity_token.clone()))
         .ok_or_else(|| StdError::generic_err("no unlocked share token available"))?;
 
     // Query how many share tokens is currently being bonded by us

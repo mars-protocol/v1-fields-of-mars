@@ -121,8 +121,8 @@ mod tests {
     fn test_add_unlocked_asset() {
         let mut position = Position::default();
 
-        let primary_asset_info = AssetInfo::cw20(&Addr::unchecked("anchor_token"));
-        let secondary_asset_info = AssetInfo::native(&"uusd");
+        let primary_asset_info = AssetInfo::Cw20(Addr::unchecked("anchor_token"));
+        let secondary_asset_info = AssetInfo::Native("uusd".to_string());
 
         let asset = add_unlocked_asset(
             &mut position,
@@ -168,8 +168,8 @@ mod tests {
     fn test_deduct_unlocked_asset() {
         let mut position = Position::default();
 
-        let primary_asset_info = AssetInfo::cw20(&Addr::unchecked("anchor_token"));
-        let secondary_asset_info = AssetInfo::native(&"uusd");
+        let primary_asset_info = AssetInfo::Cw20(Addr::unchecked("anchor_token"));
+        let secondary_asset_info = AssetInfo::Native("uusd".to_string());
 
         position.unlocked_assets.push(Asset::new(&primary_asset_info, 88888u128));
 

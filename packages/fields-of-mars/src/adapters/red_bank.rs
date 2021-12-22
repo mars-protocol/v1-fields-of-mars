@@ -20,14 +20,10 @@ use crate::adapters::{Asset, AssetInfo};
 impl From<AssetInfo> for MarsAsset {
     fn from(asset_info: AssetInfo) -> Self {
         match asset_info {
-            AssetInfo::Cw20 {
-                contract_addr,
-            } => Self::Cw20 {
+            AssetInfo::Cw20(contract_addr) => Self::Cw20 {
                 contract_addr: contract_addr.to_string(),
             },
-            AssetInfo::Native {
-                denom,
-            } => Self::Native {
+            AssetInfo::Native(denom) => Self::Native {
                 denom,
             },
         }
@@ -79,9 +75,7 @@ impl RedBank {
     /// @dev Note: we do not deduct tax here
     pub fn repay_msg(&self, asset: &Asset) -> StdResult<CosmosMsg> {
         match &asset.info {
-            AssetInfo::Cw20 {
-                contract_addr,
-            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfo::Cw20(contract_addr) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Send {
@@ -90,9 +84,7 @@ impl RedBank {
                     msg: to_binary(&ReceiveMsg::RepayCw20 {})?,
                 })?,
             })),
-            AssetInfo::Native {
-                denom,
-            } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            AssetInfo::Native(denom) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: self.contract_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::RepayNative {
                     denom: denom.into(),

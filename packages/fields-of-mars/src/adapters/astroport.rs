@@ -32,14 +32,10 @@ impl From<Asset> for AstroportAsset {
 impl From<AssetInfo> for AstroportAssetInfo {
     fn from(asset_info: AssetInfo) -> Self {
         match asset_info {
-            AssetInfo::Cw20 {
-                contract_addr,
-            } => Self::Token {
+            AssetInfo::Cw20(contract_addr) => Self::Token {
                 contract_addr,
             },
-            AssetInfo::Native {
-                denom,
-            } => Self::NativeToken {
+            AssetInfo::Native(denom) => Self::NativeToken {
                 denom,
             },
         }
@@ -53,10 +49,7 @@ impl PartialEq<AssetInfo> for AstroportAssetInfo {
                 contract_addr,
             } => {
                 let self_contract_addr = contract_addr;
-                if let AssetInfo::Cw20 {
-                    contract_addr,
-                } = other
-                {
+                if let AssetInfo::Cw20(contract_addr) = other {
                     self_contract_addr == contract_addr
                 } else {
                     false
@@ -66,10 +59,7 @@ impl PartialEq<AssetInfo> for AstroportAssetInfo {
                 denom,
             } => {
                 let self_denom = denom;
-                if let AssetInfo::Native {
-                    denom,
-                } = other
-                {
+                if let AssetInfo::Native(denom) = other {
                     self_denom == denom
                 } else {
                     false
@@ -137,9 +127,7 @@ impl Pair {
 
         for asset in assets.iter() {
             match &asset.info {
-                AssetInfo::Cw20 {
-                    contract_addr,
-                } => submsgs.push(SubMsg::new(WasmMsg::Execute {
+                AssetInfo::Cw20(contract_addr) => submsgs.push(SubMsg::new(WasmMsg::Execute {
                     contract_addr: contract_addr.to_string(),
                     msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
                         spender: self.contract_addr.to_string(),
@@ -148,9 +136,7 @@ impl Pair {
                     })?,
                     funds: vec![],
                 })),
-                AssetInfo::Native {
-                    denom,
-                } => funds.push(Coin {
+                AssetInfo::Native(denom) => funds.push(Coin {
                     denom: denom.clone(),
                     amount: asset.amount,
                 }),
@@ -200,9 +186,7 @@ impl Pair {
         max_spread: Option<Decimal>,
     ) -> StdResult<SubMsg> {
         let wasm_msg = match &asset.info {
-            AssetInfo::Cw20 {
-                contract_addr,
-            } => WasmMsg::Execute {
+            AssetInfo::Cw20(contract_addr) => WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: self.contract_addr.to_string(),
@@ -216,9 +200,7 @@ impl Pair {
                 funds: vec![],
             },
 
-            AssetInfo::Native {
-                denom,
-            } => WasmMsg::Execute {
+            AssetInfo::Native(denom) => WasmMsg::Execute {
                 contract_addr: self.contract_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::Swap {
                     offer_asset: asset.clone().into(),
@@ -240,7 +222,7 @@ impl Pair {
 
     /// Query an account's balance of the pool's share token
     pub fn query_share(&self, querier: &QuerierWrapper, account: &Addr) -> StdResult<Uint128> {
-        AssetInfo::cw20(&self.liquidity_token).query_balance(querier, account)
+        AssetInfo::Cw20(self.liquidity_token.clone()).query_balance(querier, account)
     }
 
     /// Query the Astroport pool, parse response, and return the following 3-tuple:
@@ -387,8 +369,8 @@ mod tests {
 
     #[test]
     fn test_parse_withdraw_events() {
-        let primary_asset_info = AssetInfo::cw20(&Addr::unchecked("anchor_token"));
-        let secondary_asset_info = AssetInfo::native(&"uusd");
+        let primary_asset_info = AssetInfo::Cw20(Addr::unchecked("anchor_token"));
+        let secondary_asset_info = AssetInfo::Native("uusd".to_string());
 
         let event0 = Event::new("test-event")
             .add_attribute("action", "withdraw_liquidity")
