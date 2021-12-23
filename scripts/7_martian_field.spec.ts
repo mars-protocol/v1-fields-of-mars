@@ -239,6 +239,7 @@ async function testConfig() {
     state: {
       total_bond_units: "0",
       total_debt_units: "0",
+      pending_rewards: [],
     },
     users: [],
   });
@@ -365,6 +366,7 @@ async function testOpenPosition1() {
     state: {
       total_bond_units: "169895170000000",
       total_debt_units: "420000000000000",
+      pending_rewards: [],
     },
     users: [
       {
@@ -503,6 +505,10 @@ async function testHarvest() {
     state: {
       total_bond_units: "169895170000000",
       total_debt_units: "420000000000000",
+      pending_rewards: [
+        // uusd
+        { amount: "1" },
+      ],
     },
     users: [
       {
@@ -602,6 +608,10 @@ async function testAccrueInterest() {
     state: {
       total_bond_units: "169895170000000",
       total_debt_units: "420000000000000",
+      pending_rewards: [
+        // uusd
+        { amount: "1" },
+      ],
     },
     users: [
       {
@@ -785,6 +795,10 @@ async function testOpenPosition2() {
     state: {
       total_bond_units: "254086887789575",
       total_debt_units: "475790425714285",
+      pending_rewards: [
+        // uusd
+        { amount: "1" },
+      ],
     },
     users: [
       // user 1
@@ -954,6 +968,10 @@ async function testPayDebt() {
     state: {
       total_bond_units: "254086887789575",
       total_debt_units: "380552330476190",
+      pending_rewards: [
+        // uusd
+        { amount: "1" },
+      ],
     },
     users: [
       // user 1
@@ -1129,6 +1147,10 @@ async function testReducePosition1() {
     state: {
       total_bond_units: "224086887789575",
       total_debt_units: "380552330476190",
+      pending_rewards: [
+        // uusd
+        { amount: "1" },
+      ],
     },
     users: [
       // user 1
@@ -1284,6 +1306,10 @@ async function testDump() {
     state: {
       total_bond_units: "224086887789575",
       total_debt_units: "380552330476190",
+      pending_rewards: [
+        // uusd
+        { amount: "1" },
+      ],
     },
     users: [
       // user 1
@@ -1486,6 +1512,10 @@ async function testLiquidation() {
     state: {
       total_bond_units: "84191717789575",
       total_debt_units: "55790425714285",
+      pending_rewards: [
+        // uusd
+        { amount: "1" },
+      ],
     },
     users: [
       // user 1
@@ -1657,6 +1687,10 @@ async function testReducePosition2() {
     state: {
       total_bond_units: "0",
       total_debt_units: "0",
+      pending_rewards: [
+        // uusd
+        { amount: "1" },
+      ],
     },
     users: [
       // user 1

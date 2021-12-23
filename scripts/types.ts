@@ -105,6 +105,7 @@ export namespace MartianField {
   export type StateResponse = {
     total_bond_units: string;
     total_debt_units: string;
+    pending_rewards: Asset[];
   };
 
   // fields_of_mars::martian_field::PositionResponse

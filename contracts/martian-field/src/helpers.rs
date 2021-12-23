@@ -13,8 +13,8 @@ pub fn unwrap_reply(reply: Reply) -> StdResult<SubMsgExecutionResponse> {
 /// Given an array of assets, find the one that match given asset info
 ///
 /// If not found, returns an asset of zero amount
-pub fn find_unlocked_asset(position: &Position, asset_info: &AssetInfo) -> Asset {
-    match position.unlocked_assets.iter().find(|asset| &asset.info == asset_info) {
+pub fn find_asset_in_array(assets: &[Asset], asset_info: &AssetInfo) -> Asset {
+    match assets.iter().find(|asset| &asset.info == asset_info) {
         Some(asset) => asset.clone(),
         None => Asset::new(asset_info, Uint128::zero()),
     }
@@ -25,24 +25,24 @@ pub fn find_unlocked_asset(position: &Position, asset_info: &AssetInfo) -> Asset
 /// If not found, append the asset with given amount at the end of the array.
 ///
 /// Return the amount after the increment.
-pub fn add_unlocked_asset(position: &mut Position, asset_to_add: &Asset) -> Asset {
-    match position.unlocked_assets.iter_mut().find(|asset| asset.info == asset_to_add.info) {
+pub fn add_asset_to_array(assets: &mut Vec<Asset>, asset_to_add: &Asset) -> Asset {
+    match assets.iter_mut().find(|asset| asset.info == asset_to_add.info) {
         Some(asset) => {
             asset.amount += asset_to_add.amount;
             asset.clone()
         }
         None => {
-            position.unlocked_assets.push(asset_to_add.clone());
+            assets.push(asset_to_add.clone());
             asset_to_add.clone()
         }
     }
 }
 
-/// Same with `add_unlocked_asset` but reduce the amount instead
+/// Same with `add_asset` but reduce the amount instead
 ///
 /// If the amount is reduced to zero, we remove the asset from the vector
-pub fn deduct_unlocked_asset(position: &mut Position, asset_to_deduct: &Asset) -> StdResult<()> {
-    match position.unlocked_assets.iter_mut().find(|asset| asset.info == asset_to_deduct.info) {
+pub fn deduct_asset_from_array(assets: &mut Vec<Asset>, asset_to_deduct: &Asset) -> StdResult<()> {
+    match assets.iter_mut().find(|asset| asset.info == asset_to_deduct.info) {
         Some(asset) => {
             asset.amount -= asset_to_deduct.amount;
         }
@@ -50,7 +50,7 @@ pub fn deduct_unlocked_asset(position: &mut Position, asset_to_deduct: &Asset) -
             return Err(StdError::generic_err("cannot find asset to deduct"));
         }
     };
-    position.unlocked_assets.retain(|asset| !asset.amount.is_zero());
+    assets.retain(|asset| !asset.amount.is_zero());
     Ok(())
 }
 
@@ -128,14 +128,14 @@ mod tests {
     use fields_of_mars::testing::{assert_eq_vec, assert_generic_error_message};
 
     #[test]
-    fn test_add_unlocked_asset() {
+    fn test_add_asset_to_array() {
         let mut position = Position::default();
 
         let primary_asset_info = AssetInfo::Cw20(Addr::unchecked("anchor_token"));
         let secondary_asset_info = AssetInfo::Native("uusd".to_string());
 
-        let asset = add_unlocked_asset(
-            &mut position,
+        let asset = add_asset_to_array(
+            &mut position.unlocked_assets,
             &Asset::new(&primary_asset_info, Uint128::new(12345)),
         );
 
@@ -145,8 +145,8 @@ mod tests {
             vec![Asset::new(&primary_asset_info, 12345u128)],
         );
 
-        let asset = add_unlocked_asset(
-            &mut position,
+        let asset = add_asset_to_array(
+            &mut position.unlocked_assets,
             &Asset::new(&secondary_asset_info, Uint128::new(69420)),
         );
 
@@ -159,8 +159,8 @@ mod tests {
             ],
         );
 
-        let asset = add_unlocked_asset(
-            &mut position,
+        let asset = add_asset_to_array(
+            &mut position.unlocked_assets,
             &Asset::new(&primary_asset_info, Uint128::new(88888)),
         );
 
@@ -175,7 +175,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deduct_unlocked_asset() {
+    fn test_deduct_asset_from_array() {
         let mut position = Position::default();
 
         let primary_asset_info = AssetInfo::Cw20(Addr::unchecked("anchor_token"));
@@ -183,23 +183,29 @@ mod tests {
 
         position.unlocked_assets.push(Asset::new(&primary_asset_info, 88888u128));
 
-        let result = deduct_unlocked_asset(
-            &mut position,
+        let result = deduct_asset_from_array(
+            &mut position.unlocked_assets,
             &Asset::new(&secondary_asset_info, Uint128::new(69420)),
         );
 
         assert_generic_error_message(result, "cannot find asset to deduct");
 
-        deduct_unlocked_asset(&mut position, &Asset::new(&primary_asset_info, Uint128::new(69420)))
-            .unwrap();
+        deduct_asset_from_array(
+            &mut position.unlocked_assets,
+            &Asset::new(&primary_asset_info, Uint128::new(69420)),
+        )
+        .unwrap();
 
         assert_eq_vec(
             position.unlocked_assets.clone(),
             vec![Asset::new(&primary_asset_info, 19468u128)],
         );
 
-        deduct_unlocked_asset(&mut position, &Asset::new(&primary_asset_info, Uint128::new(19468)))
-            .unwrap();
+        deduct_asset_from_array(
+            &mut position.unlocked_assets,
+            &Asset::new(&primary_asset_info, Uint128::new(19468)),
+        )
+        .unwrap();
 
         assert_eq!(position.unlocked_assets.len(), 0); // assets with zero amount should have been removed
     }

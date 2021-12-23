@@ -149,7 +149,10 @@ export class Verifier {
       _generateRow("pool.assets[0]", expected.pool.assets[0].amount, actual.pool.assets[0].amount),
       _generateRow("pool.assets[1]", expected.pool.assets[1].amount, actual.pool.assets[1].amount),
       _generateRow("pool.total_share", expected.pool.total_share, actual.pool.total_share),
-      // state
+    ];
+
+    // state units
+    rows = rows.concat([
       _generateRow(
         "state.total_bond_units",
         expected.state.total_bond_units,
@@ -160,7 +163,19 @@ export class Verifier {
         expected.state.total_debt_units,
         actual.state.total_debt_units
       ),
-    ];
+    ]);
+
+    // state pending rewards
+    // user unlocked assets
+    for (let j = 0; j < expected.state.pending_rewards.length; j++) {
+      rows.push(
+        _generateRow(
+          `state.pending[${j}]`,
+          expected.state.pending_rewards[j].amount,
+          actual.state.pending_rewards[j].amount
+        )
+      );
+    }
 
     for (let i = 0; i < actual.users.length; i++) {
       rows = rows.concat([

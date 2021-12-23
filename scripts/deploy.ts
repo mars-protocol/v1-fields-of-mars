@@ -92,14 +92,10 @@ function generateInitMsg(network: string, strategy: string) {
 
   return {
     primary_asset_info: {
-      cw20: {
-        contract_addr: protocol.token,
-      },
+      cw20: protocol.token,
     },
     secondary_asset_info: {
-      native: {
-        denom: "uusd",
-      },
+      native: "uusd",
     },
     red_bank: {
       contract_addr: contracts.redBank,

@@ -58,11 +58,11 @@ pub fn update_position(
                 slippage_tolerance,
             } => callbacks.extend([
                 CallbackMsg::ProvideLiquidity {
-                    user_addr: info.sender.clone(),
+                    user_addr: Some(info.sender.clone()),
                     slippage_tolerance,
                 },
                 CallbackMsg::Bond {
-                    user_addr: info.sender.clone(),
+                    user_addr: Some(info.sender.clone()),
                 },
             ]),
 
@@ -83,7 +83,7 @@ pub fn update_position(
                 belief_price,
                 max_spread,
             } => callbacks.push(CallbackMsg::Swap {
-                user_addr: info.sender.clone(),
+                user_addr: Some(info.sender.clone()),
                 swap_amount: Some(swap_amount),
                 belief_price,
                 max_spread,
@@ -152,7 +152,7 @@ fn handle_deposit(
 
     // increase the user's unlocked asset amount
     let mut position = POSITION.load(storage, &info.sender).unwrap_or_default();
-    add_unlocked_asset(&mut position, &asset);
+    add_asset_to_array(&mut position.unlocked_assets, &asset);
     POSITION.save(storage, &info.sender, &position)?;
 
     attrs.push(attr("deposit_received", asset.to_string()));
@@ -167,11 +167,8 @@ pub fn harvest(
     max_spread: Option<Decimal>,
     slippage_tolerance: Option<Decimal>,
 ) -> StdResult<Response> {
-    // We use a fake address to track assets handled during harvesting
-    let reward_addr = Addr::unchecked("reward");
-
     let config = CONFIG.load(deps.storage)?;
-    let mut position = POSITION.load(deps.storage, &reward_addr).unwrap_or_default();
+    let mut state = STATE.load(deps.storage)?;
 
     // Find how much reward is available to be claimed
     let (_, reward_amount) =
@@ -193,8 +190,8 @@ pub fn harvest(
     let primary_asset_to_retain = Asset::new(&config.primary_asset_info, retain_amount);
     let primary_asset_to_swap = Asset::new(&config.primary_asset_info, swap_amount);
 
-    add_unlocked_asset(&mut position, &primary_asset_to_retain);
-    POSITION.save(deps.storage, &reward_addr, &position)?;
+    add_asset_to_array(&mut state.pending_rewards, &primary_asset_to_retain);
+    STATE.save(deps.storage, &state)?;
 
     let msgs = vec![
         config.staking.withdraw_msg()?,
@@ -203,17 +200,17 @@ pub fn harvest(
 
     let callbacks = [
         CallbackMsg::Swap {
-            user_addr: reward_addr.clone(),
+            user_addr: None,
             swap_amount: Some(primary_asset_to_swap.deduct_tax(&deps.querier)?.amount),
             belief_price,
             max_spread,
         },
         CallbackMsg::ProvideLiquidity {
-            user_addr: reward_addr.clone(),
+            user_addr: None,
             slippage_tolerance,
         },
         CallbackMsg::Bond {
-            user_addr: reward_addr,
+            user_addr: None,
         },
     ];
 
@@ -263,7 +260,7 @@ pub fn liquidate(
             user_addr: user_addr.clone(),
         },
         CallbackMsg::Swap {
-            user_addr: user_addr.clone(),
+            user_addr: Some(user_addr.clone()),
             swap_amount: None,
             belief_price: None,
             max_spread: None,

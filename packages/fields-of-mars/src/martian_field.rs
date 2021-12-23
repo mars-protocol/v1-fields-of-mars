@@ -1,11 +1,13 @@
-use std::fmt;
-
 use cosmwasm_std::{to_binary, Addr, Api, CosmosMsg, Decimal, StdResult, Uint128, WasmMsg};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::adapters::{AssetBase, AssetInfoBase, OracleBase, PairBase, RedBankBase, StakingBase};
+
+//--------------------------------------------------------------------------------------------------
+// Config
+//--------------------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigBase<T> {
@@ -85,13 +87,51 @@ impl ConfigUnchecked {
     }
 }
 
-#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct State {
+//--------------------------------------------------------------------------------------------------
+// State: global state of the contract
+//--------------------------------------------------------------------------------------------------
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StateBase<T> {
     /// Total amount of bond units; used to calculate each user's share of bonded LP tokens
     pub total_bond_units: Uint128,
     /// Total amount of debt units; used to calculate each user's share of the debt
     pub total_debt_units: Uint128,
+    /// Reward tokens that can be reinvested in the next harvest
+    pub pending_rewards: Vec<AssetBase<T>>,
 }
+
+// `Addr` does not have `Default` implemented, so we can't derive the Default trait
+impl<T> Default for StateBase<T> {
+    fn default() -> Self {
+        StateBase {
+            total_bond_units: Uint128::zero(),
+            total_debt_units: Uint128::zero(),
+            pending_rewards: vec![],
+        }
+    }
+}
+
+pub type StateUnchecked = StateBase<String>;
+pub type State = StateBase<Addr>;
+
+impl From<State> for StateUnchecked {
+    fn from(state: State) -> Self {
+        StateUnchecked {
+            total_bond_units: state.total_bond_units,
+            total_debt_units: state.total_debt_units,
+            pending_rewards: state
+                .pending_rewards
+                .iter()
+                .map(|asset| asset.clone().into())
+                .collect(),
+        }
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Position, Health, Snapshot: info of individual users' positions
+//--------------------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PositionBase<T> {
@@ -103,8 +143,8 @@ pub struct PositionBase<T> {
     pub unlocked_assets: Vec<AssetBase<T>>,
 }
 
-// `Addr` does not have `Default` implemented, so we can't derive it
-impl<T: fmt::Display> Default for PositionBase<T> {
+// `Addr` does not have `Default` implemented, so we can't derive the Default trait
+impl<T> Default for PositionBase<T> {
     fn default() -> Self {
         PositionBase {
             bond_units: Uint128::zero(),
@@ -153,6 +193,10 @@ pub struct Snapshot {
     pub position: PositionUnchecked,
     pub health: Health,
 }
+
+//--------------------------------------------------------------------------------------------------
+// Message and response types
+//--------------------------------------------------------------------------------------------------
 
 pub mod msg {
     use super::*;
@@ -248,7 +292,7 @@ pub mod msg {
         /// Reduce the user's unlocked primary & secondary asset amounts to zero;
         /// Increase the user's unlocked share token amount
         ProvideLiquidity {
-            user_addr: Addr,
+            user_addr: Option<Addr>,
             slippage_tolerance: Option<Decimal>,
         },
         /// Burn the user's unlocked share tokens, receive primary & secondary assets;
@@ -261,7 +305,7 @@ pub mod msg {
         /// Reduce the user's unlocked share token amount to zero;
         /// Increase the user's bond units
         Bond {
-            user_addr: Addr,
+            user_addr: Option<Addr>,
         },
         /// Unbond share tokens from the staking contract;
         /// Reduce the user's bond units;
@@ -290,7 +334,7 @@ pub mod msg {
         ///
         /// If `swap_amount` is not provided, then use all available unlocked asset
         Swap {
-            user_addr: Addr,
+            user_addr: Option<Addr>,
             swap_amount: Option<Uint128>,
             belief_price: Option<Decimal>,
             max_spread: Option<Decimal>,
@@ -332,7 +376,7 @@ pub mod msg {
     pub enum QueryMsg {
         /// Return strategy configurations. Response: `ConfigUnchecked`
         Config {},
-        /// Return the global state of the strategy. Response: `State`
+        /// Return the global state of the strategy. Response: `StateUnchecked`
         State {},
         /// Return data on an individual user's position. Response: `PositionUnchecked`
         Position {

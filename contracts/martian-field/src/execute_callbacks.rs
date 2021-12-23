@@ -6,10 +6,10 @@ use cosmwasm_std::{
 };
 
 use fields_of_mars::adapters::{Asset, AssetInfo};
-use fields_of_mars::martian_field::Snapshot;
+use fields_of_mars::martian_field::{Position, Snapshot, State};
 
 use crate::helpers::{
-    add_unlocked_asset, compute_health, deduct_unlocked_asset, find_unlocked_asset,
+    add_asset_to_array, compute_health, deduct_asset_from_array, find_asset_in_array,
 };
 use crate::state::{CACHED_USER_ADDR, CONFIG, POSITION, SNAPSHOT, STATE};
 
@@ -18,43 +18,58 @@ static DEFAULT_DEBT_UNITS_PER_ASSET_BORROWED: Uint128 = Uint128::new(1_000_000);
 
 pub fn provide_liquidity(
     deps: DepsMut,
-    user_addr: Addr,
+    user_addr_option: Option<Addr>,
     slippage_tolerance: Option<Decimal>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
-    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
-    // We deposit *all* unlocked primary and secondary assets to AMM, assuming the functions invoking
-    // this callback have already did borrowing or swaps such that the values of the assets are about
-    // the same
+    // if `user_addr` is provided, we load the user's position and provide the user's unlocked assets
+    // if not provided, we load the state and provide the state's pending rewards
+    let mut state = State::default();
+    let mut position = Position::default();
+    let assets: &mut Vec<Asset>;
+    if let Some(user_addr) = &user_addr_option {
+        position = POSITION.load(deps.storage, user_addr).unwrap_or_default();
+        assets = &mut position.unlocked_assets;
+    } else {
+        state = STATE.load(deps.storage)?;
+        assets = &mut state.pending_rewards;
+    }
+
+    // We provide *all* available primary and secondary assets, assuming they are close in value.
+    // it is strongly recommended to use `slippage_tolerance` parameter here
     // NOTE: must deduct tax here!
-    let primary_asset_to_provide = position
-        .unlocked_assets
+    let primary_asset_to_provide = assets
         .iter()
         .cloned()
         .find(|asset| asset.info == config.primary_asset_info)
         .map(|asset| asset.deduct_tax(&deps.querier))
         .transpose()?
-        .ok_or_else(|| StdError::generic_err("no unlocked primary asset available"))?;
-    let secondary_asset_to_provide = position
-        .unlocked_assets
+        .ok_or_else(|| StdError::generic_err("no primary asset available"))?;
+    let secondary_asset_to_provide = assets
         .iter()
         .cloned()
         .find(|asset| asset.info == config.secondary_asset_info)
         .map(|asset| asset.deduct_tax(&deps.querier))
         .transpose()?
-        .ok_or_else(|| StdError::generic_err("no unlocked secondary asset available"))?;
+        .ok_or_else(|| StdError::generic_err("no secondary asset available"))?;
 
     // The total cost for providing liquidity is the amount to be provided plus tax. We deduct these
     // amounts from the user's unlocked assets
     let primary_asset_to_deduct = primary_asset_to_provide.add_tax(&deps.querier)?;
     let secondary_asset_to_deduct = secondary_asset_to_provide.add_tax(&deps.querier)?;
 
-    deduct_unlocked_asset(&mut position, &primary_asset_to_deduct)?;
-    deduct_unlocked_asset(&mut position, &secondary_asset_to_deduct)?;
+    deduct_asset_from_array(assets, &primary_asset_to_deduct)?;
+    deduct_asset_from_array(assets, &secondary_asset_to_deduct)?;
 
-    POSITION.save(deps.storage, &user_addr, &position)?;
-    CACHED_USER_ADDR.save(deps.storage, &user_addr)?;
+    // update storage
+    // if `user_addr` is provided, we cache it so that it can be accessed when handling the reply
+    if let Some(user_addr) = &user_addr_option {
+        POSITION.save(deps.storage, user_addr, &position)?;
+        CACHED_USER_ADDR.save(deps.storage, user_addr)?;
+    } else {
+        STATE.save(deps.storage, &state)?;
+    }
 
     Ok(Response::new()
         .add_submessages(config.pair.provide_submsgs(
@@ -81,7 +96,7 @@ pub fn withdraw_liquidity(deps: DepsMut, user_addr: Addr) -> StdResult<Response>
         .find(|asset| asset.info == AssetInfo::Cw20(config.pair.liquidity_token.clone()))
         .ok_or_else(|| StdError::generic_err("no unlocked share token available"))?;
 
-    deduct_unlocked_asset(&mut position, &share_asset_to_burn)?;
+    deduct_asset_from_array(&mut position.unlocked_assets, &share_asset_to_burn)?;
 
     POSITION.save(deps.storage, &user_addr, &position)?;
     CACHED_USER_ADDR.save(deps.storage, &user_addr)?;
@@ -92,48 +107,62 @@ pub fn withdraw_liquidity(deps: DepsMut, user_addr: Addr) -> StdResult<Response>
         .add_attribute("share_burned_amount", share_asset_to_burn.amount))
 }
 
-pub fn bond(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Response> {
+pub fn bond(deps: DepsMut, env: Env, user_addr_option: Option<Addr>) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
-    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
-    // We bond *all* of the user's unlocked share tokens
-    let share_asset_to_bond = position
-        .unlocked_assets
+    // if a user address is provided, we bond the user's unlocked liquidity tokens
+    // if not, we bond the state's pending liquidity tokens
+    let mut position = Position::default();
+    let assets: &mut Vec<Asset>;
+    if let Some(user_addr) = &user_addr_option {
+        position = POSITION.load(deps.storage, user_addr).unwrap_or_default();
+        assets = &mut position.unlocked_assets;
+    } else {
+        assets = &mut state.pending_rewards;
+    }
+
+    // We bond *all* of the available liquidity tokens
+    let liquidity_tokens_to_bond = assets
         .iter()
         .cloned()
         .find(|asset| asset.info == AssetInfo::Cw20(config.pair.liquidity_token.clone()))
-        .ok_or_else(|| StdError::generic_err("no unlocked share token available"))?;
+        .ok_or_else(|| StdError::generic_err("no liquidity token available"))?;
 
-    // Query how many share tokens is currently being bonded by us
+    // Query how many liquidity tokens is currently being bonded by us
     let (total_bonded_amount, _) =
         config.staking.query_reward_info(&deps.querier, &env.contract.address, env.block.height)?;
 
     // Calculate how by many the user's bond units should be increased
-    // 1. If user address is the `reward` (meaning this is a harvest transaction) then we don't
+    // 1. If no user address is provided (meaning this is a harvest operation) then we don't
     // increment bond units
     // 2. If total bonded shares is zero, then we define 1 unit of share token bonded = 1,000,000 bond units
-    let bond_units_to_add = if user_addr == Addr::unchecked("reward") {
+    let bond_units_to_add = if user_addr_option.is_none() {
         Uint128::zero()
     } else if total_bonded_amount.is_zero() {
-        share_asset_to_bond.amount * DEFAULT_BOND_UNITS_PER_SHARE_BONDED
+        liquidity_tokens_to_bond.amount * DEFAULT_BOND_UNITS_PER_SHARE_BONDED
     } else {
-        state.total_bond_units.multiply_ratio(share_asset_to_bond.amount, total_bonded_amount)
+        state.total_bond_units.multiply_ratio(liquidity_tokens_to_bond.amount, total_bonded_amount)
     };
 
+    // deduct available amount
+    deduct_asset_from_array(assets, &liquidity_tokens_to_bond)?;
+
+    // update state
     state.total_bond_units += bond_units_to_add;
-    position.bond_units += bond_units_to_add;
-
-    deduct_unlocked_asset(&mut position, &share_asset_to_bond)?;
-
     STATE.save(deps.storage, &state)?;
-    POSITION.save(deps.storage, &user_addr, &position)?;
+
+    // if a user address is provided, update the position
+    if let Some(user_addr) = &user_addr_option {
+        position.bond_units += bond_units_to_add;
+        POSITION.save(deps.storage, &user_addr, &position)?;
+    }
 
     Ok(Response::new()
-        .add_message(config.staking.bond_msg(share_asset_to_bond.amount)?)
+        .add_message(config.staking.bond_msg(liquidity_tokens_to_bond.amount)?)
         .add_attribute("action", "martian_field :: callback :: bond")
         .add_attribute("bond_units_added", bond_units_to_add)
-        .add_attribute("share_bonded_amount", share_asset_to_bond.amount))
+        .add_attribute("share_bonded_amount", liquidity_tokens_to_bond.amount))
 }
 
 pub fn unbond(
@@ -157,7 +186,10 @@ pub fn unbond(
     state.total_bond_units -= bond_units_to_deduct;
     position.bond_units -= bond_units_to_deduct;
 
-    add_unlocked_asset(&mut position, &Asset::cw20(&config.pair.liquidity_token, amount_to_unbond));
+    add_asset_to_array(
+        &mut position.unlocked_assets,
+        &Asset::cw20(&config.pair.liquidity_token, amount_to_unbond),
+    );
 
     STATE.save(deps.storage, &state)?;
     POSITION.save(deps.storage, &user_addr, &position)?;
@@ -207,7 +239,7 @@ pub fn borrow(
     state.total_debt_units += debt_units_to_add;
     position.debt_units += debt_units_to_add;
 
-    add_unlocked_asset(&mut position, &secondary_asset_to_add);
+    add_asset_to_array(&mut position.unlocked_assets, &secondary_asset_to_add);
 
     STATE.save(deps.storage, &state)?;
     POSITION.save(deps.storage, &user_addr, &position)?;
@@ -261,7 +293,7 @@ pub fn repay(
     state.total_debt_units -= debt_units_to_deduct;
     position.debt_units -= debt_units_to_deduct;
 
-    deduct_unlocked_asset(&mut position, &secondary_asset_to_deduct)?;
+    deduct_asset_from_array(&mut position.unlocked_assets, &secondary_asset_to_deduct)?;
 
     STATE.save(deps.storage, &state)?;
     POSITION.save(deps.storage, &user_addr, &position)?;
@@ -276,19 +308,31 @@ pub fn repay(
 
 pub fn swap(
     deps: DepsMut,
-    user_addr: Addr,
+    user_addr_option: Option<Addr>,
     swap_amount_option: Option<Uint128>,
     belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
-    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
-    // if offer amount is unspecified, we offer all the user's unlocked amount minux tax
+    // if `user_addr` is provided, we load the user's position and swap the user's unlocked assets
+    // if not provided, we load the state and swap the state's pending rewards
+    let mut state = State::default();
+    let mut position = Position::default();
+    let assets: &mut Vec<Asset>;
+    if let Some(user_addr) = &user_addr_option {
+        position = POSITION.load(deps.storage, user_addr).unwrap_or_default();
+        assets = &mut position.unlocked_assets;
+    } else {
+        state = STATE.load(deps.storage)?;
+        assets = &mut state.pending_rewards;
+    }
+
+    // if swap amount is unspecified, we swap all that's available, minux tax
     let offer_asset = if let Some(swap_amount) = swap_amount_option {
         Asset::new(&config.primary_asset_info, swap_amount)
     } else {
-        find_unlocked_asset(&position, &config.primary_asset_info).deduct_tax(&deps.querier)?
+        find_asset_in_array(assets, &config.primary_asset_info).deduct_tax(&deps.querier)?
     };
 
     // if offer amount is zero, we do nothing
@@ -296,22 +340,21 @@ pub fn swap(
         return Ok(Response::default());
     }
 
-    // handle tax
-    let offer_asset_to_send = offer_asset.deduct_tax(&deps.querier)?;
-    let offer_asset_to_deduct = offer_asset_to_send.add_tax(&deps.querier)?;
+    // deduct offer asset from the available amount
+    let offer_asset_to_deduct = offer_asset.add_tax(&deps.querier)?;
+    deduct_asset_from_array(assets, &offer_asset_to_deduct)?;
 
-    deduct_unlocked_asset(&mut position, &offer_asset_to_deduct)?;
-
-    POSITION.save(deps.storage, &user_addr, &position)?;
-    CACHED_USER_ADDR.save(deps.storage, &user_addr)?;
+    // update storage
+    // if `user_addr` is provided, we cache it so that it can be accessed when handling the reply
+    if let Some(user_addr) = &user_addr_option {
+        POSITION.save(deps.storage, user_addr, &position)?;
+        CACHED_USER_ADDR.save(deps.storage, user_addr)?;
+    } else {
+        STATE.save(deps.storage, &state)?;
+    }
 
     Ok(Response::new()
-        .add_submessage(config.pair.swap_submsg(
-            2,
-            &offer_asset_to_send,
-            belief_price,
-            max_spread,
-        )?)
+        .add_submessage(config.pair.swap_submsg(2, &offer_asset, belief_price, max_spread)?)
         .add_attribute("action", "martian_field :: callback :: swap")
         .add_attribute("asset_offered", offer_asset.to_string())
         .add_attribute("asset_deducted", offer_asset_to_deduct.to_string()))
@@ -344,7 +387,7 @@ pub fn refund(
         .collect();
 
     for asset in &assets_to_deduct {
-        deduct_unlocked_asset(&mut position, asset)?;
+        deduct_asset_from_array(&mut position.unlocked_assets, asset)?;
     }
 
     POSITION.save(deps.storage, &user_addr, &position)?;
