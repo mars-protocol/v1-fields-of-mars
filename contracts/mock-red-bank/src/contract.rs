@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, Uint128,
+    entry_point, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo,
+    Response, StdError, StdResult, Uint128,
 };
 use cw20::Cw20ReceiveMsg;
 
@@ -10,7 +10,7 @@ use mars_core::asset::{Asset as MarsAsset, AssetType as MarsAssetType};
 use mars_core::red_bank::msg::{QueryMsg, ReceiveMsg};
 use mars_core::red_bank::UserAssetDebtResponse;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg};
+use crate::msg::ExecuteMsg;
 use crate::state::DEBT_AMOUNT;
 
 // INIT
@@ -20,7 +20,7 @@ pub fn instantiate(
     _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: InstantiateMsg,
+    _msg: Empty,
 ) -> StdResult<Response> {
     Ok(Response::default()) // do nothing
 }

@@ -1,7 +1,7 @@
 use std::str;
 
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response,
+    entry_point, to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, QueryRequest, Response,
     StdError, StdResult, WasmQuery,
 };
 
@@ -14,7 +14,6 @@ use mars_core::oracle::{PriceSourceChecked, PriceSourceUnchecked};
 
 use astroport::pair::{QueryMsg as AstroportQueryMsg, SimulationResponse};
 
-use crate::msg::InstantiateMsg;
 use crate::state::PRICE_SOURCE;
 
 static PROBE_AMOUNT: u128 = 1000000;
@@ -26,7 +25,7 @@ pub fn instantiate(
     _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: InstantiateMsg,
+    _msg: Empty,
 ) -> StdResult<Response> {
     Ok(Response::default()) // do nothing
 }
