@@ -1,5 +1,5 @@
 [package]
-name = "mock-anchor"
+name = "mock-astro-generator"
 version = "0.5.0"
 authors = ["larry_0x <larry@delphidigital.io>"]
 edition = "2018"
@@ -15,11 +15,9 @@ backtraces = ["cosmwasm-std/backtraces"]
 [dependencies]
 fields-of-mars = { path = "../../packages/fields-of-mars" }
 
-anchor-token = "0.2.0"
+astroport = "0.3.1"
 
 cosmwasm-std = "0.16.0"
-# Anchor uses cw80 0.8.0 which is not compatible with the latest (0.9.1)
-cw20 = "0.8.0"
 cw-storage-plus = "0.9.1"
 
 schemars = "0.8.1"
