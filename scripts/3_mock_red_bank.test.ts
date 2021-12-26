@@ -3,34 +3,25 @@ import { LocalTerra, MsgExecuteContract, MsgSend } from "@terra-money/terra.js";
 import { expect } from "chai";
 import { deployRedBank } from "./fixture";
 import { queryNativeBalance, sendTransaction } from "./helpers";
-import { Contract } from "./types";
+import { UserAssetDebtResponse } from "./types";
 
 const terra = new LocalTerra();
 const deployer = terra.wallets.test1;
 const user = terra.wallets.test2;
 
-let redBank: Contract;
-
-interface UserAssetDebtResponse {
-  denom: string;
-  amount: string;
-}
+let bank: string;
 
 //--------------------------------------------------------------------------------------------------
 // Setup
 //--------------------------------------------------------------------------------------------------
 
 async function setupTest() {
-  redBank = await deployRedBank(terra, deployer);
+  ({ bank } = await deployRedBank(terra, deployer));
 
   process.stdout.write("Fund contract with LUNA and UST...");
 
   await sendTransaction(terra, deployer, [
-    new MsgSend(
-      deployer.key.accAddress,
-      redBank.address,
-      { uluna: 100000000, uusd: 100000000 } // fund contract with 100 LUNA + 100 UST
-    ),
+    new MsgSend(deployer.key.accAddress, bank, { uluna: 100000000, uusd: 100000000 }),
   ]);
 
   console.log(chalk.green("Done!"));
@@ -45,8 +36,8 @@ async function testBorrow() {
 
   const userLunaBalanceBefore = await queryNativeBalance(terra, user.key.accAddress, "uluna");
 
-  const result = await sendTransaction(terra, user, [
-    new MsgExecuteContract(user.key.accAddress, redBank.address, {
+  await sendTransaction(terra, user, [
+    new MsgExecuteContract(user.key.accAddress, bank, {
       borrow: {
         asset: {
           native: {
@@ -60,11 +51,9 @@ async function testBorrow() {
 
   const userLunaBalanceAfter = await queryNativeBalance(terra, user.key.accAddress, "uluna");
 
-  // Note: transfer of LUNA is not subject to tax
-  // we also paid tx fee in uusd so no need to deduct here
   expect(parseInt(userLunaBalanceAfter) - parseInt(userLunaBalanceBefore)).to.equal(42000000);
 
-  const response: UserAssetDebtResponse = await terra.wasm.contractQuery(redBank.address, {
+  const response: UserAssetDebtResponse = await terra.wasm.contractQuery(bank, {
     user_asset_debt: {
       user_address: user.key.accAddress,
       asset: {
@@ -90,7 +79,7 @@ async function testRepay() {
   await sendTransaction(terra, user, [
     new MsgExecuteContract(
       user.key.accAddress,
-      redBank.address,
+      bank,
       {
         repay_native: {
           denom: "uluna",
@@ -101,7 +90,7 @@ async function testRepay() {
   ]);
 
   // 42000000 - 12345678 = 29654322 uluna
-  const response: UserAssetDebtResponse = await terra.wasm.contractQuery(redBank.address, {
+  const response: UserAssetDebtResponse = await terra.wasm.contractQuery(bank, {
     user_asset_debt: {
       user_address: user.key.accAddress,
       asset: {
@@ -111,7 +100,6 @@ async function testRepay() {
       },
     },
   });
-
   expect(response.amount).to.equal("29654322");
 
   console.log(chalk.green("Passed!"));
@@ -125,7 +113,7 @@ async function testSetUserDebt() {
   process.stdout.write("3. [mock] Set user debt... ");
 
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, redBank.address, {
+    new MsgExecuteContract(deployer.key.accAddress, bank, {
       set_user_debt: {
         user_address: user.key.accAddress,
         denom: "uluna",
@@ -134,7 +122,7 @@ async function testSetUserDebt() {
     }),
   ]);
 
-  const response: UserAssetDebtResponse = await terra.wasm.contractQuery(redBank.address, {
+  const response: UserAssetDebtResponse = await terra.wasm.contractQuery(bank, {
     user_asset_debt: {
       user_address: user.key.accAddress,
       asset: {
@@ -144,7 +132,6 @@ async function testSetUserDebt() {
       },
     },
   });
-
   expect(response.amount).to.equal("69420");
 
   console.log(chalk.green("Passed!"));
@@ -155,16 +142,16 @@ async function testSetUserDebt() {
 //--------------------------------------------------------------------------------------------------
 
 (async () => {
-  console.log(chalk.yellow("\nTest: Info"));
+  console.log(chalk.yellow("\nInfo"));
 
   console.log(`Use ${chalk.cyan(deployer.key.accAddress)} as deployer`);
   console.log(`Use ${chalk.cyan(user.key.accAddress)} as user`);
 
-  console.log(chalk.yellow("\nTest: Setup"));
+  console.log(chalk.yellow("\nSetup"));
 
   await setupTest();
 
-  console.log(chalk.yellow("\nTest: Mock Red Bank"));
+  console.log(chalk.yellow("\nTests"));
 
   await testBorrow();
   await testRepay();

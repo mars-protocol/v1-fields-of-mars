@@ -1,31 +1,42 @@
 import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract } from "@terra-money/terra.js";
 import { expect } from "chai";
-import { deployCw20Token, deployAstroport, deployOracle } from "./fixture";
-import { sendTransaction, toUtf8Array, computeSwapOutput } from "./helpers";
-import { Protocols, Contract } from "./types";
+import {
+  deployCw20Token,
+  deployAstroportFactory,
+  deployAstroportPair,
+  deployOracle,
+} from "./fixture";
+import { sendTransaction, encodeUtf8 } from "./helpers";
+import { SimulationResponse } from "./types";
 
 const terra = new LocalTerra();
 const deployer = terra.wallets.test1;
 const user = terra.wallets.test2;
 
-let cw20Token: Contract;
-let astroport: Protocols.Astroport;
-let oracle: Contract;
+let testToken: string;
+let astroportFactory: string;
+let astroportPair: string;
+let oracle: string;
 
 //--------------------------------------------------------------------------------------------------
 // Setup
 //--------------------------------------------------------------------------------------------------
 
 async function setupTest() {
-  cw20Token = await deployCw20Token(terra, deployer);
-  astroport = await deployAstroport(terra, deployer, cw20Token);
-  oracle = await deployOracle(terra, deployer);
+  let { cw20CodeId, address } = await deployCw20Token(terra, deployer);
+  testToken = address;
+
+  ({ astroportFactory } = await deployAstroportFactory(terra, deployer, cw20CodeId));
+
+  ({ astroportPair } = await deployAstroportPair(terra, deployer, astroportFactory, testToken));
+
+  ({ oracle } = await deployOracle(terra, deployer));
 
   process.stdout.write("Setting asset: Fixed...");
 
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, oracle.address, {
+    new MsgExecuteContract(deployer.key.accAddress, oracle, {
       set_asset: {
         asset: {
           native: {
@@ -46,17 +57,17 @@ async function setupTest() {
   process.stdout.write("Setting asset: Spot...");
 
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, oracle.address, {
+    new MsgExecuteContract(deployer.key.accAddress, oracle, {
       set_asset: {
         asset: {
           cw20: {
-            contract_addr: cw20Token.address,
+            contract_addr: testToken,
           },
         },
         price_source: {
           astroport_spot: {
-            pair_address: astroport.pair.address,
-            asset_address: cw20Token.address,
+            pair_address: astroportPair,
+            asset_address: testToken,
           },
         },
       },
@@ -65,10 +76,10 @@ async function setupTest() {
 
   console.log(chalk.green("Done!"));
 
-  process.stdout.write("Fund user1 with tokens... ");
+  process.stdout.write("Fund user with tokens... ");
 
   await sendTransaction(terra, deployer, [
-    new MsgExecuteContract(deployer.key.accAddress, cw20Token.address, {
+    new MsgExecuteContract(deployer.key.accAddress, testToken, {
       mint: {
         recipient: user.key.accAddress,
         amount: "694200000000",
@@ -81,15 +92,15 @@ async function setupTest() {
   process.stdout.write("Providing liquidity to Astroport pair... ");
 
   await sendTransaction(terra, user, [
-    new MsgExecuteContract(user.key.accAddress, cw20Token.address, {
+    new MsgExecuteContract(user.key.accAddress, testToken, {
       increase_allowance: {
         amount: "694200000000",
-        spender: astroport.pair.address,
+        spender: astroportPair,
       },
     }),
     new MsgExecuteContract(
       user.key.accAddress,
-      astroport.pair.address,
+      astroportPair,
       {
         provide_liquidity: {
           assets: [
@@ -104,7 +115,7 @@ async function setupTest() {
             {
               info: {
                 token: {
-                  contract_addr: cw20Token.address,
+                  contract_addr: testToken,
                 },
               },
               amount: "694200000000",
@@ -128,9 +139,9 @@ async function setupTest() {
 async function testFixedPrice() {
   process.stdout.write("1. Fixed price... ");
 
-  const response: string = await terra.wasm.contractQuery(oracle.address, {
+  const response: string = await terra.wasm.contractQuery(oracle, {
     asset_price_by_reference: {
-      asset_reference: toUtf8Array("uusd"),
+      asset_reference: encodeUtf8("uusd"),
     },
   });
 
@@ -146,14 +157,27 @@ async function testFixedPrice() {
 async function testSpotPrice() {
   process.stdout.write("2. Spot price... ");
 
-  const response: string = await terra.wasm.contractQuery(oracle.address, {
+  const response: string = await terra.wasm.contractQuery(oracle, {
     asset_price_by_reference: {
-      asset_reference: toUtf8Array(cw20Token.address),
+      asset_reference: encodeUtf8(testToken),
     },
   });
 
-  const { returnAmount, commission } = computeSwapOutput(1000000, 694200000000, 888888000000);
-  const price = (parseInt(returnAmount) + parseInt(commission)) / 1000000;
+  const simulation: SimulationResponse = await terra.wasm.contractQuery(astroportPair, {
+    simulation: {
+      offer_asset: {
+        info: {
+          token: {
+            contract_addr: testToken,
+          },
+        },
+        amount: "1000000",
+      },
+    },
+  });
+
+  const price =
+    (parseInt(simulation.return_amount) + parseInt(simulation.commission_amount)) / 1000000;
 
   expect(response).to.equal(price.toString());
 
@@ -165,16 +189,16 @@ async function testSpotPrice() {
 //--------------------------------------------------------------------------------------------------
 
 (async () => {
-  console.log(chalk.yellow("\nTest: Info"));
+  console.log(chalk.yellow("\nInfo"));
 
   console.log(`Use ${chalk.cyan(deployer.key.accAddress)} as deployer`);
   console.log(`Use ${chalk.cyan(user.key.accAddress)} as user`);
 
-  console.log(chalk.yellow("\nTest: Setup"));
+  console.log(chalk.yellow("\nSetup"));
 
   await setupTest();
 
-  console.log(chalk.yellow("\nTest: Mock Oracle"));
+  console.log(chalk.yellow("\nTests"));
 
   await testFixedPrice();
   await testSpotPrice();

@@ -1,15 +1,14 @@
 {
   "dependencies": {
     "@terra-money/terra.js": "^2.0.1",
-    "@types/bn.js": "^5.1.0",
     "bn.js": "^5.2.0",
     "chai": "^4.3.4",
     "chalk": "^4.1.2",
     "dotenv": "^10.0.0",
-    "table": "^6.7.1",
     "yargs": "^17.1.1"
   },
   "devDependencies": {
+    "@types/bn.js": "^5.1.0",
     "@types/chai": "^4.2.21",
     "@types/chalk": "^2.2.0",
     "@types/yargs": "^17.0.2",
