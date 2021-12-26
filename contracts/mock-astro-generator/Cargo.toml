@@ -18,6 +18,7 @@ fields-of-mars = { path = "../../packages/fields-of-mars" }
 astroport = "0.3.1"
 
 cosmwasm-std = "0.16.0"
+cw20 = "0.8.0" # Astroport uses cw-plus 0.8, while Mars uses 0.9, which are not compatible in some cases
 cw-storage-plus = "0.9.1"
 
 schemars = "0.8.1"

@@ -239,18 +239,6 @@ dependencies = [
 
 [[package]]
 name = "cw2"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51698a50df8be3d31d7261082f052685d04fe6289df89792fd4efa41daee8b90"
-dependencies = [
- "cosmwasm-std",
- "cw-storage-plus 0.8.0",
- "schemars",
- "serde",
-]
-
-[[package]]
-name = "cw2"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c6380164fb236412ff43c7ca075d95847c6fa8c51b2d3a513c23127a0f2a8f6"
@@ -294,7 +282,7 @@ dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.9.1",
  "cw0 0.9.1",
- "cw2 0.9.1",
+ "cw2",
  "cw20 0.9.1",
  "schemars",
  "serde",
@@ -387,7 +375,6 @@ dependencies = [
  "cosmwasm-std",
  "cw20 0.9.1",
  "mars-core",
- "mars-periphery",
  "mirror-protocol",
  "schemars",
  "serde",
@@ -482,28 +469,12 @@ name = "mars-core"
 version = "1.0.0"
 dependencies = [
  "cosmwasm-std",
- "cw2 0.9.1",
+ "cw2",
  "cw20 0.9.1",
  "cw20-base",
  "schemars",
  "serde",
  "terra-cosmwasm",
- "thiserror",
-]
-
-[[package]]
-name = "mars-periphery"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-bignumber",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw2 0.8.0",
- "cw20 0.8.0",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "terraswap",
  "thiserror",
 ]
 
@@ -533,27 +504,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "mock-anchor"
+name = "mock-astro-generator"
 version = "0.5.0"
 dependencies = [
- "anchor-token",
+ "astroport",
  "cosmwasm-std",
  "cw-storage-plus 0.9.1",
  "cw20 0.8.0",
  "fields-of-mars",
- "schemars",
- "serde",
-]
-
-[[package]]
-name = "mock-mirror"
-version = "0.5.0"
-dependencies = [
- "cosmwasm-std",
- "cw-storage-plus 0.9.1",
- "cw20 0.8.0",
- "fields-of-mars",
- "mirror-protocol",
  "schemars",
  "serde",
 ]
