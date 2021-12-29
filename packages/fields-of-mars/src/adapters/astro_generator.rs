@@ -11,7 +11,7 @@ use astroport::generator::{
     Cw20HookMsg, ExecuteMsg, PendingTokenResponse, QueryMsg, RewardInfoResponse,
 };
 
-use super::asset::Asset;
+use cw_asset::Asset;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GeneratorBase<T> {
@@ -131,11 +131,11 @@ impl Generator {
             }))?;
 
         let mut rewards: Vec<Asset> = vec![];
-        rewards.push(Asset::cw20(&reward_info.base_reward_token, pending_tokens.pending));
+        rewards.push(Asset::cw20(reward_info.base_reward_token, pending_tokens.pending));
 
         if let Some(proxy_reward_token) = reward_info.proxy_reward_token {
             rewards.push(Asset::cw20(
-                &proxy_reward_token,
+                proxy_reward_token,
                 pending_tokens.pending_on_proxy.unwrap_or_else(Uint128::zero),
             ))
         }

@@ -1,9 +1,10 @@
 use cosmwasm_std::{DepsMut, Response, StdResult, SubMsgExecutionResponse};
 
-use fields_of_mars::adapters::{Asset, Pair};
+use cw_asset::{Asset, AssetList};
+
+use fields_of_mars::adapters::Pair;
 use fields_of_mars::martian_field::{Position, State};
 
-use crate::helpers::add_asset_to_array;
 use crate::state::{CACHED_USER_ADDR, CONFIG, POSITION, STATE};
 
 pub fn after_provide_liquidity(
@@ -21,7 +22,7 @@ pub fn after_provide_liquidity(
     // if not, we update the state's pending rewards
     let mut state = State::default();
     let mut position = Position::default();
-    let assets: &mut Vec<Asset>;
+    let assets: &mut AssetList;
     if let Some(user_addr) = &user_addr_option {
         position = POSITION.load(deps.storage, user_addr).unwrap_or_default();
         assets = &mut position.unlocked_assets;
@@ -30,10 +31,10 @@ pub fn after_provide_liquidity(
         assets = &mut state.pending_rewards;
     }
 
-    let share_minted_amount = Pair::parse_provide_events(&response.events)?;
-    let shares_to_add = Asset::cw20(&config.pair.liquidity_token, share_minted_amount);
-
-    add_asset_to_array(assets, &shares_to_add);
+    let liquidity_token_minted_amount = Pair::parse_provide_events(&response.events)?;
+    let liquidity_token_minted =
+        Asset::cw20(config.pair.liquidity_token.clone(), liquidity_token_minted_amount);
+    assets.add(&liquidity_token_minted)?;
 
     // save the updated state/position
     if let Some(user_addr) = &user_addr_option {
@@ -47,7 +48,7 @@ pub fn after_provide_liquidity(
 
     Ok(Response::new()
         .add_attribute("action", "martian_field :: reply :: after_provide_liquidity")
-        .add_attribute("share_added_amount", shares_to_add.amount))
+        .add_attribute("liquidity_token_minted", liquidity_token_minted.amount))
 }
 
 pub fn after_withdraw_liquidity(
@@ -67,11 +68,13 @@ pub fn after_withdraw_liquidity(
     // The withdrawn amounts returned in Astroport's response event are the pre-tax amounts. We need
     // to deduct tax to find the amounts we actually received. We add the after-tax amounts to the
     // user's unlocked assets
-    let primary_asset_to_add = primary_asset_withdrawn.deduct_tax(&deps.querier)?;
-    let secondary_asset_to_add = secondary_asset_withdrawn.deduct_tax(&deps.querier)?;
+    let mut primary_asset_to_add = primary_asset_withdrawn.clone();
+    primary_asset_to_add.deduct_tax(&deps.querier)?;
+    let mut secondary_asset_to_add = secondary_asset_withdrawn.clone();
+    secondary_asset_to_add.deduct_tax(&deps.querier)?;
 
-    add_asset_to_array(&mut position.unlocked_assets, &primary_asset_to_add);
-    add_asset_to_array(&mut position.unlocked_assets, &secondary_asset_to_add);
+    position.unlocked_assets.add(&primary_asset_to_add)?;
+    position.unlocked_assets.add(&secondary_asset_to_add)?;
 
     POSITION.save(deps.storage, &user_addr, &position)?;
     CACHED_USER_ADDR.remove(deps.storage);
@@ -97,7 +100,7 @@ pub fn after_swap(deps: DepsMut, response: SubMsgExecutionResponse) -> StdResult
     // if not, we update the state's pending rewards
     let mut state = State::default();
     let mut position = Position::default();
-    let assets: &mut Vec<Asset>;
+    let assets: &mut AssetList;
     if let Some(user_addr) = &user_addr_option {
         position = POSITION.load(deps.storage, user_addr).unwrap_or_default();
         assets = &mut position.unlocked_assets;
@@ -109,13 +112,14 @@ pub fn after_swap(deps: DepsMut, response: SubMsgExecutionResponse) -> StdResult
     // parse Astroport's event log to find out how much asset was returned from the swap
     let secondary_asset_returned_amount = Pair::parse_swap_events(&response.events)?;
     let secondary_asset_returned =
-        Asset::new(&config.secondary_asset_info, secondary_asset_returned_amount);
+        Asset::new(config.secondary_asset_info.clone(), secondary_asset_returned_amount);
 
     // the return amount returned in Astroport's response event is the pre-tax amount. we need to
     // deduct tax to find the amount we actually received. we add the after-tax amount to the user's
     // unlocked asset
-    let secondary_asset_to_add = secondary_asset_returned.deduct_tax(&deps.querier)?;
-    add_asset_to_array(assets, &secondary_asset_to_add);
+    let mut secondary_asset_to_add = secondary_asset_returned.clone();
+    secondary_asset_to_add.deduct_tax(&deps.querier)?;
+    assets.add(&secondary_asset_to_add)?;
 
     // save the updated state/position
     if let Some(user_addr) = &user_addr_option {

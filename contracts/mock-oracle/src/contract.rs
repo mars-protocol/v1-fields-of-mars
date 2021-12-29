@@ -5,7 +5,7 @@ use cosmwasm_std::{
     StdError, StdResult, WasmQuery,
 };
 
-use fields_of_mars::adapters::Asset;
+use cw_asset::Asset;
 
 use mars_core::asset::Asset as MarsAsset;
 use mars_core::math::decimal::Decimal as MarsDecimal;
@@ -103,7 +103,7 @@ fn query_asset_price(deps: Deps, _env: Env, asset_reference: &[u8]) -> StdResult
             // is the token contract address
             let asset_address_str = str::from_utf8(asset_reference)?;
             let asset_address = deps.api.addr_validate(asset_address_str)?;
-            let offer_asset = Asset::cw20(&asset_address, PROBE_AMOUNT);
+            let offer_asset = Asset::cw20(asset_address, PROBE_AMOUNT);
 
             let response: SimulationResponse =
                 deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {

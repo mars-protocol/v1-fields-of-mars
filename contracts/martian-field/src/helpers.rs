@@ -1,8 +1,10 @@
 use cosmwasm_std::{
-    Decimal, Env, QuerierWrapper, Reply, StdError, StdResult, SubMsgExecutionResponse, Uint128,
+    Coin, Decimal, Env, QuerierWrapper, Reply, StdError, StdResult, SubMsgExecutionResponse,
+    Uint128,
 };
 
-use fields_of_mars::adapters::{Asset, AssetInfo};
+use cw_asset::{Asset, AssetList};
+
 use fields_of_mars::martian_field::{Config, Health, Position, State};
 
 /// Extract response from reply
@@ -10,50 +12,26 @@ pub fn unwrap_reply(reply: Reply) -> StdResult<SubMsgExecutionResponse> {
     reply.result.into_result().map_err(|e| StdError::generic_err(e))
 }
 
-/// Given an array of assets, find the one that match given asset info
-///
-/// If not found, returns an asset of zero amount
-pub fn find_asset_in_array(assets: &[Asset], asset_info: &AssetInfo) -> Asset {
-    match assets.iter().find(|asset| &asset.info == asset_info) {
-        Some(asset) => asset.clone(),
-        None => Asset::new(asset_info, Uint128::zero()),
-    }
-}
+/// Assert that fund of exactly the same type and amount was sent along with a message
+pub fn assert_sent_fund(expected: &Asset, received: &[Coin]) -> StdResult<()> {
+    let list = AssetList::from(received);
 
-/// Given an array of assets, find the one that match given asset info, and increment the amount.
-///
-/// If not found, append the asset with given amount at the end of the array.
-///
-/// Return the amount after the increment.
-pub fn add_asset_to_array(assets: &mut Vec<Asset>, asset_to_add: &Asset) -> Asset {
-    match assets.iter_mut().find(|asset| asset.info == asset_to_add.info) {
-        Some(asset) => {
-            asset.amount += asset_to_add.amount;
-            asset.clone()
-        }
-        None => {
-            assets.push(asset_to_add.clone());
-            asset_to_add.clone()
-        }
-    }
-}
-
-/// Same with `add_asset` but reduce the amount instead
-///
-/// If the amount is reduced to zero, we remove the asset from the vector
-pub fn deduct_asset_from_array(assets: &mut Vec<Asset>, asset_to_deduct: &Asset) -> StdResult<()> {
-    match assets.iter_mut().find(|asset| asset.info == asset_to_deduct.info) {
-        Some(asset) => {
-            asset.amount -= asset_to_deduct.amount;
-        }
-        None => {
-            return Err(StdError::generic_err("cannot find asset to deduct"));
-        }
+    let received_amount = if let Some(received_asset) = list.find(&expected.info) {
+        received_asset.amount
+    } else {
+        Uint128::zero()
     };
-    assets.retain(|asset| !asset.amount.is_zero());
-    Ok(())
+
+    if received_amount == expected.amount {
+        Ok(())
+    } else {
+        Err(StdError::generic_err(
+            format!("sent fund mismatch! expected: {}, received {}", expected, received_amount)
+        ))
+    }
 }
 
+/// Compute the health of a user's position
 pub fn compute_health(
     querier: &QuerierWrapper,
     env: &Env,
@@ -118,95 +96,4 @@ pub fn compute_health(
         debt_value,
         ltv,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use cosmwasm_std::Addr;
-    use fields_of_mars::adapters::AssetInfo;
-    use fields_of_mars::testing::{assert_eq_vec, assert_generic_error_message};
-
-    #[test]
-    fn test_add_asset_to_array() {
-        let mut position = Position::default();
-
-        let primary_asset_info = AssetInfo::Cw20(Addr::unchecked("anchor_token"));
-        let secondary_asset_info = AssetInfo::Native("uusd".to_string());
-
-        let asset = add_asset_to_array(
-            &mut position.unlocked_assets,
-            &Asset::new(&primary_asset_info, Uint128::new(12345)),
-        );
-
-        assert_eq!(asset.amount, Uint128::new(12345));
-        assert_eq_vec(
-            position.unlocked_assets.clone(),
-            vec![Asset::new(&primary_asset_info, 12345u128)],
-        );
-
-        let asset = add_asset_to_array(
-            &mut position.unlocked_assets,
-            &Asset::new(&secondary_asset_info, Uint128::new(69420)),
-        );
-
-        assert_eq!(asset.amount, Uint128::new(69420));
-        assert_eq_vec(
-            position.unlocked_assets.clone(),
-            vec![
-                Asset::new(&primary_asset_info, 12345u128),
-                Asset::new(&secondary_asset_info, 69420u128),
-            ],
-        );
-
-        let asset = add_asset_to_array(
-            &mut position.unlocked_assets,
-            &Asset::new(&primary_asset_info, Uint128::new(88888)),
-        );
-
-        assert_eq!(asset.amount, Uint128::new(101233)); // 12345 + 88888
-        assert_eq_vec(
-            position.unlocked_assets,
-            vec![
-                Asset::new(&primary_asset_info, 101233u128),
-                Asset::new(&secondary_asset_info, 69420u128),
-            ],
-        );
-    }
-
-    #[test]
-    fn test_deduct_asset_from_array() {
-        let mut position = Position::default();
-
-        let primary_asset_info = AssetInfo::Cw20(Addr::unchecked("anchor_token"));
-        let secondary_asset_info = AssetInfo::Native("uusd".to_string());
-
-        position.unlocked_assets.push(Asset::new(&primary_asset_info, 88888u128));
-
-        let result = deduct_asset_from_array(
-            &mut position.unlocked_assets,
-            &Asset::new(&secondary_asset_info, Uint128::new(69420)),
-        );
-
-        assert_generic_error_message(result, "cannot find asset to deduct");
-
-        deduct_asset_from_array(
-            &mut position.unlocked_assets,
-            &Asset::new(&primary_asset_info, Uint128::new(69420)),
-        )
-        .unwrap();
-
-        assert_eq_vec(
-            position.unlocked_assets.clone(),
-            vec![Asset::new(&primary_asset_info, 19468u128)],
-        );
-
-        deduct_asset_from_array(
-            &mut position.unlocked_assets,
-            &Asset::new(&primary_asset_info, Uint128::new(19468)),
-        )
-        .unwrap();
-
-        assert_eq!(position.unlocked_assets.len(), 0); // assets with zero amount should have been removed
-    }
 }

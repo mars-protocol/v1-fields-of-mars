@@ -9,65 +9,11 @@ use cw20::Cw20ExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use astroport::asset::{Asset as AstroportAsset, AssetInfo as AstroportAssetInfo};
 use astroport::pair::{Cw20HookMsg, ExecuteMsg, PoolResponse, QueryMsg};
 
-use crate::adapters::{Asset, AssetInfo};
+use cw_asset::{Asset, AssetInfo};
 
 use self::helpers::*;
-
-//--------------------------------------------------------------------------------------------------
-// Asset: conversions and comparisons between Fields of Mars asset types and Astroport asset types
-//--------------------------------------------------------------------------------------------------
-
-impl From<Asset> for AstroportAsset {
-    fn from(asset: Asset) -> Self {
-        Self {
-            info: asset.info.into(),
-            amount: asset.amount,
-        }
-    }
-}
-
-impl From<AssetInfo> for AstroportAssetInfo {
-    fn from(asset_info: AssetInfo) -> Self {
-        match asset_info {
-            AssetInfo::Cw20(contract_addr) => Self::Token {
-                contract_addr,
-            },
-            AssetInfo::Native(denom) => Self::NativeToken {
-                denom,
-            },
-        }
-    }
-}
-
-impl PartialEq<AssetInfo> for AstroportAssetInfo {
-    fn eq(&self, other: &AssetInfo) -> bool {
-        match self {
-            Self::Token {
-                contract_addr,
-            } => {
-                let self_contract_addr = contract_addr;
-                if let AssetInfo::Cw20(contract_addr) = other {
-                    self_contract_addr == contract_addr
-                } else {
-                    false
-                }
-            }
-            Self::NativeToken {
-                denom,
-            } => {
-                let self_denom = denom;
-                if let AssetInfo::Native(denom) = other {
-                    self_denom == denom
-                } else {
-                    false
-                }
-            }
-        }
-    }
-}
 
 //--------------------------------------------------------------------------------------------------
 // Pair
@@ -103,16 +49,13 @@ impl PairUnchecked {
 }
 
 impl Pair {
-    // INSTANCE CREATION
-
+    /// Create a new pair instance
     pub fn new(contract_addr: &Addr, liquidity_token: &Addr) -> Self {
         Self {
             contract_addr: contract_addr.clone(),
             liquidity_token: liquidity_token.clone(),
         }
     }
-
-    // MESSAGES
 
     /// Generate submessages for providing specified assets
     /// NOTE: For now, we don't specify a slippage tolerance
@@ -218,8 +161,6 @@ impl Pair {
         Ok(SubMsg::reply_on_success(wasm_msg, id))
     }
 
-    // QUERIES
-
     /// Query an account's balance of the pool's share token
     pub fn query_share(&self, querier: &QuerierWrapper, account: &Addr) -> StdResult<Uint128> {
         AssetInfo::Cw20(self.liquidity_token.clone()).query_balance(querier, account)
@@ -243,21 +184,19 @@ impl Pair {
         let primary_asset_depth = response
             .assets
             .iter()
-            .find(|asset| &asset.info == primary_asset_info)
-            .ok_or_else(|| StdError::generic_err("Cannot find primary asset in pool response"))?
+            .find(|asset| asset.info == *primary_asset_info)
+            .ok_or_else(|| StdError::generic_err("cannot find primary asset in pool response"))?
             .amount;
 
         let secondary_asset_depth = response
             .assets
             .iter()
-            .find(|asset| &asset.info == secondary_asset_info)
-            .ok_or_else(|| StdError::generic_err("Cannot find secondary asset in pool response"))?
+            .find(|asset| asset.info == *secondary_asset_info)
+            .ok_or_else(|| StdError::generic_err("cannot find secondary asset in pool response"))?
             .amount;
 
         Ok((primary_asset_depth, secondary_asset_depth, response.total_share))
     }
-
-    // RESPONSE PARSING
 
     // Find the return amount when swapping in an Astroport pool
     // NOTE: Return amount in the Astroport event is *before* deducting tax. Must deduct tax to find
@@ -318,24 +257,28 @@ impl Pair {
             .split(", ")
             .collect();
 
-        let primary_asset_denom = primary_asset_info.get_denom();
+        let primary_asset_label = primary_asset_info.to_string();
         let primary_withdrawn_amount_str = asset_strs
             .iter()
-            .find(|asset_str| asset_str.contains(&primary_asset_denom))
-            .map(|asset_str| asset_str.replace(&primary_asset_denom, ""))
+            .find(|asset_str| asset_str.contains(&primary_asset_label))
+            .map(|asset_str| asset_str.replace(&primary_asset_label, ""))
             .ok_or_else(|| StdError::generic_err("failed to parse primary withdrawn amount"))?;
 
-        let secondary_asset_denom = secondary_asset_info.get_denom();
+        let secondary_asset_label = secondary_asset_info.to_string();
         let secondary_withdrawn_amount_str = asset_strs
             .iter()
-            .find(|asset_str| asset_str.contains(&secondary_asset_denom))
-            .map(|asset_str| asset_str.replace(&secondary_asset_denom, ""))
+            .find(|asset_str| asset_str.contains(&secondary_asset_label))
+            .map(|asset_str| asset_str.replace(&secondary_asset_label, ""))
             .ok_or_else(|| StdError::generic_err("failed to parse secondary withdrawn amount"))?;
 
-        let primary_asset_withdrawn =
-            Asset::new(primary_asset_info, Uint128::from_str(&primary_withdrawn_amount_str)?);
-        let secondary_asset_withdrawn =
-            Asset::new(secondary_asset_info, Uint128::from_str(&secondary_withdrawn_amount_str)?);
+        let primary_asset_withdrawn = Asset::new(
+            primary_asset_info.clone(),
+            Uint128::from_str(&primary_withdrawn_amount_str)?,
+        );
+        let secondary_asset_withdrawn = Asset::new(
+            secondary_asset_info.clone(),
+            Uint128::from_str(&secondary_withdrawn_amount_str)?,
+        );
 
         Ok((primary_asset_withdrawn, secondary_asset_withdrawn))
     }

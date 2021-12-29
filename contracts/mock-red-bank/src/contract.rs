@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 use cw20::Cw20ReceiveMsg;
 
-use fields_of_mars::adapters::Asset;
+use cw_asset::Asset;
 
 use mars_core::asset::{Asset as MarsAsset, AssetType as MarsAssetType};
 use mars_core::red_bank::msg::{QueryMsg, ReceiveMsg};
@@ -81,10 +81,16 @@ fn execute_borrow(
 
     DEBT_AMOUNT.save(deps.storage, (&info.sender, &denom), &(debt_amount + amount))?;
 
-    let outbound_asset = match &asset {
+    // NOTE: we will implement `Into<cw_asset::Asset>` for `MarsAsset` once mars-core has been open-
+    // sourced, after which these lines can be simpified:
+    //
+    // ```rust
+    // let outbound_asset = asset.into();
+    // ```
+    let mut outbound_asset = match &asset {
         MarsAsset::Cw20 {
             contract_addr,
-        } => Asset::cw20(&deps.api.addr_validate(contract_addr)?, amount),
+        } => Asset::cw20(deps.api.addr_validate(contract_addr)?, amount),
         MarsAsset::Native {
             denom,
         } => Asset::native(denom, amount),

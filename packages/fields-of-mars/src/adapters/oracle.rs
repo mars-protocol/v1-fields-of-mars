@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use mars_core::math::decimal::Decimal as MarsDecimal;
 use mars_core::oracle::msg::QueryMsg;
 
-use crate::adapters::AssetInfo;
+use cw_asset::AssetInfo;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OracleBase<T> {
@@ -45,7 +45,7 @@ impl Oracle {
         let response: MarsDecimal = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: self.contract_addr.to_string(),
             msg: to_binary(&QueryMsg::AssetPriceByReference {
-                asset_reference: asset_info.get_reference(),
+                asset_reference: asset_info.to_string().as_bytes().to_vec(),
             })?,
         }))?;
 

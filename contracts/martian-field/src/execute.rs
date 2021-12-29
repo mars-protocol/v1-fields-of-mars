@@ -3,11 +3,12 @@ use cosmwasm_std::{
     StdError, StdResult, Storage,
 };
 
-use fields_of_mars::adapters::Asset;
+use cw_asset::{Asset, AssetInfo};
+
 use fields_of_mars::martian_field::msg::{Action, CallbackMsg};
 use fields_of_mars::martian_field::{Config, ConfigUnchecked, State};
 
-use crate::helpers::*;
+use crate::helpers::{assert_sent_fund, compute_health};
 use crate::state::{CONFIG, POSITION, STATE};
 
 pub fn init_storage(deps: DepsMut, msg: ConfigUnchecked) -> StdResult<Response> {
@@ -140,19 +141,19 @@ fn handle_deposit(
     }
 
     // if asset is a native token, we assert that the same amount was indeed received
-    if asset.info.is_native() {
-        asset.assert_sent_amount(&info.funds)?;
-    }
     // if asset is a CW20 token, we transfer the specified amount from the user's wallet
-    //
-    // NOTE: user must have approved spending limit
-    else {
-        msgs.push(asset.transfer_from_msg(&info.sender, &env.contract.address)?);
+    match &asset.info {
+        AssetInfo::Cw20(_) => {
+            assert_sent_fund(asset, &info.funds)?;
+        }
+        AssetInfo::Native(_) => {
+            msgs.push(asset.transfer_from_msg(&info.sender, &env.contract.address)?);
+        }
     }
 
     // increase the user's unlocked asset amount
     let mut position = POSITION.load(storage, &info.sender).unwrap_or_default();
-    add_asset_to_array(&mut position.unlocked_assets, &asset);
+    position.unlocked_assets.add(&asset)?;
     POSITION.save(storage, &info.sender, &position)?;
 
     attrs.push(attr("deposit_received", asset.to_string()));
@@ -186,22 +187,24 @@ pub fn harvest(
     let retain_amount = reward_amount - fee_amount;
     let swap_amount = retain_amount.multiply_ratio(1u128, 2u128);
 
-    let primary_asset_as_fee = Asset::new(&config.primary_asset_info, fee_amount);
-    let primary_asset_to_retain = Asset::new(&config.primary_asset_info, retain_amount);
-    let primary_asset_to_swap = Asset::new(&config.primary_asset_info, swap_amount);
+    // fee needs to have tax deducted before sent out
+    let mut primary_asset_as_fee = Asset::new(config.primary_asset_info.clone(), fee_amount);
+    primary_asset_as_fee.deduct_tax(&deps.querier)?;
 
-    add_asset_to_array(&mut state.pending_rewards, &primary_asset_to_retain);
+    // the swap amount will have its tax deducted in the swap callback, so no need to do it here
+    let primary_asset_to_retain = Asset::new(config.primary_asset_info.clone(), retain_amount);
+    let primary_asset_to_swap = Asset::new(config.primary_asset_info.clone(), swap_amount);
+
+    state.pending_rewards.add(&primary_asset_to_retain)?;
     STATE.save(deps.storage, &state)?;
 
-    let msgs = vec![
-        config.staking.withdraw_msg()?,
-        primary_asset_as_fee.deduct_tax(&deps.querier)?.transfer_msg(&config.treasury)?,
-    ];
+    let msgs =
+        vec![config.staking.withdraw_msg()?, primary_asset_as_fee.transfer_msg(&config.treasury)?];
 
     let callbacks = [
         CallbackMsg::Swap {
             user_addr: None,
-            swap_amount: Some(primary_asset_to_swap.deduct_tax(&deps.querier)?.amount),
+            swap_amount: Some(primary_asset_to_swap.amount),
             belief_price,
             max_spread,
         },

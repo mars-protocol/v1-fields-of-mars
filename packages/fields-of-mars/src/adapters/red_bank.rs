@@ -11,28 +11,7 @@ use mars_core::asset::Asset as MarsAsset;
 use mars_core::red_bank::msg::{ExecuteMsg, QueryMsg, ReceiveMsg};
 use mars_core::red_bank::UserAssetDebtResponse;
 
-use crate::adapters::{Asset, AssetInfo};
-
-//--------------------------------------------------------------------------------------------------
-// Asset: conversion from Fields of Mars asset type to Mars asset type
-//--------------------------------------------------------------------------------------------------
-
-impl From<AssetInfo> for MarsAsset {
-    fn from(asset_info: AssetInfo) -> Self {
-        match asset_info {
-            AssetInfo::Cw20(contract_addr) => Self::Cw20 {
-                contract_addr: contract_addr.to_string(),
-            },
-            AssetInfo::Native(denom) => Self::Native {
-                denom,
-            },
-        }
-    }
-}
-
-//--------------------------------------------------------------------------------------------------
-// Red Bank
-//--------------------------------------------------------------------------------------------------
+use cw_asset::{Asset, AssetInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RedBankBase<T> {
@@ -64,7 +43,7 @@ impl RedBank {
         Ok(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.contract_addr.to_string(),
             msg: to_binary(&ExecuteMsg::Borrow {
-                asset: asset.info.clone().into(),
+                asset: to_mars_asset(&asset.info), // NOTE: to be replaced with `into` later
                 amount: asset.amount,
             })?,
             funds: vec![],
@@ -108,9 +87,24 @@ impl RedBank {
                 contract_addr: self.contract_addr.to_string(),
                 msg: to_binary(&QueryMsg::UserAssetDebt {
                     user_address: user_address.to_string(),
-                    asset: asset_info.clone().into(), // cast fields_of_mars::adapters::asset::AssetInfo to mars_core::asset::Asset
+                    asset: to_mars_asset(asset_info), // NOTE: to be replaced with `into` later
                 })?,
             }))?;
         Ok(response.amount)
+    }
+}
+
+/// Cast `cw_asset::AssetInfo` to `mars_core::asset::Asset`
+///
+/// NOTE: Once `mars-core` is open sourced and published on crates.io, an `Into<MarsAsset>` trait
+/// will be implemented for `cw_asset::AssetInfo`. This helper function can be removed following that
+fn to_mars_asset(info: &AssetInfo) -> MarsAsset {
+    match info {
+        AssetInfo::Cw20(contract_addr) => MarsAsset::Cw20 {
+            contract_addr: contract_addr.to_string(),
+        },
+        AssetInfo::Native(denom) => MarsAsset::Native {
+            denom: denom.clone(),
+        },
     }
 }

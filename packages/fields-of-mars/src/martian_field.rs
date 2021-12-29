@@ -3,7 +3,9 @@ use cosmwasm_std::{to_binary, Addr, Api, CosmosMsg, Decimal, StdResult, Uint128,
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::adapters::{AssetBase, AssetInfoBase, OracleBase, PairBase, RedBankBase, StakingBase};
+use cw_asset::{AssetInfoBase, AssetListBase};
+
+use crate::adapters::{OracleBase, PairBase, RedBankBase, StakingBase};
 
 //--------------------------------------------------------------------------------------------------
 // Config
@@ -98,7 +100,7 @@ pub struct StateBase<T> {
     /// Total amount of debt units; used to calculate each user's share of the debt
     pub total_debt_units: Uint128,
     /// Reward tokens that can be reinvested in the next harvest
-    pub pending_rewards: Vec<AssetBase<T>>,
+    pub pending_rewards: AssetListBase<T>,
 }
 
 // `Addr` does not have `Default` implemented, so we can't derive the Default trait
@@ -107,7 +109,7 @@ impl<T> Default for StateBase<T> {
         StateBase {
             total_bond_units: Uint128::zero(),
             total_debt_units: Uint128::zero(),
-            pending_rewards: vec![],
+            pending_rewards: AssetListBase::default(),
         }
     }
 }
@@ -120,11 +122,7 @@ impl From<State> for StateUnchecked {
         StateUnchecked {
             total_bond_units: state.total_bond_units,
             total_debt_units: state.total_debt_units,
-            pending_rewards: state
-                .pending_rewards
-                .iter()
-                .map(|asset| asset.clone().into())
-                .collect(),
+            pending_rewards: state.pending_rewards.into(),
         }
     }
 }
@@ -140,7 +138,7 @@ pub struct PositionBase<T> {
     /// Amount of debt units representing user's share of the debt
     pub debt_units: Uint128,
     /// Amount of assets not locked in Astroport pool; pending refund or liquidation
-    pub unlocked_assets: Vec<AssetBase<T>>,
+    pub unlocked_assets: AssetListBase<T>,
 }
 
 // `Addr` does not have `Default` implemented, so we can't derive the Default trait
@@ -149,7 +147,7 @@ impl<T> Default for PositionBase<T> {
         PositionBase {
             bond_units: Uint128::zero(),
             debt_units: Uint128::zero(),
-            unlocked_assets: vec![],
+            unlocked_assets: AssetListBase::default(),
         }
     }
 }
@@ -162,11 +160,7 @@ impl From<Position> for PositionUnchecked {
         PositionUnchecked {
             bond_units: position.bond_units,
             debt_units: position.debt_units,
-            unlocked_assets: position
-                .unlocked_assets
-                .iter()
-                .map(|asset| asset.clone().into())
-                .collect(),
+            unlocked_assets: position.unlocked_assets.into(),
         }
     }
 }
@@ -200,8 +194,8 @@ pub struct Snapshot {
 
 pub mod msg {
     use super::*;
-    use crate::adapters::AssetUnchecked;
     use cosmwasm_std::Empty;
+    use cw_asset::AssetUnchecked;
 
     pub type InstantiateMsg = ConfigUnchecked;
 

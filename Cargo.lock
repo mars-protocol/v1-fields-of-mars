@@ -192,6 +192,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cw-asset"
+version = "0.3.0"
+dependencies = [
+ "astroport",
+ "cosmwasm-std",
+ "cw20 0.9.1",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "cw-storage-plus"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -373,6 +385,7 @@ dependencies = [
  "astroport",
  "cosmwasm-bignumber",
  "cosmwasm-std",
+ "cw-asset",
  "cw20 0.9.1",
  "mars-core",
  "mirror-protocol",
@@ -483,6 +496,7 @@ name = "martian-field"
 version = "0.5.0"
 dependencies = [
  "cosmwasm-std",
+ "cw-asset",
  "cw-storage-plus 0.8.0",
  "fields-of-mars",
  "schemars",
@@ -509,6 +523,7 @@ version = "0.5.0"
 dependencies = [
  "astroport",
  "cosmwasm-std",
+ "cw-asset",
  "cw-storage-plus 0.9.1",
  "cw20 0.8.0",
  "fields-of-mars",
@@ -522,6 +537,7 @@ version = "0.5.0"
 dependencies = [
  "astroport",
  "cosmwasm-std",
+ "cw-asset",
  "cw-storage-plus 0.9.1",
  "fields-of-mars",
  "mars-core",
@@ -534,6 +550,7 @@ name = "mock-red-bank"
 version = "0.5.0"
 dependencies = [
  "cosmwasm-std",
+ "cw-asset",
  "cw-storage-plus 0.9.1",
  "cw20 0.9.1",
  "fields-of-mars",

@@ -6,7 +6,7 @@ use cw20::Cw20ReceiveMsg;
 
 use astroport::generator::{Cw20HookMsg, ExecuteMsg, PendingTokenResponse, QueryMsg};
 
-use fields_of_mars::adapters::Asset;
+use cw_asset::Asset;
 
 use crate::msg::{Config, InstantiateMsg};
 use crate::state::{CONFIG, DEPOSIT};
@@ -114,7 +114,7 @@ fn execute_withdraw(
 
     // withdraw liquidity tokens
     if !amount.is_zero() {
-        let liquidity_token_to_withdraw = Asset::cw20(&config.liquidity_token, amount);
+        let liquidity_token_to_withdraw = Asset::cw20(config.liquidity_token.clone(), amount);
         res = res.add_message(liquidity_token_to_withdraw.transfer_msg(&user_addr)?);
     }
 
@@ -126,13 +126,13 @@ fn _withdraw_reward_messages(config: &Config, user_addr: &Addr) -> StdResult<Vec
     let mut msgs: Vec<CosmosMsg> = vec![];
 
     // send Astro reward
-    let astro_token_to_send = Asset::cw20(&config.astro_token, MOCK_ASTRO_REWARD_AMOUNT);
+    let astro_token_to_send = Asset::cw20(config.astro_token.clone(), MOCK_ASTRO_REWARD_AMOUNT);
     msgs.push(astro_token_to_send.transfer_msg(user_addr)?);
 
     // if proxy reward token is specified, send proxy reward
     if let Some(proxy_reward_token) = &config.proxy_reward_token {
-        let proxy_reward_token_to_send = Asset::cw20(proxy_reward_token, MOCK_PROXY_REWARD_AMOUNT);
-        msgs.push(proxy_reward_token_to_send.transfer_msg(user_addr)?);
+        let proxy_token_to_send = Asset::cw20(proxy_reward_token.clone(), MOCK_PROXY_REWARD_AMOUNT);
+        msgs.push(proxy_token_to_send.transfer_msg(user_addr)?);
     }
 
     Ok(msgs)
