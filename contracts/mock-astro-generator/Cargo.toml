@@ -21,7 +21,7 @@ cosmwasm-std = "0.16.0"
 cw20 = "0.8.0" # Astroport uses cw-plus 0.8, while Mars uses 0.9, which are not compatible in some cases
 cw-storage-plus = "0.9.1"
 
-cw-asset = { path = "../../../cw-asset", features = ["terra", "legacy"] }
+cw-asset = { git = "https://github.com/larry0x/cw-asset.git", features = ["terra", "legacy"] }
 
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }

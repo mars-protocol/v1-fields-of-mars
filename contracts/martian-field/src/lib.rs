@@ -5,6 +5,3 @@ pub mod execute_replies;
 pub mod helpers;
 pub mod queries;
 pub mod state;
-
-#[cfg(test)]
-mod contract_tests;
