@@ -21,7 +21,7 @@ cosmwasm-std = "0.16.0"
 cw20 = "0.9.1"
 cw-storage-plus = "0.9.1"
 
-cw-asset = { git = "https://github.com/larry0x/cw-asset.git", features = ["terra", "legacy"] }
+cw-asset = { version = "0.3.0", features = ["terra", "legacy"] }
 
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
