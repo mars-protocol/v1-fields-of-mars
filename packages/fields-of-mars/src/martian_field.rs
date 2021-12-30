@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use cw_asset::{AssetInfoBase, AssetListBase};
 
-use crate::adapters::{OracleBase, PairBase, RedBankBase, StakingBase};
+use crate::adapters::{GeneratorBase, OracleBase, PairBase, RedBankBase};
 
 //--------------------------------------------------------------------------------------------------
 // Config
@@ -15,29 +15,38 @@ use crate::adapters::{OracleBase, PairBase, RedBankBase, StakingBase};
 pub struct ConfigBase<T> {
     /// Info of the primary asset
     ///
-    /// Primary asset is the token that staking reward is paid in. By utilizing Martian Field, the
-    /// user takes an implicit long position on the primary asset.
-    ///
-    /// E.g. In ANC-UST LP strategy, ANC is the primary asset.
+    /// Primary asset is the asset which the user takes an implicit long position on when utilizing
+    /// Martian Field. Taking the ANC-UST strategy for example; if the user primarily deposits ANC
+    /// and borrows UST from Red Bank, then ANC is the primary asset.
     pub primary_asset_info: AssetInfoBase<T>,
     /// Info of the secondary asset
     ///
-    /// Secondary asset is the token to be borrowed from Red Bank. By utilizing Martian Field, the
-    /// user takes an implicit short position on the secondary asset.
-    ///
-    /// E.g. In ANC-UST LP strategy, UST is the secondary asset.
+    /// Secondary asset is the asset which the user takes an implicit short position on when utilizing
+    /// Martian Field. Taking the ANC-UST strategy for example; if the user primarily deposits ANC
+    /// and borrows UST from Red Bank, then UST is the secondary asset.
     pub secondary_asset_info: AssetInfoBase<T>,
-    /// Mars money market aka Red Bank
-    pub red_bank: RedBankBase<T>,
-    /// Mars oracle contract
-    pub oracle: OracleBase<T>,
-    /// Astroport pair of primary/secondary assets
-    pub pair: PairBase<T>,
-    /// Staking contract where share tokens can be bonded to earn rewards
+    /// Info of the Astroport token, the staking reward that will be paid out by Astro generator
     ///
-    /// NOTE: It is assumed that the token to be staked is `pair.liquidity_token`, and the reward in paid
-    /// in the primary asset.
-    pub staking: StakingBase<T>,
+    /// Astro generator may also pay out a "proxy reward", e.g. ANC for the ANC-UST strategy. Here
+    /// we make the assumption that this proxy reward is always the primary asset. Note that we do
+    /// not assert this when instantiating the contract, so it is the deployer's responsibility to
+    /// make sure of this.
+    pub astro_token_info: AssetInfoBase<T>,
+    /// Astroport pair consisting of the primary and secondary assets
+    ///
+    /// The liquidity token of this pair will be staked/bonded in Astro generator to earn ASTRO and
+    /// optionally a proxy token reward.
+    pub primary_pair: PairBase<T>,
+    /// Astroport pair consisting of ASTRO token and the secondary asset
+    ///
+    /// This pair is used for swapping ASTRO reward so that it can be reinvested.
+    pub astro_pair: PairBase<T>,
+    /// The Astro generator contract
+    pub astro_generator: GeneratorBase<T>,
+    /// The Mars Protocol money market contract. We borrow the secondary asset here
+    pub red_bank: RedBankBase<T>,
+    /// The Mars Protocol oracle contract. We read prices of the primary and secondary assets here
+    pub oracle: OracleBase<T>,
     /// Account to receive fee payments
     pub treasury: T,
     /// Account who can update config
@@ -58,10 +67,12 @@ impl From<Config> for ConfigUnchecked {
         ConfigUnchecked {
             primary_asset_info: config.primary_asset_info.into(),
             secondary_asset_info: config.secondary_asset_info.into(),
+            astro_token_info: config.astro_token_info.into(),
+            primary_pair: config.primary_pair.into(),
+            astro_pair: config.astro_pair.into(),
+            astro_generator: config.astro_generator.into(),
             red_bank: config.red_bank.into(),
             oracle: config.oracle.into(),
-            pair: config.pair.into(),
-            staking: config.staking.into(),
             treasury: config.treasury.into(),
             governance: config.governance.into(),
             max_ltv: config.max_ltv,
@@ -76,10 +87,12 @@ impl ConfigUnchecked {
         Ok(Config {
             primary_asset_info: self.primary_asset_info.check(api)?,
             secondary_asset_info: self.secondary_asset_info.check(api)?,
+            astro_token_info: self.astro_token_info.check(api)?,
+            primary_pair: self.primary_pair.check(api)?,
+            astro_pair: self.astro_pair.check(api)?,
+            astro_generator: self.astro_generator.check(api)?,
             red_bank: self.red_bank.check(api)?,
             oracle: self.oracle.check(api)?,
-            pair: self.pair.check(api)?,
-            staking: self.staking.check(api)?,
             treasury: api.addr_validate(&self.treasury)?,
             governance: api.addr_validate(&self.governance)?,
             max_ltv: self.max_ltv,
