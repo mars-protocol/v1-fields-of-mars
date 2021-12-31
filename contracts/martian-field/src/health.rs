@@ -47,7 +47,7 @@ pub fn compute_health(
     // https://blog.alphafinance.io/fair-lp-token-pricing/
     // this formulation avoids a potential sandwich attack that distorts asset prices by a flashloan
     //
-    // NOTE: we need to use U256 here, because Uint128 * Decimal128 may overflow the 128-bit limit
+    // NOTE: we need to use U256 here, because Uint128 * Uint128 may overflow the 128-bit limit
     let primary_value = U256::from(u128::from(primary_depth * primary_price));
     let secondary_value = U256::from(u128::from(secondary_depth * secondary_price));
     let pool_value = U256::from(2) * (primary_value * secondary_value).integer_sqrt();
