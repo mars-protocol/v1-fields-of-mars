@@ -2,7 +2,7 @@ use cosmwasm_std::{Deps, Env, StdResult};
 
 use fields_of_mars::martian_field::{ConfigUnchecked, Health, PositionUnchecked, Snapshot, State};
 
-use crate::helpers::compute_health;
+use crate::health::compute_health;
 use crate::state::{CONFIG, POSITION, SNAPSHOT, STATE};
 
 pub fn query_config(deps: Deps, _env: Env) -> StdResult<ConfigUnchecked> {

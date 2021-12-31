@@ -503,6 +503,7 @@ dependencies = [
  "fields-of-mars",
  "schemars",
  "serde",
+ "uint",
 ]
 
 [[package]]

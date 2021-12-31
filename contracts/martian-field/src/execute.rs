@@ -8,7 +8,8 @@ use cw_asset::{Asset, AssetInfo};
 use fields_of_mars::martian_field::msg::{Action, CallbackMsg};
 use fields_of_mars::martian_field::{Config, ConfigUnchecked, State};
 
-use crate::helpers::{assert_sent_fund, compute_health};
+use crate::health::compute_health;
+use crate::helpers::assert_sent_fund;
 use crate::state::{CONFIG, POSITION, STATE};
 
 pub fn init_storage(deps: DepsMut, msg: ConfigUnchecked) -> StdResult<Response> {

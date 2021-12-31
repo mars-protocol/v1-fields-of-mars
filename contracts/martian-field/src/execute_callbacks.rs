@@ -10,7 +10,7 @@ use cw_asset::{Asset, AssetInfo, AssetList};
 use fields_of_mars::martian_field::msg::CallbackMsg;
 use fields_of_mars::martian_field::{Position, Snapshot, State};
 
-use crate::helpers::compute_health;
+use crate::health::compute_health;
 use crate::state::{CACHED_USER_ADDR, CONFIG, POSITION, SNAPSHOT, STATE};
 
 static DEFAULT_BOND_UNITS_PER_SHARE_BONDED: Uint128 = Uint128::new(1_000_000);
