@@ -35,8 +35,6 @@ impl OracleUnchecked {
 }
 
 impl Oracle {
-    /// NOTE: For now, we don't check whether the price data is too old by verifying `last_updated`.
-    /// We might want to do this in a future version
     pub fn query_price(
         &self,
         querier: &QuerierWrapper,
@@ -48,18 +46,6 @@ impl Oracle {
                 asset_reference: asset_info.to_string().as_bytes().to_vec(),
             })?,
         }))?;
-
         Ok(response.to_std_decimal()) // cast mars_core::math::decimal::Decimal to cosmwasm_std::Decimal
-    }
-
-    pub fn query_prices(
-        &self,
-        querier: &QuerierWrapper,
-        asset_infos: &[AssetInfo],
-    ) -> StdResult<Vec<Decimal>> {
-        Ok(asset_infos
-            .iter()
-            .map(|asset_info| self.query_price(querier, asset_info).unwrap())
-            .collect())
     }
 }

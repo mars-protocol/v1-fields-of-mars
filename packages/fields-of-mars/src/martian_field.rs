@@ -208,7 +208,7 @@ pub struct Snapshot {
 pub mod msg {
     use super::*;
     use cosmwasm_std::Empty;
-    use cw_asset::AssetUnchecked;
+    use cw_asset::{AssetInfo, AssetUnchecked};
 
     pub type InstantiateMsg = ConfigUnchecked;
 
@@ -250,7 +250,7 @@ pub mod msg {
         },
         /// Swap a specified amount of unlocked primary asset to the secondary asset
         Swap {
-            swap_amount: Uint128,
+            offer_amount: Uint128,
             belief_price: Option<Decimal>,
             max_spread: Option<Decimal>,
         },
@@ -342,7 +342,15 @@ pub mod msg {
         /// If `swap_amount` is not provided, then use all available unlocked asset
         Swap {
             user_addr: Option<Addr>,
-            swap_amount: Option<Uint128>,
+            offer_asset_info: AssetInfo,
+            offer_amount: Option<Uint128>,
+            belief_price: Option<Decimal>,
+            max_spread: Option<Decimal>,
+        },
+        /// Swap the primary and secondary assets currently held by the contract as pending rewards,
+        /// such that the two assets have the same value and can be reinvested. This is used during
+        /// the `Harvest` function call.
+        Balance {
             belief_price: Option<Decimal>,
             max_spread: Option<Decimal>,
         },

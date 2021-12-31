@@ -142,6 +142,7 @@ impl Generator {
             ))?;
         }
 
+        rewards.purge(); // remove zero amounts
         Ok(rewards)
     }
 }

@@ -31,10 +31,9 @@ pub fn after_provide_liquidity(
         assets = &mut state.pending_rewards;
     }
 
-    let liquidity_token_minted_amount = Pair::parse_provide_events(&response.events)?;
-    let liquidity_token_minted =
-        Asset::cw20(config.pair.liquidity_token.clone(), liquidity_token_minted_amount);
-    assets.add(&liquidity_token_minted)?;
+    // parse event log to find the amount of liquidity tokens minted
+    let minted_amount = Pair::parse_provide_events(&response.events)?;
+    assets.add(&Asset::cw20(config.primary_pair.liquidity_token, minted_amount))?;
 
     // save the updated state/position
     if let Some(user_addr) = &user_addr_option {
@@ -48,7 +47,7 @@ pub fn after_provide_liquidity(
 
     Ok(Response::new()
         .add_attribute("action", "martian_field :: reply :: after_provide_liquidity")
-        .add_attribute("liquidity_token_minted", liquidity_token_minted.amount))
+        .add_attribute("liquidity_token_minted", minted_amount))
 }
 
 pub fn after_withdraw_liquidity(
@@ -59,6 +58,7 @@ pub fn after_withdraw_liquidity(
     let user_addr = CACHED_USER_ADDR.load(deps.storage)?;
     let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
+    // parse event log to find the amounts of assets returned
     let (primary_asset_withdrawn, secondary_asset_withdrawn) = Pair::parse_withdraw_events(
         &response.events,
         &config.primary_asset_info,
@@ -89,8 +89,6 @@ pub fn after_withdraw_liquidity(
 }
 
 pub fn after_swap(deps: DepsMut, response: SubMsgExecutionResponse) -> StdResult<Response> {
-    let config = CONFIG.load(deps.storage)?;
-
     // if this is a user swapping their unlocked assets, the user's address should have been cached
     // if this is a reward harvesting operation, no user address should have been cached. `may_load`
     // should return `None` in this case
@@ -110,16 +108,15 @@ pub fn after_swap(deps: DepsMut, response: SubMsgExecutionResponse) -> StdResult
     }
 
     // parse Astroport's event log to find out how much asset was returned from the swap
-    let secondary_asset_returned_amount = Pair::parse_swap_events(&response.events)?;
-    let secondary_asset_returned =
-        Asset::new(config.secondary_asset_info.clone(), secondary_asset_returned_amount);
+    let returned_asset_unchecked = Pair::parse_swap_events(&response.events)?;
+    let returned_asset = returned_asset_unchecked.check(deps.api)?;
 
     // the return amount returned in Astroport's response event is the pre-tax amount. we need to
     // deduct tax to find the amount we actually received. we add the after-tax amount to the user's
     // unlocked asset
-    let mut secondary_asset_to_add = secondary_asset_returned.clone();
-    secondary_asset_to_add.deduct_tax(&deps.querier)?;
-    assets.add(&secondary_asset_to_add)?;
+    let mut returned_asset_after_tax = returned_asset.clone();
+    returned_asset_after_tax.deduct_tax(&deps.querier)?;
+    assets.add(&returned_asset_after_tax)?;
 
     // save the updated state/position
     if let Some(user_addr) = &user_addr_option {
@@ -133,6 +130,6 @@ pub fn after_swap(deps: DepsMut, response: SubMsgExecutionResponse) -> StdResult
 
     Ok(Response::new()
         .add_attribute("action", "martian_field :: reply :: after_swap")
-        .add_attribute("secondary_returned_amount", secondary_asset_returned.amount)
-        .add_attribute("secondary_added_amount", secondary_asset_to_add.amount))
+        .add_attribute("returned_asset", returned_asset.to_string())
+        .add_attribute("returned_asset_after_tax", returned_asset_after_tax.to_string()))
 }

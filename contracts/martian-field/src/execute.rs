@@ -25,6 +25,8 @@ pub fn update_position(
 ) -> StdResult<Response> {
     let api = deps.api;
 
+    let config = CONFIG.load(deps.storage)?;
+
     let mut msgs: Vec<CosmosMsg> = vec![];
     let mut attrs: Vec<Attribute> = vec![];
     let mut callbacks: Vec<CallbackMsg> = vec![];
@@ -80,12 +82,13 @@ pub fn update_position(
             ]),
 
             Action::Swap {
-                swap_amount,
+                offer_amount,
                 belief_price,
                 max_spread,
             } => callbacks.push(CallbackMsg::Swap {
                 user_addr: Some(info.sender.clone()),
-                swap_amount: Some(swap_amount),
+                offer_asset_info: config.primary_asset_info.clone(),
+                offer_amount: Some(offer_amount),
                 belief_price,
                 max_spread,
             }),
@@ -98,8 +101,8 @@ pub fn update_position(
     //
     // - assert LTV is healthy; if not, throw error and revert all actions
     //
-    // - save a snapshot of a user's position. this is only needed for the frontend to calculate
-    // user's PnE. this can be removed once we have the infra ready to calculate this off-chain
+    // - save a snapshot of the user's position. this is only needed for the frontend to calculate
+    // the user's PnL. this can be removed once we have the infra to calculate this off-chain
     callbacks.extend([
         CallbackMsg::Refund {
             user_addr: info.sender.clone(),
@@ -153,7 +156,7 @@ fn handle_deposit(
 
     // increase the user's unlocked asset amount
     let mut position = POSITION.load(storage, &info.sender).unwrap_or_default();
-    position.unlocked_assets.add(&asset)?;
+    position.unlocked_assets.add(asset)?;
     POSITION.save(storage, &info.sender, &position)?;
 
     attrs.push(attr("deposit_received", asset.to_string()));
@@ -171,40 +174,58 @@ pub fn harvest(
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
 
-    // Find how much reward is available to be claimed
-    let (_, reward_amount) =
-        config.staking.query_reward_info(&deps.querier, &env.contract.address, env.block.height)?;
+    // find how much reward is available to be claimed
+    let rewards = config.astro_generator.query_rewards(
+        &deps.querier,
+        &env.contract.address,
+        &config.primary_pair.liquidity_token,
+    )?;
 
-    // If there is no reward to claim, then we do nothing
-    if reward_amount.is_zero() {
-        return Ok(Response::default());
+    // if reward amount is non-zero, we construct a message to claim them, as well as add them to
+    // the pending rewards
+    let mut msgs: Vec<CosmosMsg> = vec![];
+    if rewards.len() > 0 {
+        msgs.push(config.astro_generator.claim_rewards_msg(&config.primary_pair.liquidity_token)?);
+        state.pending_rewards.add_many(&rewards)?;
     }
 
-    // We assume the reward is the primary asset
-    // Among the claimable reward, a portion corresponding to `config.fee_rate` is charged as fee
-    // and sent to the treasury address. Among the rest, half is to be swapped for the secondary asset
-    let fee_amount = reward_amount * config.fee_rate;
-    let retain_amount = reward_amount - fee_amount;
-    let swap_amount = retain_amount.multiply_ratio(1u128, 2u128);
+    // a portion of the pending rewards will be charged as fees
+    let mut fees = state.pending_rewards.clone();
+    fees.apply(|asset| asset.amount = asset.amount * config.fee_rate);
 
-    // fee needs to have tax deducted before sent out
-    let mut primary_asset_as_fee = Asset::new(config.primary_asset_info.clone(), fee_amount);
-    primary_asset_as_fee.deduct_tax(&deps.querier)?;
+    // construct the messages that send the fees to treasury
+    fees.deduct_tax(&deps.querier)?;
+    msgs.extend(fees.transfer_msgs(&config.treasury)?);
 
-    // the swap amount will have its tax deducted in the swap callback, so no need to do it here
-    let primary_asset_to_retain = Asset::new(config.primary_asset_info.clone(), retain_amount);
-    let primary_asset_to_swap = Asset::new(config.primary_asset_info.clone(), swap_amount);
+    // deduct fees (with tax) from available rewards. the remaining amounts are to be reinvested
+    let mut fees_to_deduct = fees.clone();
+    fees_to_deduct.add_tax(&deps.querier)?;
+    state.pending_rewards.deduct_many(&fees_to_deduct)?;
 
-    state.pending_rewards.add(&primary_asset_to_retain)?;
     STATE.save(deps.storage, &state)?;
 
-    let msgs =
-        vec![config.staking.withdraw_msg()?, primary_asset_as_fee.transfer_msg(&config.treasury)?];
-
-    let callbacks = [
-        CallbackMsg::Swap {
+    // if there are ASTRO tokens available to be reinvested, we first swap it to the secondary asset
+    // asset
+    //
+    // TODO: we either add mandatory slippage checks here, or make `Harvest` permissioned so that
+    // this won't be sandwich attacked
+    let mut callbacks: Vec<CallbackMsg> = vec![];
+    if let Some(astro_token) = state.pending_rewards.find(&config.astro_token_info) {
+        callbacks.push(CallbackMsg::Swap {
             user_addr: None,
-            swap_amount: Some(primary_asset_to_swap.amount),
+            offer_asset_info: config.astro_token_info.clone(),
+            offer_amount: Some(astro_token.amount),
+            belief_price,
+            max_spread,
+        });
+    }
+
+    // once ASTRO is sold, pending rewards should only consist of primary and secondary assets
+    // 1. doing a swap so that their values are balanced
+    // 2. provide liquidity
+    // 3. bond liquidity tokens (without increasing total bond units)
+    callbacks.extend([
+        CallbackMsg::Balance {
             belief_price,
             max_spread,
         },
@@ -215,7 +236,7 @@ pub fn harvest(
         CallbackMsg::Bond {
             user_addr: None,
         },
-    ];
+    ]);
 
     let callback_msgs: Vec<CosmosMsg> = callbacks
         .iter()
@@ -223,10 +244,9 @@ pub fn harvest(
         .collect();
 
     let event = Event::new("harvested")
-        .add_attribute("time", env.block.time.seconds().to_string())
+        .add_attribute("time", env.block.time.to_string())
         .add_attribute("height", env.block.height.to_string())
-        .add_attribute("fee_amount", fee_amount)
-        .add_attribute("retain_amount", retain_amount);
+        .add_attribute("fees", fees.to_string());
 
     Ok(Response::new()
         .add_messages(msgs)
@@ -248,12 +268,21 @@ pub fn liquidate(
     // position must be active (LTV is not `None`) and the LTV must be greater than `max_ltv`
     let health = compute_health(&deps.querier, &env, &config, &state, &position)?;
 
+    // if `health.ltv` is `Some`, it must be greater than `max_ltv`
+    // if `health.ltv` is `None`, indicating the position is already closed, then it is not liquidatable
     let ltv = health.ltv.ok_or_else(|| StdError::generic_err("position is already closed"))?;
-
     if ltv <= config.max_ltv {
         return Err(StdError::generic_err("position is healthy"));
     }
 
+    // 1. unbond the user's liquidity tokens from Astro generator
+    // 2. burn liquidity tokens, withdraw primary + secondary assets from the pool
+    // 3. swap all primary assets to secondary assets
+    // 4. repay all debts
+    // 5. among all remaining assets, send the amount corresponding to `bonus_rate` to the liquidator
+    // 6. refund all assets that're left to the user
+    //
+    // TODO: add slippage checks to the swap step so that liquidation cannot be sandwich attacked
     let callbacks = [
         CallbackMsg::Unbond {
             user_addr: user_addr.clone(),
@@ -264,7 +293,8 @@ pub fn liquidate(
         },
         CallbackMsg::Swap {
             user_addr: Some(user_addr.clone()),
-            swap_amount: None,
+            offer_asset_info: config.primary_asset_info.clone(),
+            offer_amount: None,
             belief_price: None,
             max_spread: None,
         },

@@ -9,7 +9,7 @@ use fields_of_mars::martian_field::{Config, Health, Position, State};
 
 /// Extract response from reply
 pub fn unwrap_reply(reply: Reply) -> StdResult<SubMsgExecutionResponse> {
-    reply.result.into_result().map_err(|e| StdError::generic_err(e))
+    reply.result.into_result().map_err(StdError::generic_err)
 }
 
 /// Assert that fund of exactly the same type and amount was sent along with a message
@@ -25,9 +25,10 @@ pub fn assert_sent_fund(expected: &Asset, received: &[Coin]) -> StdResult<()> {
     if received_amount == expected.amount {
         Ok(())
     } else {
-        Err(StdError::generic_err(
-            format!("sent fund mismatch! expected: {}, received {}", expected, received_amount)
-        ))
+        Err(StdError::generic_err(format!(
+            "sent fund mismatch! expected: {}, received {}",
+            expected, received_amount
+        )))
     }
 }
 
@@ -44,8 +45,11 @@ pub fn compute_health(
     // 2. debt
     // 3. pair
     // 4. price; NOTE: Price of the primary asset is quoted in the secondary asset, not in UST or USD
-    let (total_bonded_amount, _) =
-        config.staking.query_reward_info(querier, &env.contract.address, env.block.height)?;
+    let total_bonded_amount = config.astro_generator.query_bonded_amount(
+        querier,
+        &env.contract.address,
+        &config.primary_pair.liquidity_token,
+    )?;
 
     let total_debt_amount = config.red_bank.query_user_debt(
         querier,
@@ -53,11 +57,9 @@ pub fn compute_health(
         &config.secondary_asset_info,
     )?;
 
-    let (primary_asset_depth, secondary_asset_depth, total_shares) = config.pair.query_pool(
-        querier,
-        &config.primary_asset_info,
-        &config.secondary_asset_info,
-    )?;
+    let (primary_asset_depth, secondary_asset_depth, total_shares) = config
+        .primary_pair
+        .query_pool(querier, &config.primary_asset_info, &config.secondary_asset_info)?;
 
     let primary_asset_price = config.oracle.query_price(querier, &config.primary_asset_info)?;
 

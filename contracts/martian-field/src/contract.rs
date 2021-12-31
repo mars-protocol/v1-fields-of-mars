@@ -88,10 +88,22 @@ pub mod entry {
             } => callbacks::refund(deps, user_addr, recipient_addr, percentage),
             CallbackMsg::Swap {
                 user_addr,
-                swap_amount,
+                offer_asset_info,
+                offer_amount,
                 belief_price,
                 max_spread,
-            } => callbacks::swap(deps, user_addr, swap_amount, belief_price, max_spread),
+            } => callbacks::swap(
+                deps,
+                user_addr,
+                offer_asset_info,
+                offer_amount,
+                belief_price,
+                max_spread,
+            ),
+            CallbackMsg::Balance {
+                belief_price,
+                max_spread,
+            } => callbacks::balance(deps, env, belief_price, max_spread),
             CallbackMsg::AssertHealth {
                 user_addr,
             } => callbacks::assert_health(deps, env, user_addr),

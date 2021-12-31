@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use astroport::pair::{Cw20HookMsg, ExecuteMsg, PoolResponse, QueryMsg};
 
-use cw_asset::{Asset, AssetInfo};
+use cw_asset::{Asset, AssetInfo, AssetUnchecked};
 
 use self::helpers::*;
 
@@ -201,21 +201,35 @@ impl Pair {
     // Find the return amount when swapping in an Astroport pool
     // NOTE: Return amount in the Astroport event is *before* deducting tax. Must deduct tax to find
     // the actual received amount
-    pub fn parse_swap_events(events: &[Event]) -> StdResult<Uint128> {
+    pub fn parse_swap_events(events: &[Event]) -> StdResult<AssetUnchecked> {
         let event = events
             .iter()
             .find(|event| event_contains_attr(event, "action", "swap"))
             .ok_or_else(|| StdError::generic_err("cannot find `swap` event"))?;
+
+        let ask_asset_str = event
+            .attributes
+            .iter()
+            .cloned()
+            .find(|attr| attr.key == "ask_asset")
+            .ok_or_else(|| StdError::generic_err("cannot find `ask_asset` attribute"))?
+            .value;
 
         let return_amount_str = event
             .attributes
             .iter()
             .cloned()
             .find(|attr| attr.key == "return_amount")
-            .ok_or_else(|| StdError::generic_err("cannot to find `return_amount` attribute"))?
+            .ok_or_else(|| StdError::generic_err("cannot find `return_amount` attribute"))?
             .value;
 
-        Uint128::from_str(&return_amount_str)
+        let return_amount = Uint128::from_str(&return_amount_str)?;
+
+        if ask_asset_str.starts_with("terra") {
+            Ok(AssetUnchecked::cw20(ask_asset_str, return_amount))
+        } else {
+            Ok(AssetUnchecked::native(ask_asset_str, return_amount))
+        }
     }
 
     /// Find the amount of share tokens minted when providing liquidity to an Astroport pool
