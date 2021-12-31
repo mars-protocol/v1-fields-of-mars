@@ -1,12 +1,18 @@
 use cosmwasm_std::{Decimal, Env, QuerierWrapper, StdResult, Uint128};
 
-use uint::construct_uint;
-
 use fields_of_mars::martian_field::{Config, Health, Position, State};
 
-construct_uint! {
-    pub struct U256(4);
+/// This module is purely a workaround that lets us ignore lints for all the code the `construct_uint!`
+/// macro generates
+#[allow(clippy::all)]
+mod uints {
+    uint::construct_uint! {
+        pub struct U256(4);
+    }
 }
+
+/// Used internally - we don't want to leak this type since we might change the implementation in the future
+use uints::U256;
 
 /// Compute the health of a user's position
 pub fn compute_health(
