@@ -4,7 +4,9 @@ use cosmwasm_std::{
 };
 use cw20::Cw20ReceiveMsg;
 
-use astroport::generator::{Cw20HookMsg, ExecuteMsg, PendingTokenResponse, QueryMsg};
+use astroport::generator::{
+    Cw20HookMsg, ExecuteMsg, PendingTokenResponse, QueryMsg, RewardInfoResponse
+};
 
 use cw_asset::Asset;
 
@@ -105,10 +107,13 @@ fn execute_withdraw(
     let config = CONFIG.load(deps.storage)?;
 
     if liquidity_token != config.liquidity_token {
-        return Err(StdError::generic_err(format!(
-            "[mock] invalid liquidity token! expected: {}, received: {}",
-            config.liquidity_token, liquidity_token
-        )));
+        return Err(StdError::generic_err(
+            format!(
+                "[mock] invalid liquidity token! expected: {}, received: {}",
+                config.liquidity_token, 
+                liquidity_token
+            )
+        ));
     }
 
     let mut deposit = DEPOSIT.load(deps.storage, &user_addr).unwrap_or_else(|_| Uint128::zero());
@@ -148,6 +153,9 @@ fn _withdraw_reward_messages(config: &Config, user_addr: &Addr) -> StdResult<Vec
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
+        QueryMsg::RewardInfo {
+            ..
+        } => to_binary(&query_reward_info(deps)?),
         QueryMsg::Deposit {
             lp_token,
             user,
@@ -161,6 +169,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             format!("[mock] unimplemented query: {}", String::from_utf8(to_vec(&msg)?)?)
         )),
     }
+}
+
+fn query_reward_info(deps: Deps) -> StdResult<RewardInfoResponse> {
+    let config = CONFIG.load(deps.storage)?;
+    Ok(RewardInfoResponse {
+        base_reward_token: config.astro_token,
+        proxy_reward_token: config.proxy_reward_token
+    })
 }
 
 fn query_deposit(deps: Deps, liquidity_token: Addr, user_addr: Addr) -> StdResult<Uint128> {
