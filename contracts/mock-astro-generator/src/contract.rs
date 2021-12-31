@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Uint128,
+    entry_point, from_binary, to_binary, to_vec, Addr, Binary, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, Uint128,
 };
 use cw20::Cw20ReceiveMsg;
 
@@ -44,7 +44,9 @@ pub fn execute(
             amount,
         } => execute_withdraw(deps, info.sender, lp_token, amount),
 
-        _ => Err(StdError::generic_err("[mock]: unimplemented")),
+        _ => Err(StdError::generic_err(
+            format!("[mock] unimplemented execute: {}", String::from_utf8(to_vec(&msg)?)?)
+        )),
     }
 }
 
@@ -77,10 +79,13 @@ fn execute_deposit(
     let config = CONFIG.load(deps.storage)?;
 
     if liquidity_token != config.liquidity_token {
-        return Err(StdError::generic_err(format!(
-            "[mock]: invalid liquidity token! expected: {}, received: {}",
-            config.liquidity_token, liquidity_token
-        )));
+        return Err(StdError::generic_err(
+            format!(
+                "[mock] invalid liquidity token! expected: {}, received: {}",
+                config.liquidity_token, 
+                liquidity_token
+            )
+        ));
     }
 
     let mut deposit = DEPOSIT.load(deps.storage, &user_addr).unwrap_or_else(|_| Uint128::zero());
@@ -101,7 +106,7 @@ fn execute_withdraw(
 
     if liquidity_token != config.liquidity_token {
         return Err(StdError::generic_err(format!(
-            "[mock]: invalid liquidity token! expected: {}, received: {}",
+            "[mock] invalid liquidity token! expected: {}, received: {}",
             config.liquidity_token, liquidity_token
         )));
     }
@@ -152,7 +157,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             user: _, // this mock contract returns fixed amount of rewards regardless of user deposit
         } => to_binary(&query_pending_token(deps, lp_token)?),
 
-        _ => Err(StdError::generic_err("[mock]: unimplemented")),
+        _ => Err(StdError::generic_err(
+            format!("[mock] unimplemented query: {}", String::from_utf8(to_vec(&msg)?)?)
+        )),
     }
 }
 
@@ -172,10 +179,13 @@ fn query_pending_token(deps: Deps, liquidity_token: Addr) -> StdResult<PendingTo
     let pending = if liquidity_token == config.liquidity_token {
         MOCK_ASTRO_REWARD_AMOUNT
     } else {
-        return Err(StdError::generic_err(format!(
-            "[mock]: invalid liquidity token! expected: {}, received: {}",
-            config.liquidity_token, liquidity_token
-        )));
+        return Err(StdError::generic_err(
+            format!(
+                "[mock] invalid liquidity token! expected: {}, received: {}",
+                config.liquidity_token, 
+                liquidity_token
+            )
+        ));
     };
 
     let pending_on_proxy = if config.proxy_reward_token.is_some() {

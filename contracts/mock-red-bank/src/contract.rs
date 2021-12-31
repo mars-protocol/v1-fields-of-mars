@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo,
-    Response, StdError, StdResult, Uint128,
+    entry_point, from_binary, to_binary, to_vec, Addr, Binary, Deps, DepsMut, Empty, Env, 
+    MessageInfo, Response, StdError, StdResult, Uint128,
 };
 use cw20::Cw20ReceiveMsg;
 
@@ -65,7 +65,9 @@ pub fn execute_receive_cw20(
             let denom = info.sender.to_string();
             execute_repay(deps, env, info, repayer_addr, &denom, cw20_msg.amount)
         }
-        _ => Err(StdError::generic_err("Unimplemented")),
+        _ => Err(StdError::generic_err(
+            format!("[mock] unimplemented receiver: {}", String::from_utf8(to_vec(&cw20_msg)?)?)
+        )),
     }
 }
 
@@ -143,7 +145,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             asset,
         } => to_binary(&query_debt(deps, env, user_address, asset)?),
 
-        _ => Err(StdError::generic_err("Unimplemented")),
+        _ => Err(StdError::generic_err(
+            format!("[mock] unimplemented query: {}", String::from_utf8(to_vec(&msg)?)?)
+        )),
     }
 }
 

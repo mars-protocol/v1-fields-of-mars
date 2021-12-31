@@ -1,8 +1,8 @@
 use std::str;
 
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, QueryRequest, Response,
-    StdError, StdResult, WasmQuery,
+    entry_point, to_binary, to_vec, Binary, Deps, DepsMut, Empty, Env, MessageInfo, QueryRequest,
+    Response, StdError, StdResult, WasmQuery,
 };
 
 use cw_asset::Asset;
@@ -39,7 +39,10 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset,
             price_source,
         } => execute_set_asset(deps, env, info, asset, price_source),
-        _ => Err(StdError::generic_err("Unimplemented")),
+
+        _ => Err(StdError::generic_err(
+            format!("[mock] unimplemented execute: {}", String::from_utf8(to_vec(&msg)?)?)
+        )),
     }
 }
 
@@ -63,8 +66,11 @@ fn execute_set_asset(
         } => PriceSourceChecked::AstroportSpot {
             pair_address: deps.api.addr_validate(&pair_address)?,
         },
-        _ => {
-            return Err(StdError::generic_err("Unimplemented"));
+
+        ps => {
+            return Err(StdError::generic_err(
+                format!("[mock] unimplemented price source: {}", String::from_utf8(to_vec(&ps)?)?)
+            ));
         }
     };
 
@@ -84,7 +90,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::AssetPriceByReference {
             asset_reference,
         } => to_binary(&query_asset_price(deps, env, &asset_reference)?),
-        _ => Err(StdError::generic_err("Unimplemented")),
+
+        _ => Err(StdError::generic_err(
+            format!("[mock] unimplemented query: {}", String::from_utf8(to_vec(&msg)?)?)
+        )),
     }
 }
 
@@ -119,7 +128,11 @@ fn query_asset_price(deps: Deps, _env: Env, asset_reference: &[u8]) -> StdResult
             )
         }
 
-        _ => return Err(StdError::generic_err("Unimplemented")),
+        ps => {
+            return Err(StdError::generic_err(
+                format!("[mock] unimplemented price source: {}", String::from_utf8(to_vec(&ps)?)?)
+            ))
+        }
     };
 
     Ok(price)
