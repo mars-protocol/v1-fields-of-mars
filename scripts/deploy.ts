@@ -4,122 +4,144 @@ import yargs from "yargs/yargs";
 import { LCDClient, MnemonicKey, Wallet } from "@terra-money/terra.js";
 import { storeCode, instantiateContract } from "./helpers";
 
-const MAINNET_CONTRACTS = {
+const SPECIFIC_PARAMS_MAINNET = {
+  luna: {
+    primary_asset_info: {
+      native: "uluna",
+    },
+    primary_pair: {
+      contract_addr: "",
+      liquidity_token: "",
+    },
+  },
   anchor: {
-    token: "terra14z56l0fp2lsf86zy3hty2z47ezkhnthtr9yq76",
-    staking: "terra1897an2xux840p9lrh6py3ryankc6mspw49xse3",
-    pair: "terra1gm5p3ner9x9xpwugn9sp6gvhd0lwrtkyrecdn3",
-    shareToken: "terra1gecs98vcuktyfkrve9czrpgtg0m3aq586x6gzm",
+    primary_asset_info: {
+      cw20: "",
+    },
+    primary_pair: {
+      contract_addr: "",
+      liquidity_token: "",
+    },
   },
   mirror: {
-    token: "terra15gwkyepfc6xgca5t5zefzwy42uts8l2m4g40k6",
-    staking: "terra17f7zu97865jmknk7p2glqvxzhduk78772ezac5",
-    pair: "terra1amv303y8kzxuegvurh0gug2xe9wkgj65enq2ux",
-    shareToken: "terra17gjf2zehfvnyjtdgua9p9ygquk6gukxe7ucgwh",
+    primary_asset_info: {
+      cw20: "",
+    },
+    primary_pair: {
+      contract_addr: "",
+      liquidity_token: "",
+    },
   },
-  pylon: {
-    token: "",
-    staking: "",
-    pair: "",
-    shareToken: "",
-  },
-  mars: {
-    token: "",
-    staking: "",
-    pair: "",
-    shareToken: "",
-  },
-  redBank: "",
-  oracle: "",
 };
 
-const TESTNET_CONTRACTS = {
+const COMMON_PARAMS_MAINNET = {
+  astro_token_info: {
+    cw20: "",
+  },
+  astro_pair: {
+    contract_addr: "",
+    liquidity_token: "",
+  },
+  astro_generator: {
+    contract_addr: "",
+  },
+  red_bank: {
+    contract_addr: "",
+  },
+  oracle: {
+    contract_addr: "",
+  },
+  treasury: "",
+  governance: "",
+  max_ltv: "0.75",
+  fee_rate: "0.05",
+  bonus_rate: "0.05",
+};
+
+const SPECIFIC_PARAMS_TESTNET = {
+  luna: {
+    primary_asset_info: {
+      native: "uluna",
+    },
+    primary_pair: {
+      contract_addr: "terra12eq2zmdmycvx9n6skwpu9kqxts0787rekjnlwm",
+      liquidity_token: "terra1sjpns87xfa48hwy6pwqdchxzsrsmmewsxjwvcj",
+    },
+  },
   anchor: {
-    token: "terra1747mad58h0w4y589y3sk84r5efqdev9q4r02pc",
-    staking: "terra19nxz35c8f7t3ghdxrxherym20tux8eccar0c3k",
-    pair: "terra1wfvczps2865j0awnurk9m04u7wdmd6qv3fdnvz",
-    shareToken: "terra1vg0qyq92ky9z9dp0j9fv5rmr2s80sg605dah6f",
+    primary_asset_info: {
+      cw20: "terra1yz03fpmuhf7w999fng5l5z82cufszlr92ncpzx",
+    },
+    primary_pair: {
+      contract_addr: "terra1muj37ly5fxtjde9wz8gxe24gr0v2fdgshdx0sh",
+      liquidity_token: "terra1xq64syky8wkeqsgsxm6frqpmq4p3j6jfnapkpf",
+    },
   },
   mirror: {
-    token: "terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u",
-    staking: "terra1a06dgl27rhujjphsn4drl242ufws267qxypptx",
-    pair: "terra1cz6qp8lfwht83fh9xm9n94kj04qc35ulga5dl0",
-    shareToken: "terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j",
+    primary_asset_info: {
+      cw20: "terra1krzfsvl9tgce2f2wsq23s0jmqqd69uwpcd3579",
+    },
+    primary_pair: {
+      contract_addr: "terra1rnpac0n5gy38d2s440sz8dk26t9je6qa23e04g",
+      liquidity_token: "terra1h5yxv4w84wjnntskz63xq3lnqqajf7xddy78qm",
+    },
   },
-  pylon: {
-    token: "terra1lqm5tutr5xcw9d5vc4457exa3ghd4sr9mzwdex",
-    staking: "terra17av0lfhqymusm6j9jpepzerg6u54q57jp7xnrz",
-    pair: "terra1n2xmlwqpp942nfqq2muxn0u0mqk3sylekdpqfv",
-    shareToken: "terra1st9me79vkk4erw3apydt5z48n6ahgj4qdclp4u",
+};
+
+const COMMON_PARAMS_TESTNET = {
+  secondary_asset_info: {
+    native: "uusd",
   },
-  mars: {
-    token: "terra1qs7h830ud0a4hj72yr8f7jmlppyx7z524f7gw6",
-    staking: "terra16vc4ahvj45k8efmvz5x9k2fvrnjqcuzzs6fqf5",
-    pair: "terra1lpfkyxkzhdmf80vhpyyy9esn794arqrjm73yq6",
-    shareToken: "terra1rftsfyrgg5qz2268ckx5thvlhv0n26k4dfj54p",
+  astro_token_info: {
+    cw20: "terra1cc2up8erdqn2l7nz37qjgvnqy56sr38aj9vqry",
   },
-  redBank: "terra19fy8q4vx6uzv4rmhvvp329fgr5343qrunntq60",
-  oracle: "terra1uxs9f90kr2lgt3tpkpyk5dllqrwra5tgwv0pc5",
+  astro_pair: {
+    contract_addr: "terra1dk57pl4v4ut9kwsmtrv9k4kkn9fxrh290zvg2w",
+    liquidity_token: "terra1uahqpnm4p3ag8ma40xhtft96uvuxy6vn9p6x9v",
+  },
+  astro_generator: {
+    contract_addr: "terra1cmqhxgna6uasnycgdcx974uq8u56rp2ta3r356",
+  },
+  red_bank: {
+    contract_addr: "terra19fy8q4vx6uzv4rmhvvp329fgr5343qrunntq60",
+  },
+  oracle: {
+    contract_addr: "terra1uxs9f90kr2lgt3tpkpyk5dllqrwra5tgwv0pc5",
+  },
+  treasury: "terra1u4sk8992wz4c9p5c8ckffj4h8vh97hfeyw9x5n",
+  governance: "terra1w0acggjar67f7l4phnvqzeg0na0k5fcn9lv5zz",
+  max_ltv: "0.75",
+  fee_rate: "0.05",
+  bonus_rate: "0.05",
 };
 
 function generateInitMsg(network: string, strategy: string) {
-  let contracts: typeof MAINNET_CONTRACTS | typeof TESTNET_CONTRACTS;
+  let specificParams: typeof SPECIFIC_PARAMS_MAINNET | typeof SPECIFIC_PARAMS_TESTNET;
+  let commonParams: typeof COMMON_PARAMS_MAINNET | typeof COMMON_PARAMS_TESTNET;
   if (network === "mainnet") {
-    contracts = MAINNET_CONTRACTS;
+    specificParams = SPECIFIC_PARAMS_MAINNET;
+    commonParams = COMMON_PARAMS_MAINNET;
   } else if (network === "testnet") {
-    contracts = TESTNET_CONTRACTS;
+    specificParams = SPECIFIC_PARAMS_TESTNET;
+    commonParams = COMMON_PARAMS_TESTNET;
   } else {
     throw new Error("invalid network: must be `mainnet` | `testnet`");
   }
 
-  let protocol: {
-    token: string;
-    staking: string;
-    pair: string;
-    shareToken: string;
+  let strategySpecificParams: {
+    primary_asset_info: { native: string } | { cw20: string };
+    primary_pair: {
+      contract_addr: string;
+      liquidity_token: string;
+    };
   };
-  let stakingType: "anchor" | "mirror" | "mars";
-  if (strategy === "anchor" || strategy === "mirror" || strategy === "mars") {
-    protocol = contracts[strategy];
-    stakingType = strategy;
-  } else if (strategy === "pylon") {
-    protocol = contracts.pylon;
-    // for pylon we use the anchor staking type as their staking contracts use the same messages
-    stakingType = "anchor";
+  if (strategy === "luna" || strategy === "anchor" || strategy === "mirror") {
+    strategySpecificParams = specificParams[strategy];
   } else {
-    throw new Error("invalid strategy: must be `anchor` | `mirror` | `pylon` | `mars`");
+    throw new Error("invalid strategy: must be `luna` | `anchor` | `mirror`");
   }
 
-  return {
-    primary_asset_info: {
-      cw20: protocol.token,
-    },
-    secondary_asset_info: {
-      native: "uusd",
-    },
-    red_bank: {
-      contract_addr: contracts.redBank,
-    },
-    oracle: {
-      contract_addr: contracts.oracle,
-    },
-    pair: {
-      contract_addr: protocol.pair,
-      liquidity_token: protocol.shareToken,
-    },
-    staking: {
-      [stakingType]: {
-        contract_addr: protocol.staking,
-        asset_token: protocol.token,
-        staking_token: protocol.shareToken,
-      },
-    },
-    treasury: deployer.key.accAddress,
-    governance: deployer.key.accAddress,
-    max_ltv: "0.80",
-    fee_rate: "0.10",
-    bonus_rate: "0.05",
-  };
+  return { ...strategySpecificParams, ...commonParams };
 }
 
 const argv = yargs(process.argv)
@@ -138,12 +160,6 @@ const argv = yargs(process.argv)
       alias: "c",
       type: "number",
       default: 0,
-      demandOption: false,
-    },
-    "fee-denom": {
-      alias: "f",
-      type: "string",
-      default: "uusd",
       demandOption: false,
     },
   })
@@ -204,7 +220,7 @@ process.stdin.once("data", async function () {
     initMsg
   );
   const contractAddress = result.logs[0].eventsByType.instantiate_contract.contract_address[0];
-  console.log(`success! contractAddress=${contractAddress}`);
+  console.log(`success! address: ${contractAddress}`);
 
   process.exit(0);
 });
