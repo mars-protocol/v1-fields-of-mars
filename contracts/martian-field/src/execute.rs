@@ -84,14 +84,9 @@ pub fn update_position(
         }
     }
 
-    // after user selected actions, we executes three more callbacks:
-    //
+    // after user selected actions, we executes two more callbacks:
     // - refund assets that are not deployed in the yield farm to user
-    //
     // - assert LTV is healthy; if not, throw error and revert all actions
-    //
-    // - save a snapshot of the user's position. this is only needed for the frontend to calculate
-    // the user's PnL. this can be removed once we have the infra to calculate this off-chain
     callbacks.extend([
         CallbackMsg::Refund {
             user_addr: info.sender.clone(),
@@ -99,10 +94,6 @@ pub fn update_position(
             percentage: Decimal::one(),
         },
         CallbackMsg::AssertHealth {
-            user_addr: info.sender.clone(),
-        },
-        // TODO: remove this
-        CallbackMsg::Snapshot {
             user_addr: info.sender.clone(),
         },
     ]);

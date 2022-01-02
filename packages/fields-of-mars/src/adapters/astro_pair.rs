@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use cosmwasm_std::{
-    to_binary, Addr, Api, Coin, Decimal, Event, QuerierWrapper, QueryRequest, StdError, StdResult,
-    SubMsg, Uint128, WasmMsg, WasmQuery,
+    to_binary, Addr, Api, Coin, CosmosMsg, Decimal, Event, QuerierWrapper, QueryRequest, StdError,
+    StdResult, SubMsg, Uint128, WasmMsg, WasmQuery,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -126,21 +126,16 @@ impl Pair {
         belief_price: Option<Decimal>,
         max_spread: Option<Decimal>,
     ) -> StdResult<SubMsg> {
-        let wasm_msg = match &asset.info {
-            AssetInfo::Cw20(contract_addr) => WasmMsg::Execute {
-                contract_addr: contract_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: self.contract_addr.to_string(),
-                    amount: asset.amount,
-                    msg: to_binary(&Cw20HookMsg::Swap {
-                        belief_price,
-                        max_spread,
-                        to: None,
-                    })?,
+        let msg = match &asset.info {
+            AssetInfo::Cw20(_) => asset.send_msg(
+                &self.contract_addr,
+                to_binary(&Cw20HookMsg::Swap {
+                    belief_price,
+                    max_spread,
+                    to: None,
                 })?,
-                funds: vec![],
-            },
-            AssetInfo::Native(denom) => WasmMsg::Execute {
+            )?,
+            AssetInfo::Native(denom) => CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: self.contract_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::Swap {
                     offer_asset: asset.clone().into(),
@@ -152,10 +147,9 @@ impl Pair {
                     denom: denom.clone(),
                     amount: asset.amount,
                 }],
-            },
+            }),
         };
-
-        Ok(SubMsg::reply_on_success(wasm_msg, id))
+        Ok(SubMsg::reply_on_success(msg, id))
     }
 
     /// Query the Astroport pool, parse response, and return the following 3-tuple:
@@ -192,21 +186,22 @@ impl Pair {
 
     /// Calculate how much offer asset is needed to return a specified amount of ask asset
     pub fn query_reverse_simulate(
-        &self, 
-        querier: &QuerierWrapper, 
-        ask_asset: &Asset
+        &self,
+        querier: &QuerierWrapper,
+        ask_asset: &Asset,
     ) -> StdResult<Uint128> {
-        let response: ReverseSimulationResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: self.contract_addr.to_string(),
-            msg: to_binary(&QueryMsg::ReverseSimulation {
-                ask_asset: ask_asset.into()
-            })?
-        }))?;
+        let response: ReverseSimulationResponse =
+            querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: self.contract_addr.to_string(),
+                msg: to_binary(&QueryMsg::ReverseSimulation {
+                    ask_asset: ask_asset.into(),
+                })?,
+            }))?;
         Ok(response.offer_amount)
     }
 
     /// Find the return amount when swapping in an Astroport pool
-    /// 
+    ///
     /// NOTE: Return amount in the Astroport event is *before* deducting tax. Must deduct tax to find
     /// the actual received amount
     pub fn parse_swap_events(events: &[Event]) -> StdResult<AssetUnchecked> {

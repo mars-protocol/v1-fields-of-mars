@@ -188,19 +188,6 @@ pub struct Health {
     pub ltv: Option<Decimal>,
 }
 
-/// Every time the user changes the executes `update_position`, we record a snaphot of the position.
-///
-/// This snapshot does not actually impact the functioning of this contract in any way, but rather
-/// used by the frontend to calculate PnL. Once we have the infrastructure for calculating PnL
-/// off-chain available, we will migrate the contract to delete this callback
-#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Snapshot {
-    pub time: u64,
-    pub height: u64,
-    pub position: PositionUnchecked,
-    pub health: Health,
-}
-
 //--------------------------------------------------------------------------------------------------
 // Message and response types
 //--------------------------------------------------------------------------------------------------
@@ -375,15 +362,8 @@ pub mod msg {
         AssertHealth {
             user_addr: Addr,
         },
-        /// See the comment on struct `Snapshot`. This callback should be removed at some pointer
-        /// after launch when our tx indexing infrastructure is ready
-        Snapshot {
-            user_addr: Addr,
-        },
     }
 
-    // Modified from
-    // https://github.com/CosmWasm/cw-plus/blob/v0.8.0/packages/cw20/src/receiver.rs#L23
     impl CallbackMsg {
         pub fn into_cosmos_msg(&self, contract_addr: &Addr) -> StdResult<CosmosMsg> {
             Ok(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -407,10 +387,6 @@ pub mod msg {
         },
         /// Query the health of a user's position: value of assets, debts, and LTV. Response: `Health`
         Health {
-            user: String,
-        },
-        /// See the comment on struct `Snapshot`. Response: `Snapshot`
-        Snapshot {
             user: String,
         },
     }

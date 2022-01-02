@@ -103,9 +103,6 @@ pub mod entry {
             CallbackMsg::AssertHealth {
                 user_addr,
             } => callbacks::assert_health(deps, env, user_addr),
-            CallbackMsg::Snapshot {
-                user_addr,
-            } => callbacks::snapshot(deps, env, user_addr),
         }
     }
 
@@ -130,9 +127,6 @@ pub mod entry {
             QueryMsg::Health {
                 user,
             } => to_binary(&queries::query_health(deps, env, user)?),
-            QueryMsg::Snapshot {
-                user,
-            } => to_binary(&queries::query_snapshot(deps, env, user)?),
         }
     }
 
