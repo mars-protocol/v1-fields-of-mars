@@ -480,6 +480,74 @@ pub fn balance(
         .add_attribute("asset_deducted", offer_asset_to_deduct.to_string()))
 }
 
+pub fn cover(
+    deps: DepsMut,
+    env: Env,
+    user_addr: Addr,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let state = STATE.load(deps.storage)?;
+    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
+
+    // find out how much secondary asset the user owes
+    let total_debt_amount = config.red_bank.query_user_debt(
+        &deps.querier,
+        &env.contract.address,
+        &config.secondary_asset_info,
+    )?;
+    let debt_amount = total_debt_amount.multiply_ratio(position.debt_units, state.total_debt_units);
+
+    // find out how much unlocked secondary asset the user has available
+    let secondary_available = position
+        .unlocked_assets
+        .find(&config.secondary_asset_info)
+        .cloned()
+        .unwrap_or_else(|| Asset::new(config.secondary_asset_info.clone(), 0u128));
+
+    // calculate how much additional secondary asset is needed to fully pay off the user's debt 
+    let secondary_needed_amount = if debt_amount > secondary_available.amount {
+        debt_amount - secondary_available.amount  // no need for underflow check here
+    } else {
+        return Ok(Response::default());
+    };
+    let secondary_needed = Asset::new(config.secondary_asset_info.clone(), secondary_needed_amount);
+
+    // reverse simulate how much primary asset needs to be sold
+    //
+    // NOTE: if secondary asset is native coin, tax will incur in two steps: the primary >> secondary
+    // swap, and the repayment. to account for this, we sell slight more primary asset than needed
+    //
+    // currently we swap 1% more than needed
+    let mut primary_sell_amount = config.primary_pair.query_reverse_simulate(
+        &deps.querier, 
+        &secondary_needed
+    )?;
+    primary_sell_amount = primary_sell_amount * Decimal::from_ratio(101u128, 100u128);
+
+    let mut primary_to_sell = Asset::new(config.primary_asset_info.clone(), primary_sell_amount);
+    primary_to_sell.deduct_tax(&deps.querier)?;
+
+    let mut primary_to_deduct = primary_to_sell.clone();
+    primary_to_deduct.add_tax(&deps.querier)?;
+    position.unlocked_assets.deduct(&primary_to_deduct)?;
+
+    POSITION.save(deps.storage, &user_addr, &position)?;
+    CACHED_USER_ADDR.save(deps.storage, &user_addr)?;
+    
+    Ok(Response::new()
+        .add_submessage(config.primary_pair.swap_submsg(
+            2,
+            &primary_to_sell,
+            None,
+            Some(Decimal::from_ratio(1u128, 10u128)),
+        )?)
+        .add_attribute("action", "martian_field :: callback :: cover")
+        .add_attribute("debt_amount", debt_amount)
+        .add_attribute("secondary_available", secondary_available.amount)
+        .add_attribute("secondary_needed", secondary_needed.amount)
+        .add_attribute("primary_sold", primary_sell_amount))
+}
+
 pub fn refund(
     deps: DepsMut,
     user_addr: Addr,

@@ -97,6 +97,9 @@ pub mod entry {
             CallbackMsg::Balance {
                 max_spread,
             } => callbacks::balance(deps, env, max_spread),
+            CallbackMsg::Cover {
+                user_addr
+            } => callbacks::cover(deps, env, user_addr),
             CallbackMsg::AssertHealth {
                 user_addr,
             } => callbacks::assert_health(deps, env, user_addr),

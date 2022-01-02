@@ -273,6 +273,14 @@ pub fn liquidate(
     // 5. among all remaining assets, send the amount corresponding to `bonus_rate` to the liquidator
     // 6. refund all assets that're left to the user
     //
+    // NOTE: in the previous versions, we sell **all** primary assets, which is not optimal because 
+    // this will incur bigger slippage, causing bigger liquidation cascade, and be potentially lucrative 
+    // for sandwich attackers
+    //
+    // now, we calculate how much additional secondary asset is needed to fully pay off debt, multiply
+    // it with a factor that's slightly greater than 1 (to account for tax), and reverse-simulate
+    // how much primary asset needs to be sold
+    //
     // TODO: add slippage checks to the swap step so that liquidation cannot be sandwich attacked
     let callbacks = [
         CallbackMsg::Unbond {
@@ -282,11 +290,8 @@ pub fn liquidate(
         CallbackMsg::WithdrawLiquidity {
             user_addr: user_addr.clone(),
         },
-        CallbackMsg::Swap {
-            user_addr: Some(user_addr.clone()),
-            offer_asset_info: config.primary_asset_info.clone(),
-            offer_amount: None,
-            max_spread: None,
+        CallbackMsg::Cover {
+            user_addr: user_addr.clone(),
         },
         CallbackMsg::Repay {
             user_addr: user_addr.clone(),
