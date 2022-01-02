@@ -7,15 +7,12 @@ license = "UNLICENSED"
 repository = "https://github.com/mars-protocol/field-of-mars"
 
 [dependencies]
-anchor-token = "0.2.0"
 astroport = "0.3.1"
 mars-core = { path = "../mars-core" }
-mirror-protocol = "2.1.1"
 
 cosmwasm-std = "0.16.0"
 cw20 = "0.9.1"
 
-cosmwasm-bignumber = "2.2.0"
 terra-cosmwasm = "2.2.0"
 
 cw-asset = { version = "0.3.1", features = ["terra", "legacy"] }

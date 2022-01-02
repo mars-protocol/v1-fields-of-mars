@@ -3,21 +3,6 @@
 version = 3
 
 [[package]]
-name = "anchor-token"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdad5465fce1e00e006a84153aca22c7212659bc2f4c1bbe27a2c27f96c6e8e3"
-dependencies = [
- "cosmwasm-bignumber",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20 0.8.0",
- "schemars",
- "serde",
- "terra-cosmwasm",
-]
-
-[[package]]
 name = "astroport"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -33,20 +18,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport"
+version = "0.3.1"
+source = "git+https://github.com/astroport-fi/astroport-core.git?tag=v1.0.0#05bfb278302d462c355e47ed67566a8a97f417dd"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.0",
+ "cw20 0.8.0",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "uint",
+]
+
+[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
-
-[[package]]
-name = "bigint"
-version = "4.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0e8c8a600052b52482eff2cf4d810e462fdff1f656ac1ecb6232132a1ed7def"
-dependencies = [
- "byteorder",
- "crunchy 0.1.6",
-]
 
 [[package]]
 name = "block-buffer"
@@ -74,18 +63,6 @@ name = "const-oid"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44c32f031ea41b4291d695026c023b95d59db2d8a2c7640800ed56bc8f510f22"
-
-[[package]]
-name = "cosmwasm-bignumber"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce94de6dd2b3d74cd8d9bc2bf5d6208ffed832ad946774ea9ed2a9ef7d95161f"
-dependencies = [
- "bigint",
- "cosmwasm-std",
- "schemars",
- "serde",
-]
 
 [[package]]
 name = "cosmwasm-crypto"
@@ -126,16 +103,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cosmwasm-storage"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e26053f14f971b05abca3be34f80c631d70c5b5b9df175e7a1d8b4aad83e40cc"
-dependencies = [
- "cosmwasm-std",
- "serde",
-]
-
-[[package]]
 name = "cpufeatures"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -143,12 +110,6 @@ checksum = "66c99696f6c9dd7f35d486b9d04d7e6e202aa3e8c40d553f2fdf5e7e0c6a71ef"
 dependencies = [
  "libc",
 ]
-
-[[package]]
-name = "crunchy"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2f4a431c5c9f662e1200b7c7f02c34e91361150e382089a8f2dec3ba680cbda"
 
 [[package]]
 name = "crunchy"
@@ -197,7 +158,7 @@ version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1b40304423ad8208758bc122b2b7f2c7b02c1534e480c57a01fc6c039281bc9"
 dependencies = [
- "astroport",
+ "astroport 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmwasm-std",
  "cw20 0.9.1",
  "schemars",
@@ -383,14 +344,11 @@ dependencies = [
 name = "fields-of-mars"
 version = "0.5.0"
 dependencies = [
- "anchor-token",
- "astroport",
- "cosmwasm-bignumber",
+ "astroport 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmwasm-std",
  "cw-asset",
  "cw20 0.9.1",
  "mars-core",
- "mirror-protocol",
  "schemars",
  "serde",
  "terra-cosmwasm",
@@ -483,6 +441,7 @@ checksum = "320cfe77175da3a483efed4bc0adc1968ca050b098ce4f2f1c13a56626128790"
 name = "mars-core"
 version = "1.0.0"
 dependencies = [
+ "astroport 0.3.1 (git+https://github.com/astroport-fi/astroport-core.git?tag=v1.0.0)",
  "cosmwasm-std",
  "cw2",
  "cw20 0.9.1",
@@ -507,24 +466,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "mirror-protocol"
-version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68b4a3ba65a8fd11cd24862cc49a2c4eebb98e8dfd38d43df72145cde19d9ca6"
-dependencies = [
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20 0.8.0",
- "schemars",
- "serde",
- "terraswap",
-]
-
-[[package]]
 name = "mock-astro-generator"
 version = "0.5.0"
 dependencies = [
- "astroport",
+ "astroport 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmwasm-std",
  "cw-asset",
  "cw-storage-plus 0.9.1",
@@ -538,7 +483,7 @@ dependencies = [
 name = "mock-oracle"
 version = "0.5.0"
 dependencies = [
- "astroport",
+ "astroport 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmwasm-std",
  "cw-asset",
  "cw-storage-plus 0.9.1",
@@ -762,20 +707,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "terraswap"
-version = "2.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96f2c2a6371e9ddf2c942368e64645cc3e8fc2855da70c8c6bed238dcdd5522f"
-dependencies = [
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20 0.8.0",
- "schemars",
- "serde",
- "terra-cosmwasm",
-]
-
-[[package]]
 name = "thiserror"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -808,7 +739,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6470ab50f482bde894a037a57064480a246dbfdd5960bd65a44824693f08da5f"
 dependencies = [
  "byteorder",
- "crunchy 0.2.2",
+ "crunchy",
  "hex",
  "static_assertions",
 ]

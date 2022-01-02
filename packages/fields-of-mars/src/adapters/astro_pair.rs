@@ -9,11 +9,9 @@ use cw20::Cw20ExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use astroport::pair::{Cw20HookMsg, ExecuteMsg, PoolResponse, QueryMsg};
+use astroport::pair::{Cw20HookMsg, ExecuteMsg, PoolResponse, QueryMsg, ReverseSimulationResponse};
 
 use cw_asset::{Asset, AssetInfo, AssetUnchecked};
-
-use self::helpers::*;
 
 //--------------------------------------------------------------------------------------------------
 // Pair
@@ -160,11 +158,6 @@ impl Pair {
         Ok(SubMsg::reply_on_success(wasm_msg, id))
     }
 
-    /// Query an account's balance of the pool's share token
-    pub fn query_share(&self, querier: &QuerierWrapper, account: &Addr) -> StdResult<Uint128> {
-        AssetInfo::Cw20(self.liquidity_token.clone()).query_balance(querier, account)
-    }
-
     /// Query the Astroport pool, parse response, and return the following 3-tuple:
     /// 1. depth of the primary asset
     /// 2. depth of the secondary asset
@@ -197,9 +190,25 @@ impl Pair {
         Ok((primary_asset_depth, secondary_asset_depth, response.total_share))
     }
 
-    // Find the return amount when swapping in an Astroport pool
-    // NOTE: Return amount in the Astroport event is *before* deducting tax. Must deduct tax to find
-    // the actual received amount
+    /// Calculate how much offer asset is needed to return a specified amount of ask asset
+    pub fn query_reverse_simulate(
+        &self, 
+        querier: &QuerierWrapper, 
+        ask_asset: &Asset
+    ) -> StdResult<Uint128> {
+        let response: ReverseSimulationResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: self.contract_addr.to_string(),
+            msg: to_binary(&QueryMsg::ReverseSimulation {
+                ask_asset: ask_asset.into()
+            })?
+        }))?;
+        Ok(response.offer_amount)
+    }
+
+    /// Find the return amount when swapping in an Astroport pool
+    /// 
+    /// NOTE: Return amount in the Astroport event is *before* deducting tax. Must deduct tax to find
+    /// the actual received amount
     pub fn parse_swap_events(events: &[Event]) -> StdResult<AssetUnchecked> {
         let event = events
             .iter()
@@ -276,7 +285,7 @@ impl Pair {
 
         let asset_strs: Vec<&str> = event
             .attributes
-            .iter() // Why other iterators need `cloned` but this one doesn't? How does borrowing actually work??
+            .iter()
             .find(|attr| attr.key == "refund_assets")
             .ok_or_else(|| StdError::generic_err("cannot find `refund_assets` attribute"))?
             .value
@@ -310,51 +319,6 @@ impl Pair {
     }
 }
 
-mod helpers {
-    use super::*;
-
-    pub fn event_contains_attr(event: &Event, key: &str, value: &str) -> bool {
-        event.attributes.iter().any(|attr| attr.key == key && attr.value == value)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_provide_events() {
-        let share = Pair::parse_provide_events(&[
-            Event::new("test-event")
-                .add_attribute("action", "provide_liquidity")
-                .add_attribute("asset", "12345uusd, 88888uluna")
-                .add_attribute("share", "69420"),
-            Event::new("another-event").add_attribute("ngmi", "hfsp"),
-        ])
-        .unwrap();
-
-        assert_eq!(share, Uint128::new(69420));
-    }
-
-    #[test]
-    fn test_parse_withdraw_events() {
-        let primary_asset_info = AssetInfo::Cw20(Addr::unchecked("anchor_token"));
-        let secondary_asset_info = AssetInfo::Native("uusd".to_string());
-
-        let event0 = Event::new("test-event")
-            .add_attribute("action", "withdraw_liquidity")
-            .add_attribute("withdrawn_share", "95588")
-            .add_attribute("refund_assets", "89uusd, 64anchor_token");
-        let event1 = Event::new("another-event").add_attribute("ngmi", "hfsp");
-
-        let assets_withdrawn = Pair::parse_withdraw_events(
-            &[event0, event1],
-            &primary_asset_info,
-            &secondary_asset_info,
-        )
-        .unwrap();
-
-        assert_eq!(assets_withdrawn.0.amount, Uint128::new(64));
-        assert_eq!(assets_withdrawn.1.amount, Uint128::new(89));
-    }
+fn event_contains_attr(event: &Event, key: &str, value: &str) -> bool {
+    event.attributes.iter().any(|attr| attr.key == key && attr.value == value)
 }

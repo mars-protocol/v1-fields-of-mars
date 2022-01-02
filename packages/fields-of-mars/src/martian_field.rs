@@ -349,10 +349,18 @@ pub mod msg {
             max_spread: Option<Decimal>,
         },
         /// Swap the primary and secondary assets currently held by the contract as pending rewards,
-        /// such that the two assets have the same value and can be reinvested. This is used during
-        /// the `Harvest` function call.
+        /// such that the two assets have the same value and can be reinvested
+        /// 
+        /// _Only used during the `Harvest` function call_
         Balance {
             max_spread: Option<Decimal>,
+        },
+        /// Sell an appropriate amount of a user's unlocked primary asset, such that the user has
+        /// enough unlocked secondary asset to fully pay off debt
+        /// 
+        /// _Only used during the `Liquidate` function call_
+        Cover {
+            user_addr: Addr,
         },
         /// Send a percentage of a user's unlocked primary & seoncdary asset to a recipient; default
         /// to the user if unspecified
