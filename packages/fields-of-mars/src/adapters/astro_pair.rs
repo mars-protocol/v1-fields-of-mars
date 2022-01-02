@@ -142,7 +142,6 @@ impl Pair {
                 })?,
                 funds: vec![],
             },
-
             AssetInfo::Native(denom) => WasmMsg::Execute {
                 contract_addr: self.contract_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::Swap {
@@ -223,12 +222,25 @@ impl Pair {
             .ok_or_else(|| StdError::generic_err("cannot find `return_amount` attribute"))?
             .value;
 
-        let return_amount = Uint128::from_str(&return_amount_str)?;
+        let tax_amount_str = event
+            .attributes
+            .iter()
+            .cloned()
+            .find(|attr| attr.key == "tax_amount")
+            .ok_or_else(|| StdError::generic_err("cannot find `tax_amount` attribute"))?
+            .value;
 
+        let return_amount = Uint128::from_str(&return_amount_str)?;
+        let tax_amount = Uint128::from_str(&tax_amount_str)?;
+        let return_amount_after_tax = return_amount.checked_sub(tax_amount)?;
+
+        // If the asset's label starts with `terra` then we assume it is a CW20
+        // Otherwise, assume it is a native
+        // Not a very clean way of doin this, but ok
         if ask_asset_str.starts_with("terra") {
-            Ok(AssetUnchecked::cw20(ask_asset_str, return_amount))
+            Ok(AssetUnchecked::cw20(ask_asset_str, return_amount_after_tax))
         } else {
-            Ok(AssetUnchecked::native(ask_asset_str, return_amount))
+            Ok(AssetUnchecked::native(ask_asset_str, return_amount_after_tax))
         }
     }
 

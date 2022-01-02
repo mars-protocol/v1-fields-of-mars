@@ -7,7 +7,6 @@ use cosmwasm_std::{
 
 use cw_asset::{Asset, AssetInfo, AssetList};
 
-use fields_of_mars::martian_field::msg::CallbackMsg;
 use fields_of_mars::martian_field::{Position, Snapshot, State};
 
 use crate::health::compute_health;
@@ -102,7 +101,7 @@ pub fn withdraw_liquidity(deps: DepsMut, user_addr: Addr) -> StdResult<Response>
     Ok(Response::new()
         .add_submessage(config.primary_pair.withdraw_submsg(1, liquidity_token_to_burn.amount)?)
         .add_attribute("action", "martian_field :: callback :: withdraw_liquidity")
-        .add_attribute("liquidity_token_burned", liquidity_token_to_burn.amount))
+        .add_attribute("shares_burned", liquidity_token_to_burn.amount))
 }
 
 pub fn bond(deps: DepsMut, env: Env, user_addr_option: Option<Addr>) -> StdResult<Response> {
@@ -174,7 +173,7 @@ pub fn bond(deps: DepsMut, env: Env, user_addr_option: Option<Addr>) -> StdResul
         )
         .add_attribute("action", "martian_field :: callback :: bond")
         .add_attribute("bond_units_added", bond_units_to_add)
-        .add_attribute("liquidity_token_bonded", liquidity_tokens_to_bond.amount))
+        .add_attribute("shares_bonded", liquidity_tokens_to_bond.amount))
 }
 
 pub fn unbond(
@@ -212,7 +211,7 @@ pub fn unbond(
     state.total_bond_units = state.total_bond_units.checked_sub(bond_units_to_deduct)?;
     state.pending_rewards.add_many(&rewards)?;
     position.bond_units = position.bond_units.checked_sub(bond_units_to_deduct)?;
-    position.unlocked_assets.deduct(&liquidity_token_to_unbond)?;
+    position.unlocked_assets.add(&liquidity_token_to_unbond)?;
 
     STATE.save(deps.storage, &state)?;
     POSITION.save(deps.storage, &user_addr, &position)?;
@@ -225,7 +224,7 @@ pub fn unbond(
         )
         .add_attribute("action", "martian_field :: callback :: unbond")
         .add_attribute("bond_units_deducted", bond_units_to_deduct)
-        .add_attribute("liquidity_token_unbonded", amount_to_unbond))
+        .add_attribute("shares_unbonded", amount_to_unbond))
 }
 
 pub fn borrow(
@@ -327,7 +326,6 @@ pub fn swap(
     user_addr_option: Option<Addr>,
     offer_asset_info: AssetInfo,
     offer_amount_option: Option<Uint128>,
-    belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
@@ -353,14 +351,13 @@ pub fn swap(
     } else if offer_asset_info == config.astro_token_info {
         &config.astro_pair
     } else {
-        return Err(StdError::generic_err(format!(
-            "invalid offer asset: {}",
-            offer_asset_info.to_string()
-        )));
+        return Err(StdError::generic_err(
+            format!("invalid offer asset: {}", offer_asset_info.to_string())
+        ));
     };
 
     // if swap amount is unspecified, we swap all that's available
-    let offer_asset = if let Some(offer_amount) = offer_amount_option {
+    let mut offer_asset = if let Some(offer_amount) = offer_amount_option {
         Asset::new(offer_asset_info, offer_amount)
     } else {
         assets
@@ -370,14 +367,13 @@ pub fn swap(
     };
 
     // if the deliverable amount after tax is zero, we do nothing
-    let mut offer_asset_to_send = offer_asset.clone();
-    offer_asset_to_send.deduct_tax(&deps.querier)?;
-    if offer_asset_to_send.amount.is_zero() {
+    offer_asset.deduct_tax(&deps.querier)?;
+    if offer_asset.amount.is_zero() {
         return Ok(Response::default());
     }
 
     // deduct offer asset from the available amount
-    let mut offer_asset_to_deduct = offer_asset_to_send.clone();
+    let mut offer_asset_to_deduct = offer_asset.clone();
     offer_asset_to_deduct.deduct_tax(&deps.querier)?;
     assets.deduct(&offer_asset_to_deduct)?;
 
@@ -391,7 +387,7 @@ pub fn swap(
     }
 
     Ok(Response::new()
-        .add_submessage(pair.swap_submsg(2, &offer_asset, belief_price, max_spread)?)
+        .add_submessage(pair.swap_submsg(2, &offer_asset, None, max_spread)?)
         .add_attribute("action", "martian_field :: callback :: swap")
         .add_attribute("asset_offered", offer_asset.to_string())
         .add_attribute("asset_deducted", offer_asset_to_deduct.to_string()))
@@ -399,12 +395,11 @@ pub fn swap(
 
 pub fn balance(
     deps: DepsMut,
-    env: Env,
-    belief_price: Option<Decimal>,
+    _env: Env,
     max_spread: Option<Decimal>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
-    let state = STATE.load(deps.storage)?;
+    let mut state = STATE.load(deps.storage)?;
 
     // find the available amounts of primary and secondary assets
     let primary_asset_amount = match state.pending_rewards.find(&config.primary_asset_info) {
@@ -429,9 +424,9 @@ pub fn balance(
     // if primary_asset_value > secondary_asset_value, we swap primary >> secondary
     // if secondary_asset_value > primary_asset_value, we swap secondary >> primary
     // if equal, we skip
-    let offer_asset_info = match primary_asset_value.cmp(&secondary_asset_value) {
-        Ordering::Greater => config.primary_asset_info,
-        Ordering::Less => config.secondary_asset_info,
+    let mut offer_asset = match primary_asset_value.cmp(&secondary_asset_value) {
+        Ordering::Greater => Asset::new(config.primary_asset_info, primary_asset_amount),
+        Ordering::Less => Asset::new(config.secondary_asset_info, secondary_asset_amount),
         Ordering::Equal => return Ok(Response::default()),
     };
 
@@ -441,7 +436,7 @@ pub fn balance(
     // $20 / 2 = $10 worth of UST to ANC. ideally, this should leave us $110 worth of each
     //
     // in reality, considering slippage, commission, and tax, we will end up with $110 worth of UST
-    // and **slight less than $110 worth** of ANC, so this method is not very optimized. the best
+    // and **slightly less than $110 worth** of ANC, so this method is not very optimized. the best
     // way is to solve a quadratic function which contains terms describing slippage and commission
     // rate to find the optimal swap amount. i have worked out the math somewhere else and will later
     // implement it as a separate smart contract
@@ -453,33 +448,36 @@ pub fn balance(
     let lower_value = cmp::min(primary_asset_value, secondary_asset_value);
     let value_diff = higher_value - lower_value; // don't need underflow check here
     let value_to_swap = value_diff.multiply_ratio(1u128, 2u128);
-    let amount_to_swap = value_to_swap.multiply_ratio(value_to_swap, higher_value);
+
+    offer_asset.amount = offer_asset.amount.multiply_ratio(value_to_swap, higher_value);
+    offer_asset.deduct_tax(&deps.querier)?;
+
+    let mut offer_asset_to_deduct = offer_asset.clone();
+    offer_asset_to_deduct.add_tax(&deps.querier)?;
+
+    state.pending_rewards.deduct(&offer_asset_to_deduct)?;
+    STATE.save(deps.storage, &state)?;
 
     // if amount to swap is zero, we do nothing
     // if amount to swap is non-zero, we invoke the `Swap` callback
     let mut res = Response::new();
-    if !amount_to_swap.is_zero() {
-        res = res.add_message(
-            CallbackMsg::Swap {
-                user_addr: None,
-                offer_asset_info: offer_asset_info.clone(),
-                offer_amount: Some(amount_to_swap),
-                belief_price,
-                max_spread,
-            }
-            .into_cosmos_msg(&env.contract.address)?,
-        );
+    if !offer_asset.amount.is_zero() {
+        res = res.add_submessage(config.primary_pair.swap_submsg(
+            2,
+            &offer_asset,
+            None,
+            max_spread,
+        )?);
     }
 
     Ok(res
         .add_attribute("action", "martian_field :: callback :: balance")
-        .add_attribute("primary_asset_amount", primary_asset_amount)
-        .add_attribute("secondary_asset_amount", secondary_asset_amount)
-        .add_attribute("primary_asset_price", primary_asset_price.to_string())
-        .add_attribute("secondary_asset_price", secondary_asset_price.to_string())
-        .add_attribute("primary_asset_value", primary_asset_value)
-        .add_attribute("secondary_asset_value", secondary_asset_value)
-        .add_attribute("offer_asset", Asset::new(offer_asset_info, amount_to_swap).to_string()))
+        .add_attribute("primary_amount", primary_asset_amount)
+        .add_attribute("secondary_amount", secondary_asset_amount)
+        .add_attribute("primary_price", primary_asset_price.to_string())
+        .add_attribute("secondary_price", secondary_asset_price.to_string())
+        .add_attribute("asset_offered", offer_asset.to_string())
+        .add_attribute("asset_deducted", offer_asset_to_deduct.to_string()))
 }
 
 pub fn refund(

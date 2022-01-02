@@ -45,9 +45,11 @@ pub fn after_provide_liquidity(
     // finally, clear cached data
     CACHED_USER_ADDR.remove(deps.storage);
 
+    // `shares_minted` should really be `liquidity_token_minted` according to my naming convention,
+    // but it's a bit too long and doesn't look very good on Terra Finder's UI, so I opt for a shorter one
     Ok(Response::new()
         .add_attribute("action", "martian_field :: reply :: after_provide_liquidity")
-        .add_attribute("liquidity_token_minted", minted_amount))
+        .add_attribute("shares_minted", minted_amount))
 }
 
 pub fn after_withdraw_liquidity(
@@ -108,15 +110,11 @@ pub fn after_swap(deps: DepsMut, response: SubMsgExecutionResponse) -> StdResult
     }
 
     // parse Astroport's event log to find out how much asset was returned from the swap
+    //
+    // NOTE: when parsing the event log, we already deducted the tax, so no need to do it again here
     let returned_asset_unchecked = Pair::parse_swap_events(&response.events)?;
     let returned_asset = returned_asset_unchecked.check(deps.api)?;
-
-    // the return amount returned in Astroport's response event is the pre-tax amount. we need to
-    // deduct tax to find the amount we actually received. we add the after-tax amount to the user's
-    // unlocked asset
-    let mut returned_asset_after_tax = returned_asset.clone();
-    returned_asset_after_tax.deduct_tax(&deps.querier)?;
-    assets.add(&returned_asset_after_tax)?;
+    assets.add(&returned_asset)?;
 
     // save the updated state/position
     if let Some(user_addr) = &user_addr_option {
@@ -130,6 +128,5 @@ pub fn after_swap(deps: DepsMut, response: SubMsgExecutionResponse) -> StdResult
 
     Ok(Response::new()
         .add_attribute("action", "martian_field :: reply :: after_swap")
-        .add_attribute("returned_asset", returned_asset.to_string())
-        .add_attribute("returned_asset_after_tax", returned_asset_after_tax.to_string()))
+        .add_attribute("returned_asset", returned_asset.to_string()))
 }

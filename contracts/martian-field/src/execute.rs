@@ -43,24 +43,19 @@ pub fn update_position(
                 &mut msgs,
                 &mut attrs,
             )?,
-
-            Action::Borrow {
-                amount,
-            } => callbacks.push(CallbackMsg::Borrow {
-                user_addr: info.sender.clone(),
-                borrow_amount: amount,
-            }),
-
-            Action::Repay {
-                amount,
-            } => callbacks.push(CallbackMsg::Repay {
-                user_addr: info.sender.clone(),
-                repay_amount: amount,
-            }),
-
-            Action::Bond {
-                slippage_tolerance,
-            } => callbacks.extend([
+            Action::Borrow { amount } => callbacks.push(
+                CallbackMsg::Borrow {
+                    user_addr: info.sender.clone(),
+                    borrow_amount: amount,
+                }
+            ),
+            Action::Repay { amount } => callbacks.push(
+                CallbackMsg::Repay {
+                    user_addr: info.sender.clone(),
+                    repay_amount: amount,
+                }
+            ),
+            Action::Bond { slippage_tolerance } => callbacks.extend([
                 CallbackMsg::ProvideLiquidity {
                     user_addr: Some(info.sender.clone()),
                     slippage_tolerance,
@@ -69,10 +64,7 @@ pub fn update_position(
                     user_addr: Some(info.sender.clone()),
                 },
             ]),
-
-            Action::Unbond {
-                bond_units_to_reduce,
-            } => callbacks.extend([
+            Action::Unbond { bond_units_to_reduce } => callbacks.extend([
                 CallbackMsg::Unbond {
                     user_addr: info.sender.clone(),
                     bond_units_to_reduce,
@@ -81,18 +73,14 @@ pub fn update_position(
                     user_addr: info.sender.clone(),
                 },
             ]),
-
-            Action::Swap {
-                offer_amount,
-                belief_price,
-                max_spread,
-            } => callbacks.push(CallbackMsg::Swap {
-                user_addr: Some(info.sender.clone()),
-                offer_asset_info: config.primary_asset_info.clone(),
-                offer_amount: Some(offer_amount),
-                belief_price,
-                max_spread,
-            }),
+            Action::Swap { offer_amount, max_spread } => callbacks.push(
+                CallbackMsg::Swap {
+                    user_addr: Some(info.sender.clone()),
+                    offer_asset_info: config.primary_asset_info.clone(),
+                    offer_amount: Some(offer_amount),
+                    max_spread,
+                }
+            ),
         }
     }
 
@@ -148,10 +136,10 @@ fn handle_deposit(
     // if asset is a CW20 token, we transfer the specified amount from the user's wallet
     match &asset.info {
         AssetInfo::Cw20(_) => {
-            assert_sent_fund(asset, &info.funds)?;
+            msgs.push(asset.transfer_from_msg(&info.sender, &env.contract.address)?);
         }
         AssetInfo::Native(_) => {
-            msgs.push(asset.transfer_from_msg(&info.sender, &env.contract.address)?);
+            assert_sent_fund(asset, &info.funds)?;
         }
     }
 
@@ -168,7 +156,6 @@ fn handle_deposit(
 pub fn harvest(
     deps: DepsMut,
     env: Env,
-    belief_price: Option<Decimal>,
     max_spread: Option<Decimal>,
     slippage_tolerance: Option<Decimal>,
 ) -> StdResult<Response> {
@@ -184,6 +171,10 @@ pub fn harvest(
 
     // if reward amount is non-zero, we construct a message to claim them, as well as add them to
     // the pending rewards
+    //
+    // NOTE: here we assume transferring the reward does not incur tax, so we add the full amount
+    // (without deducting tax) to `state.pending_rewards`. this is true for now, but if in the
+    // future someone builds a proxy that emits UST as reward, we will need to deduct tax here
     let mut msgs: Vec<CosmosMsg> = vec![];
     if rewards.len() > 0 {
         msgs.push(config.astro_generator.claim_rewards_msg(&config.primary_pair.liquidity_token)?);
@@ -196,6 +187,7 @@ pub fn harvest(
 
     // construct the messages that send the fees to treasury
     fees.deduct_tax(&deps.querier)?;
+    fees.purge();
     msgs.extend(fees.transfer_msgs(&config.treasury)?);
 
     // deduct fees (with tax) from available rewards. the remaining amounts are to be reinvested
@@ -216,7 +208,6 @@ pub fn harvest(
             user_addr: None,
             offer_asset_info: config.astro_token_info.clone(),
             offer_amount: Some(astro_token.amount),
-            belief_price,
             max_spread,
         });
     }
@@ -227,7 +218,6 @@ pub fn harvest(
     // 3. bond liquidity tokens (without increasing total bond units)
     callbacks.extend([
         CallbackMsg::Balance {
-            belief_price,
             max_spread,
         },
         CallbackMsg::ProvideLiquidity {
@@ -245,7 +235,7 @@ pub fn harvest(
         .collect();
 
     let event = Event::new("harvested")
-        .add_attribute("time", env.block.time.to_string())
+        .add_attribute("time", env.block.time.seconds().to_string())
         .add_attribute("height", env.block.height.to_string())
         .add_attribute("fees", fees.to_string());
 
@@ -296,7 +286,6 @@ pub fn liquidate(
             user_addr: Some(user_addr.clone()),
             offer_asset_info: config.primary_asset_info.clone(),
             offer_amount: None,
-            belief_price: None,
             max_spread: None,
         },
         CallbackMsg::Repay {

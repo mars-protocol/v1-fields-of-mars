@@ -31,14 +31,16 @@ pub mod entry {
     ) -> StdResult<Response> {
         let api = deps.api;
         match msg {
-            ExecuteMsg::UpdatePosition(actions) => {
-                execute::update_position(deps, env, info, actions)
-            }
+            ExecuteMsg::UpdatePosition(actions) => execute::update_position(
+                deps, 
+                env, 
+                info, 
+                actions,
+            ),
             ExecuteMsg::Harvest {
-                belief_price,
                 max_spread,
                 slippage_tolerance,
-            } => execute::harvest(deps, env, belief_price, max_spread, slippage_tolerance),
+            } => execute::harvest(deps, env, max_spread, slippage_tolerance),
             ExecuteMsg::Liquidate {
                 user,
             } => execute::liquidate(deps, env, info, api.addr_validate(&user)?),
@@ -90,20 +92,11 @@ pub mod entry {
                 user_addr,
                 offer_asset_info,
                 offer_amount,
-                belief_price,
                 max_spread,
-            } => callbacks::swap(
-                deps,
-                user_addr,
-                offer_asset_info,
-                offer_amount,
-                belief_price,
-                max_spread,
-            ),
+            } => callbacks::swap(deps, user_addr, offer_asset_info, offer_amount, max_spread),
             CallbackMsg::Balance {
-                belief_price,
                 max_spread,
-            } => callbacks::balance(deps, env, belief_price, max_spread),
+            } => callbacks::balance(deps, env, max_spread),
             CallbackMsg::AssertHealth {
                 user_addr,
             } => callbacks::assert_health(deps, env, user_addr),

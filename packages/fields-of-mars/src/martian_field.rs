@@ -251,7 +251,6 @@ pub mod msg {
         /// Swap a specified amount of unlocked primary asset to the secondary asset
         Swap {
             offer_amount: Uint128,
-            belief_price: Option<Decimal>,
             max_spread: Option<Decimal>,
         },
     }
@@ -272,8 +271,11 @@ pub mod msg {
         /// 3. Delete cached data in storage
         UpdatePosition(Vec<Action>),
         /// Claim staking reward and reinvest
+        ///
+        /// `max_spread` is used for ASTRO >> secondary swap and balancing operations
+        ///
+        /// `slippage_tolerance` is used for providing primary + secondary liquidity
         Harvest {
-            belief_price: Option<Decimal>,
             max_spread: Option<Decimal>,
             slippage_tolerance: Option<Decimal>,
         },
@@ -344,14 +346,12 @@ pub mod msg {
             user_addr: Option<Addr>,
             offer_asset_info: AssetInfo,
             offer_amount: Option<Uint128>,
-            belief_price: Option<Decimal>,
             max_spread: Option<Decimal>,
         },
         /// Swap the primary and secondary assets currently held by the contract as pending rewards,
         /// such that the two assets have the same value and can be reinvested. This is used during
         /// the `Harvest` function call.
         Balance {
-            belief_price: Option<Decimal>,
             max_spread: Option<Decimal>,
         },
         /// Send a percentage of a user's unlocked primary & seoncdary asset to a recipient; default
