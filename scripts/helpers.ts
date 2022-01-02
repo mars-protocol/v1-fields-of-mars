@@ -16,8 +16,6 @@ import {
  * function more flexible, but I'm too lazy for that
  */
 export async function sendTransaction(terra: LCDClient, sender: Wallet, msgs: Msg[]) {
-  const feeDenom = "uusd";
-  const network = "mainnet";
   const tx = await sender.createAndSignTx({
     msgs,
     gasPrices: "0.15uusd",

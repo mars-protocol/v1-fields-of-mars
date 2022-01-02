@@ -83,11 +83,11 @@ pub fn after_withdraw_liquidity(
 
     Ok(Response::new()
         .add_attribute("action", "martian_field :: reply :: after_withdraw_liquidity")
-        .add_attribute("user_addr", user_addr)
-        .add_attribute("primary_withdrawn_amount", primary_asset_withdrawn.amount)
-        .add_attribute("primary_added_amount", primary_asset_to_add.amount)
-        .add_attribute("secondary_withdrawn_amount", secondary_asset_withdrawn.amount)
-        .add_attribute("secondary_added_amount", secondary_asset_to_add.amount))
+        .add_attribute("user", user_addr)
+        .add_attribute("primary_withdrawn", primary_asset_withdrawn.amount)
+        .add_attribute("primary_added", primary_asset_to_add.amount)
+        .add_attribute("secondary_withdrawn", secondary_asset_withdrawn.amount)
+        .add_attribute("secondary_added", secondary_asset_to_add.amount))
 }
 
 pub fn after_swap(deps: DepsMut, response: SubMsgExecutionResponse) -> StdResult<Response> {

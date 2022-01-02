@@ -539,7 +539,7 @@ pub fn cover(
             2,
             &primary_to_sell,
             None,
-            Some(Decimal::from_ratio(1u128, 10u128)),
+            Some(Decimal::from_ratio(1u128, 2u128)), // TODO: may not be a good idea. should think about this
         )?)
         .add_attribute("action", "martian_field :: callback :: cover")
         .add_attribute("debt_amount", debt_amount)
@@ -609,17 +609,17 @@ pub fn assert_health(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Resp
     let ltv_str = if let Some(ltv) = health.ltv {
         ltv.to_string()
     } else {
-        "undefined".to_string()
+        "null".to_string()
     };
 
     if !healthy {
         return Err(StdError::generic_err(format!("ltv greater than threshold: {}", ltv_str)));
     }
 
-    let event = Event::new("field_position_changed")
+    let event = Event::new("position_changed")
         .add_attribute("timestamp", env.block.time.seconds().to_string())
         .add_attribute("height", env.block.height.to_string())
-        .add_attribute("user_addr", &user_addr)
+        .add_attribute("user", &user_addr)
         .add_attribute("bond_units", position.bond_units)
         .add_attribute("debt_units", position.debt_units)
         .add_attribute("bond_value", health.bond_value)

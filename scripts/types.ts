@@ -51,18 +51,18 @@ export type Config = {
   red_bank: {
     contract_addr: string;
   };
-  pair: {
+  primary_pair: {
     contract_addr: string;
     liquidity_token: string;
   };
-  staking: {
-    [key: string]: {
-      contract_addr: string;
-      asset_token: string;
-      staking_token: string;
-    };
+  astro_pair: {
+    contract_addr: string;
+    liquidity_token: string;
   };
-  [key: string]: string | object;
+  astro_generator: {
+    contract_addr: string;
+  };
+  [key: string]: string | object; // other parameters omitted from type definition (unnecessary)
 };
 
 export type StateResponse = {

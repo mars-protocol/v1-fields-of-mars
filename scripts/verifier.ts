@@ -2,32 +2,30 @@ import chalk from "chalk";
 import { assert } from "chai";
 import { table } from "table";
 import { LCDClient, LocalTerra } from "@terra-money/terra.js";
-import { Astroport, RedBank, Staking, MartianField } from "./types";
+import {
+  Config,
+  PoolResponse,
+  UserAssetDebtResponse,
+  StateResponse,
+  PositionResponse,
+  HealthResponse,
+} from "./types";
 
-// Data to check
 export interface CheckData {
-  bond: Staking.StakerInfoResponse | Staking.RewardInfoResponse;
-  debt: RedBank.UserAssetDebtResponse;
-  pool: Astroport.PoolResponse;
-  state: MartianField.StateResponse;
+  bond: string;
+  debt: string;
+  ancUstPool: PoolResponse;
+  astroUstPool: PoolResponse;
+  state: StateResponse;
   users: {
     address: string;
-    position: MartianField.PositionResponse;
-    health: MartianField.HealthResponse;
+    position: PositionResponse;
+    health: HealthResponse;
   }[];
 }
 
-function _generateRow(
-  name: string,
-  expectedValue: string | null | undefined,
-  actualValue: string | null | undefined
-) {
-  return [
-    name,
-    expectedValue,
-    actualValue,
-    expectedValue == actualValue ? chalk.green("true") : chalk.red("false"),
-  ];
+function _generateRow(name: string, expected: any, actual: any) {
+  return [name, expected, actual, expected == actual ? chalk.green("true") : chalk.red("false")];
 }
 
 /**
@@ -39,39 +37,26 @@ export class Verifier {
   // Address of Martian Field contract
   field: string;
   // Config of Martian Field contract
-  config: MartianField.Config;
+  config: Config;
 
-  constructor(terra: LCDClient | LocalTerra, field: string, config: MartianField.Config) {
+  constructor(terra: LCDClient | LocalTerra, field: string, config: Config) {
     this.terra = terra;
     this.field = field;
     this.config = config;
   }
 
-  async verify(
-    // Hash of the transaction
-    txhash: string,
-    // Name of the test
-    test: string,
-    // Expected contract state
-    expected: CheckData
-  ) {
-    // Query external contracts
-    const bond =
-      "anchor" in this.config.staking
-        ? ((await this.terra.wasm.contractQuery(this.config.staking.anchor.contract_addr, {
-            staker_info: {
-              staker: this.field,
-              block_height: null,
-            },
-          })) as Staking.StakerInfoResponse)
-        : ((await this.terra.wasm.contractQuery(this.config.staking.mirror.contract_addr, {
-            reward_info: {
-              staker_addr: this.field,
-              asset_token: undefined,
-            },
-          })) as Staking.RewardInfoResponse);
+  async query(users: { address: string }[]): Promise<CheckData> {
+    const bond: string = await this.terra.wasm.contractQuery(
+      this.config.astro_generator.contract_addr,
+      {
+        deposit: {
+          lp_token: this.config.primary_pair.liquidity_token,
+          user: this.field,
+        },
+      }
+    );
 
-    const debt: RedBank.UserAssetDebtResponse = await this.terra.wasm.contractQuery(
+    const debt: UserAssetDebtResponse = await this.terra.wasm.contractQuery(
       this.config.red_bank.contract_addr,
       {
         user_asset_debt: {
@@ -85,73 +70,101 @@ export class Verifier {
       }
     );
 
-    const pool: Astroport.PoolResponse = await this.terra.wasm.contractQuery(
-      this.config.pair.contract_addr,
+    const ancUstPool: PoolResponse = await this.terra.wasm.contractQuery(
+      this.config.primary_pair.contract_addr,
       {
         pool: {},
       }
     );
 
-    // Query the global state of Martian Field
-    const state: MartianField.StateResponse = await this.terra.wasm.contractQuery(this.field, {
+    const astroUstPool: PoolResponse = await this.terra.wasm.contractQuery(
+      this.config.astro_pair.contract_addr,
+      {
+        pool: {},
+      }
+    );
+
+    const state: StateResponse = await this.terra.wasm.contractQuery(this.field, {
       state: {},
     });
 
-    // Query position and health of each user
-    let users: {
+    let _users: {
       address: string;
-      position: MartianField.PositionResponse;
-      health: MartianField.HealthResponse;
+      position: PositionResponse;
+      health: HealthResponse;
     }[] = [];
 
-    for (const user of expected.users) {
-      users.push({
+    for (const user of users) {
+      _users.push({
         address: user.address,
-        position: (await this.terra.wasm.contractQuery(this.field, {
+        position: await this.terra.wasm.contractQuery(this.field, {
           position: {
             user: user.address,
           },
-        })) as MartianField.PositionResponse,
-        health: (await this.terra.wasm.contractQuery(this.field, {
+        }),
+        health: await this.terra.wasm.contractQuery(this.field, {
           health: {
             user: user.address,
           },
-        })) as MartianField.HealthResponse,
+        }),
       });
     }
 
-    // Combine results
-    const actual: CheckData = { bond, debt, pool, state, users };
-    // console.log(JSON.stringify(actual, null, 2));
+    return {
+      bond,
+      debt: debt.amount,
+      ancUstPool,
+      astroUstPool,
+      state,
+      users: _users,
+    };
+  }
 
-    // Generate a comparison table
-    let header = [chalk.magenta(test), "expected            ", "actual              ", "match"];
+  async verify(expected: CheckData) {
+    const actual = await this.query(expected.users);
 
     let rows = [
-      header,
+      // header
+      ["variable", "expected            ", "actual              ", "match"],
       // bond
-      _generateRow(
-        "bond.amount",
-        "bond_amount" in expected.bond
-          ? expected.bond.bond_amount
-          : expected.bond.reward_infos.length > 0
-          ? expected.bond.reward_infos[0].bond_amount
-          : "0",
-        "bond_amount" in actual.bond
-          ? actual.bond.bond_amount
-          : actual.bond.reward_infos.length > 0
-          ? actual.bond.reward_infos[0].bond_amount
-          : "0"
-      ),
+      _generateRow("bond.amount", expected.bond, actual.bond),
       // debt
-      _generateRow("debt.amount", expected.debt.amount, actual.debt.amount),
-      // pool
-      _generateRow("pool.assets[0]", expected.pool.assets[0].amount, actual.pool.assets[0].amount),
-      _generateRow("pool.assets[1]", expected.pool.assets[1].amount, actual.pool.assets[1].amount),
-      _generateRow("pool.total_share", expected.pool.total_share, actual.pool.total_share),
+      _generateRow("debt.amount", expected.debt, actual.debt),
+      // ANC-UST pool
+      _generateRow(
+        "ancUstPool.assets[0]",
+        expected.ancUstPool.assets[0].amount,
+        actual.ancUstPool.assets[0].amount
+      ),
+      _generateRow(
+        "ancUstPool.assets[1]",
+        expected.ancUstPool.assets[1].amount,
+        actual.ancUstPool.assets[1].amount
+      ),
+      _generateRow(
+        "ancUstPool.shares",
+        expected.ancUstPool.total_share,
+        actual.ancUstPool.total_share
+      ),
+      // ASTRO-UST pool
+      _generateRow(
+        "astroUstPool.assets[0]",
+        expected.astroUstPool.assets[0].amount,
+        actual.astroUstPool.assets[0].amount
+      ),
+      _generateRow(
+        "astroUstPool.assets[1]",
+        expected.astroUstPool.assets[1].amount,
+        actual.astroUstPool.assets[1].amount
+      ),
+      _generateRow(
+        "astroUstPool.shares",
+        expected.astroUstPool.total_share,
+        actual.astroUstPool.total_share
+      ),
     ];
 
-    // state units
+    // state
     rows = rows.concat([
       _generateRow(
         "state.total_bond_units",
@@ -165,8 +178,6 @@ export class Verifier {
       ),
     ]);
 
-    // state pending rewards
-    // user unlocked assets
     for (let j = 0; j < expected.state.pending_rewards.length; j++) {
       rows.push(
         _generateRow(
@@ -177,9 +188,9 @@ export class Verifier {
       );
     }
 
+    // users
     for (let i = 0; i < actual.users.length; i++) {
       rows = rows.concat([
-        // user position
         _generateRow(
           `users[${i}].bond_units`,
           expected.users[i].position.bond_units,
@@ -192,7 +203,6 @@ export class Verifier {
         ),
       ]);
 
-      // user unlocked assets
       for (let j = 0; j < expected.users[i].position.unlocked_assets.length; j++) {
         rows.push(
           _generateRow(
@@ -203,7 +213,6 @@ export class Verifier {
         );
       }
 
-      // user health
       rows = rows.concat([
         _generateRow(
           `users[${i}].bond_value`,
@@ -219,20 +228,16 @@ export class Verifier {
       ]);
     }
 
-    // Print the comparison table
+    // print out the table
     process.stdout.write(
       table(rows, {
-        header: {
-          content: `${chalk.cyan("txhash:")} ${txhash}`,
-          alignment: "left",
-        },
         drawHorizontalLine: (lineIndex: number, rowCount: number) => {
-          return [0, 1, 2, rowCount].includes(lineIndex);
+          return [0, 1, rowCount].includes(lineIndex);
         },
       })
     );
 
-    // Assert actual data match expected ones
+    // assert data match
     const match = rows.slice(1).every((row) => row[3] == chalk.green("true"));
     assert(match);
   }
