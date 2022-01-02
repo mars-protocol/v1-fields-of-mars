@@ -98,10 +98,10 @@ pub fn update_position(
         },
     ]);
 
-    let callback_msgs: Vec<CosmosMsg> = callbacks
+    let callback_msgs = callbacks
         .iter()
-        .map(|callback| callback.into_cosmos_msg(&env.contract.address).unwrap())
-        .collect();
+        .map(|callback| callback.into_cosmos_msg(&env.contract.address))
+        .collect::<StdResult<Vec<CosmosMsg>>>()?;
 
     Ok(Response::new()
         .add_messages(msgs)
@@ -220,10 +220,10 @@ pub fn harvest(
         },
     ]);
 
-    let callback_msgs: Vec<CosmosMsg> = callbacks
+    let callback_msgs = callbacks
         .iter()
-        .map(|callback| callback.into_cosmos_msg(&env.contract.address).unwrap())
-        .collect();
+        .map(|callback| callback.into_cosmos_msg(&env.contract.address))
+        .collect::<StdResult<Vec<CosmosMsg>>>()?;
 
     let event = Event::new("harvested")
         .add_attribute("time", env.block.time.seconds().to_string())
@@ -300,10 +300,10 @@ pub fn liquidate(
         },
     ];
 
-    let callback_msgs: Vec<CosmosMsg> = callbacks
+    let callback_msgs = callbacks
         .iter()
-        .map(|callback| callback.into_cosmos_msg(&env.contract.address).unwrap())
-        .collect();
+        .map(|callback| callback.into_cosmos_msg(&env.contract.address))
+        .collect::<StdResult<Vec<CosmosMsg>>>()?;
 
     let event = Event::new("liquidated")
         .add_attribute("liquidator", info.sender)
