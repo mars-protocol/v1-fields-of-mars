@@ -1,3 +1,4 @@
+#[cfg(not(feature = "library"))]
 pub mod contract;
 pub mod execute;
 pub mod execute_callbacks;
