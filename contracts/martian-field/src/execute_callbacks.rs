@@ -37,28 +37,18 @@ pub fn provide_liquidity(
 
     // we provide *all* available primary and secondary assets, assuming they are close in value.
     // it is strongly recommended to use `slippage_tolerance` parameter here
-    let mut primary_asset_to_provide = assets
+    let primary_asset_to_provide = assets
         .find(&config.primary_asset_info)
         .cloned()
         .ok_or_else(|| StdError::generic_err("no primary asset available"))?;
-    let mut secondary_asset_to_provide = assets
+    let secondary_asset_to_provide = assets
         .find(&config.secondary_asset_info)
         .cloned()
         .ok_or_else(|| StdError::generic_err("no secondary asset available"))?;
 
-    // all assets to be transferred must have tax deducted!
-    primary_asset_to_provide.deduct_tax(&deps.querier)?;
-    secondary_asset_to_provide.deduct_tax(&deps.querier)?;
-
-    // the total cost for providing liquidity is the amount to be provided plus tax. we deduct these
-    // amounts from the available assets
-    let mut primary_asset_to_deduct = primary_asset_to_provide.clone();
-    primary_asset_to_deduct.add_tax(&deps.querier)?;
-    let mut secondary_asset_to_deduct = secondary_asset_to_provide.clone();
-    secondary_asset_to_deduct.add_tax(&deps.querier)?;
-
-    assets.deduct(&primary_asset_to_deduct)?;
-    assets.deduct(&secondary_asset_to_deduct)?;
+    // deduct assets that will be provided from available asset list
+    assets.deduct(&primary_asset_to_provide)?;
+    assets.deduct(&secondary_asset_to_provide)?;
 
     // update storage
     // if `user_addr` is provided, we cache it so that it can be accessed when handling the reply
@@ -77,9 +67,7 @@ pub fn provide_liquidity(
         )?)
         .add_attribute("action", "martian_field :: callback :: provide_liquidity")
         .add_attribute("primary_provided", primary_asset_to_provide.amount)
-        .add_attribute("primary_deducted", primary_asset_to_deduct.amount)
-        .add_attribute("secondary_provided", secondary_asset_to_provide.amount)
-        .add_attribute("secondary_deducted", secondary_asset_to_deduct.amount))
+        .add_attribute("secondary_provided", secondary_asset_to_provide.amount))
 }
 
 pub fn withdraw_liquidity(deps: DepsMut, user_addr: Addr) -> StdResult<Response> {
@@ -244,21 +232,18 @@ pub fn borrow(
         &env.contract.address,
         &config.secondary_asset_info,
     )?;
+
     let debt_units_to_add = if total_debt_amount.is_zero() {
         borrow_amount * DEFAULT_DEBT_UNITS_PER_ASSET_BORROWED
     } else {
         state.total_debt_units.multiply_ratio(borrow_amount, total_debt_amount)
     };
 
-    // the actual amount we'll receive from Red Bank is the borrow amount minus tax. we increase the
-    // user's unlocked secondary asset by this amount
     let secondary_asset_to_borrow = Asset::new(config.secondary_asset_info.clone(), borrow_amount);
-    let mut secondary_asset_to_add = secondary_asset_to_borrow.clone();
-    secondary_asset_to_add.deduct_tax(&deps.querier)?;
 
     state.total_debt_units += debt_units_to_add;
     position.debt_units += debt_units_to_add;
-    position.unlocked_assets.add(&secondary_asset_to_add)?;
+    position.unlocked_assets.add(&secondary_asset_to_borrow)?;
 
     STATE.save(deps.storage, &state)?;
     POSITION.save(deps.storage, &user_addr, &position)?;
@@ -267,8 +252,7 @@ pub fn borrow(
         .add_message(config.red_bank.borrow_msg(&secondary_asset_to_borrow)?)
         .add_attribute("action", "martian_field :: callback :: borrow")
         .add_attribute("debt_units_added", debt_units_to_add)
-        .add_attribute("secondary_borrowed", secondary_asset_to_borrow.amount)
-        .add_attribute("secondary_added", secondary_asset_to_add.amount))
+        .add_attribute("secondary_borrowed", secondary_asset_to_borrow.amount))
 }
 
 pub fn repay(
@@ -299,16 +283,11 @@ pub fn repay(
         position.debt_units.multiply_ratio(repay_amount, debt_amount)
     };
 
-    // NOTE: `repay_amount` is the amount to be delivered to Red Bank. the total cost of making this
-    // transfer is `repay_amount` plus tax. we deduct the total amount from the user's unlocked
-    // secondary asset
     let secondary_asset_to_repay = Asset::new(config.secondary_asset_info.clone(), repay_amount);
-    let mut secondary_asset_to_deduct = secondary_asset_to_repay.clone();
-    secondary_asset_to_deduct.add_tax(&deps.querier)?;
 
     state.total_debt_units -= debt_units_to_deduct;
     position.debt_units -= debt_units_to_deduct;
-    position.unlocked_assets.deduct(&secondary_asset_to_deduct)?;
+    position.unlocked_assets.deduct(&secondary_asset_to_repay)?;
 
     STATE.save(deps.storage, &state)?;
     POSITION.save(deps.storage, &user_addr, &position)?;
@@ -317,8 +296,7 @@ pub fn repay(
         .add_message(config.red_bank.repay_msg(&secondary_asset_to_repay)?)
         .add_attribute("action", "martian_field :: callback :: repay")
         .add_attribute("debt_units_deducted", debt_units_to_deduct)
-        .add_attribute("secondary_repaid", secondary_asset_to_repay.amount)
-        .add_attribute("secondary_deducted", secondary_asset_to_deduct.amount))
+        .add_attribute("secondary_repaid", secondary_asset_to_repay.amount))
 }
 
 pub fn swap(
@@ -357,7 +335,7 @@ pub fn swap(
     };
 
     // if swap amount is unspecified, we swap all that's available
-    let mut offer_asset = if let Some(offer_amount) = offer_amount_option {
+    let offer_asset = if let Some(offer_amount) = offer_amount_option {
         Asset::new(offer_asset_info, offer_amount)
     } else {
         assets
@@ -366,16 +344,8 @@ pub fn swap(
             .unwrap_or_else(|| Asset::new(offer_asset_info, Uint128::zero()))
     };
 
-    // if the deliverable amount after tax is zero, we do nothing
-    offer_asset.deduct_tax(&deps.querier)?;
-    if offer_asset.amount.is_zero() {
-        return Ok(Response::default());
-    }
-
     // deduct offer asset from the available amount
-    let mut offer_asset_to_deduct = offer_asset.clone();
-    offer_asset_to_deduct.deduct_tax(&deps.querier)?;
-    assets.deduct(&offer_asset_to_deduct)?;
+    assets.deduct(&offer_asset)?;
 
     // update storage
     // if `user_addr` is provided, we cache it so that it can be accessed when handling the reply
@@ -389,8 +359,7 @@ pub fn swap(
     Ok(Response::new()
         .add_submessage(pair.swap_submsg(2, &offer_asset, None, max_spread)?)
         .add_attribute("action", "martian_field :: callback :: swap")
-        .add_attribute("asset_offered", offer_asset.to_string())
-        .add_attribute("asset_deducted", offer_asset_to_deduct.to_string()))
+        .add_attribute("asset_offered", offer_asset.to_string()))
 }
 
 pub fn balance(
@@ -424,9 +393,11 @@ pub fn balance(
     // if primary_asset_value > secondary_asset_value, we swap primary >> secondary
     // if secondary_asset_value > primary_asset_value, we swap secondary >> primary
     // if equal, we skip
-    let mut offer_asset = match primary_asset_value.cmp(&secondary_asset_value) {
-        Ordering::Greater => Asset::new(config.primary_asset_info, primary_asset_amount),
-        Ordering::Less => Asset::new(config.secondary_asset_info, secondary_asset_amount),
+    let (offer_asset_info, offer_asset_available_amount) = 
+        match primary_asset_value.cmp(&secondary_asset_value) 
+    {
+        Ordering::Greater => (config.primary_asset_info.clone(), primary_asset_amount),
+        Ordering::Less => (config.secondary_asset_info.clone(), secondary_asset_amount),
         Ordering::Equal => return Ok(Response::default()),
     };
 
@@ -435,10 +406,10 @@ pub fn balance(
     // e.g. we have $120 worth of UST and $100 worth of ANC. the diff in value is $20, so we swap
     // $20 / 2 = $10 worth of UST to ANC. ideally, this should leave us $110 worth of each
     //
-    // in reality, considering slippage, commission, and tax, we will end up with $110 worth of UST
-    // and **slightly less than $110 worth** of ANC, so this method is not very optimized. the best
-    // way is to solve a quadratic function which contains terms describing slippage and commission
-    // rate to find the optimal swap amount. i have worked out the math somewhere else and will later
+    // in reality, considering slippage, commission, we will end up with $110 worth of UST and 
+    // **slightly less than $110 worth** of ANC, so this method is not very optimized. the best way
+    // is to solve a quadratic function which contains terms describing slippage and commission rate
+    // to find the optimal swap amount. i have worked out the math somewhere else and will later
     // implement it as a separate smart contract
     //
     // for the time being, the less optimial method is ok as long as we harvest frequently - that is,
@@ -449,13 +420,12 @@ pub fn balance(
     let value_diff = higher_value - lower_value; // don't need underflow check here
     let value_to_swap = value_diff.multiply_ratio(1u128, 2u128);
 
-    offer_asset.amount = offer_asset.amount.multiply_ratio(value_to_swap, higher_value);
-    offer_asset.deduct_tax(&deps.querier)?;
+    let offer_asset = Asset::new(
+        offer_asset_info, 
+        offer_asset_available_amount.multiply_ratio(value_to_swap, higher_value)
+    );
 
-    let mut offer_asset_to_deduct = offer_asset.clone();
-    offer_asset_to_deduct.add_tax(&deps.querier)?;
-
-    state.pending_rewards.deduct(&offer_asset_to_deduct)?;
+    state.pending_rewards.deduct(&offer_asset)?;
     STATE.save(deps.storage, &state)?;
 
     // if amount to swap is zero, we do nothing
@@ -476,8 +446,7 @@ pub fn balance(
         .add_attribute("secondary_amount", secondary_asset_amount)
         .add_attribute("primary_price", primary_asset_price.to_string())
         .add_attribute("secondary_price", secondary_asset_price.to_string())
-        .add_attribute("asset_offered", offer_asset.to_string())
-        .add_attribute("asset_deducted", offer_asset_to_deduct.to_string()))
+        .add_attribute("asset_offered", offer_asset.to_string()))
 }
 
 pub fn cover(
@@ -513,24 +482,13 @@ pub fn cover(
     let secondary_needed = Asset::new(config.secondary_asset_info.clone(), secondary_needed_amount);
 
     // reverse simulate how much primary asset needs to be sold
-    //
-    // NOTE: if secondary asset is native coin, tax will incur in two steps: the primary >> secondary
-    // swap, and the repayment. to account for this, we sell slight more primary asset than needed
-    //
-    // currently we swap 1% more than needed
-    let mut primary_sell_amount = config.primary_pair.query_reverse_simulate(
+    let primary_sell_amount = config.primary_pair.query_reverse_simulate(
         &deps.querier, 
         &secondary_needed
     )?;
-    primary_sell_amount = primary_sell_amount * Decimal::from_ratio(101u128, 100u128);
+    let primary_to_sell = Asset::new(config.primary_asset_info.clone(), primary_sell_amount);
 
-    let mut primary_to_sell = Asset::new(config.primary_asset_info.clone(), primary_sell_amount);
-    primary_to_sell.deduct_tax(&deps.querier)?;
-
-    let mut primary_to_deduct = primary_to_sell.clone();
-    primary_to_deduct.add_tax(&deps.querier)?;
-    position.unlocked_assets.deduct(&primary_to_deduct)?;
-
+    position.unlocked_assets.deduct(&primary_to_sell)?;
     POSITION.save(deps.storage, &user_addr, &position)?;
     CACHED_USER_ADDR.save(deps.storage, &user_addr)?;
     
@@ -556,20 +514,11 @@ pub fn refund(
 ) -> StdResult<Response> {
     let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
 
-    // 1. apply percentage
-    // 2. deduct tax
-    // 3. purge assets with zero amount
+    // apply percentage and purge assets with zero amount
     let mut assets_to_refund = position.unlocked_assets.clone();
-    assets_to_refund
-        .apply(|asset| asset.amount = asset.amount * percentage)
-        .deduct_tax(&deps.querier)?
-        .purge();
+    assets_to_refund.apply(|asset| asset.amount = asset.amount * percentage).purge();
 
-    // the cost for refunding an asset is its amount plus tax. we deduct this amount from the user's
-    // unlocked assets
-    let mut assets_to_deduct = assets_to_refund.clone();
-    assets_to_deduct.add_tax(&deps.querier)?;
-    position.unlocked_assets.deduct_many(&assets_to_deduct)?;
+    position.unlocked_assets.deduct_many(&assets_to_refund)?;
     POSITION.save(deps.storage, &user_addr, &position)?;
 
     let refund_attrs: Vec<Attribute> = assets_to_refund
@@ -577,18 +526,12 @@ pub fn refund(
         .iter()
         .map(|asset| attr("asset_refunded", asset.to_string()))
         .collect();
-    let deduct_attrs: Vec<Attribute> = assets_to_deduct
-        .to_vec()
-        .iter()
-        .map(|asset| attr("asset_deducted", asset.to_string()))
-        .collect();
 
     Ok(Response::new()
         .add_messages(assets_to_refund.transfer_msgs(&recipient_addr)?)
         .add_attribute("action", "martian_field :: callback :: refund")
         .add_attribute("recipient", recipient_addr.to_string())
-        .add_attributes(refund_attrs)
-        .add_attributes(deduct_attrs))
+        .add_attributes(refund_attrs))
 }
 
 pub fn assert_health(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Response> {

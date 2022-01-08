@@ -154,16 +154,15 @@ dependencies = [
 
 [[package]]
 name = "cw-asset"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1b40304423ad8208758bc122b2b7f2c7b02c1534e480c57a01fc6c039281bc9"
+checksum = "e9fb829a7277225eba246db958b4294a6150dd36351ed07b9116be4c1334a31a"
 dependencies = [
  "astroport 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmwasm-std",
  "cw20 0.9.1",
  "schemars",
  "serde",
- "terra-cosmwasm",
 ]
 
 [[package]]

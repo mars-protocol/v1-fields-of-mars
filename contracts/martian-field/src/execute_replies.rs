@@ -67,16 +67,8 @@ pub fn after_withdraw_liquidity(
         &config.secondary_asset_info,
     )?;
 
-    // The withdrawn amounts returned in Astroport's response event are the pre-tax amounts. We need
-    // to deduct tax to find the amounts we actually received. We add the after-tax amounts to the
-    // user's unlocked assets
-    let mut primary_asset_to_add = primary_asset_withdrawn.clone();
-    primary_asset_to_add.deduct_tax(&deps.querier)?;
-    let mut secondary_asset_to_add = secondary_asset_withdrawn.clone();
-    secondary_asset_to_add.deduct_tax(&deps.querier)?;
-
-    position.unlocked_assets.add(&primary_asset_to_add)?;
-    position.unlocked_assets.add(&secondary_asset_to_add)?;
+    position.unlocked_assets.add(&primary_asset_withdrawn)?;
+    position.unlocked_assets.add(&secondary_asset_withdrawn)?;
 
     POSITION.save(deps.storage, &user_addr, &position)?;
     CACHED_USER_ADDR.remove(deps.storage);
@@ -85,9 +77,7 @@ pub fn after_withdraw_liquidity(
         .add_attribute("action", "martian_field :: reply :: after_withdraw_liquidity")
         .add_attribute("user", user_addr)
         .add_attribute("primary_withdrawn", primary_asset_withdrawn.amount)
-        .add_attribute("primary_added", primary_asset_to_add.amount)
-        .add_attribute("secondary_withdrawn", secondary_asset_withdrawn.amount)
-        .add_attribute("secondary_added", secondary_asset_to_add.amount))
+        .add_attribute("secondary_withdrawn", secondary_asset_withdrawn.amount))
 }
 
 pub fn after_swap(deps: DepsMut, response: SubMsgExecutionResponse) -> StdResult<Response> {
@@ -110,8 +100,6 @@ pub fn after_swap(deps: DepsMut, response: SubMsgExecutionResponse) -> StdResult
     }
 
     // parse Astroport's event log to find out how much asset was returned from the swap
-    //
-    // NOTE: when parsing the event log, we already deducted the tax, so no need to do it again here
     let returned_asset_unchecked = Pair::parse_swap_events(&response.events)?;
     let returned_asset = returned_asset_unchecked.check(deps.api)?;
     assets.add(&returned_asset)?;

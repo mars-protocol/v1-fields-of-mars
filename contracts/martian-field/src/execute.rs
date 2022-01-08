@@ -162,30 +162,22 @@ pub fn harvest(
 
     // if reward amount is non-zero, we construct a message to claim them, as well as add them to
     // the pending rewards
-    //
-    // NOTE: here we assume transferring the reward does not incur tax, so we add the full amount
-    // (without deducting tax) to `state.pending_rewards`. this is true for now, but if in the
-    // future someone builds a proxy that emits UST as reward, we will need to deduct tax here
     let mut msgs: Vec<CosmosMsg> = vec![];
     if rewards.len() > 0 {
-        msgs.push(config.astro_generator.claim_rewards_msg(&config.primary_pair.liquidity_token)?);
+        msgs.push(
+            config.astro_generator.claim_rewards_msg(&config.primary_pair.liquidity_token)?
+        );
         state.pending_rewards.add_many(&rewards)?;
     }
 
     // a portion of the pending rewards will be charged as fees
     let mut fees = state.pending_rewards.clone();
     fees.apply(|asset| asset.amount = asset.amount * config.fee_rate);
-
-    // construct the messages that send the fees to treasury
-    fees.deduct_tax(&deps.querier)?;
     fees.purge();
     msgs.extend(fees.transfer_msgs(&config.treasury)?);
 
-    // deduct fees (with tax) from available rewards. the remaining amounts are to be reinvested
-    let mut fees_to_deduct = fees.clone();
-    fees_to_deduct.add_tax(&deps.querier)?;
-    state.pending_rewards.deduct_many(&fees_to_deduct)?;
-
+    // deduct fees from available rewards. the remaining amounts are to be reinvested
+    state.pending_rewards.deduct_many(&fees)?;
     STATE.save(deps.storage, &state)?;
 
     // if there are ASTRO tokens available to be reinvested, we first swap it to the secondary asset
@@ -265,12 +257,11 @@ pub fn liquidate(
     // 6. refund all assets that're left to the user
     //
     // NOTE: in the previous versions, we sell **all** primary assets, which is not optimal because 
-    // this will incur bigger slippage, causing bigger liquidation cascade, and be potentially lucrative 
+    // this will incur bigger slippage, causing worse liquidation cascade, and be potentially lucrative 
     // for sandwich attackers
     //
-    // now, we calculate how much additional secondary asset is needed to fully pay off debt, multiply
-    // it with a factor that's slightly greater than 1 (to account for tax), and reverse-simulate
-    // how much primary asset needs to be sold
+    // now, we calculate how much additional secondary asset is needed to fully pay off debt, and 
+    // reverse-simulate how much primary asset needs to be sold
     //
     // TODO: add slippage checks to the swap step so that liquidation cannot be sandwich attacked
     let callbacks = [

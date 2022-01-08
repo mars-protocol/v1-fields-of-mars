@@ -89,7 +89,7 @@ fn execute_borrow(
     // ```rust
     // let outbound_asset = asset.into();
     // ```
-    let mut outbound_asset = match &asset {
+    let outbound_asset = match &asset {
         MarsAsset::Cw20 {
             contract_addr,
         } => Asset::cw20(deps.api.addr_validate(contract_addr)?, amount),
@@ -98,9 +98,7 @@ fn execute_borrow(
         } => Asset::native(denom, amount),
     };
 
-    let outbound_msg = outbound_asset.deduct_tax(&deps.querier)?.transfer_msg(&info.sender)?;
-
-    Ok(Response::new().add_message(outbound_msg))
+    Ok(Response::new().add_message(outbound_asset.transfer_msg(&info.sender)?))
 }
 
 fn execute_repay(

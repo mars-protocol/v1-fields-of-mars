@@ -215,9 +215,6 @@ pub mod msg {
             amount: Uint128,
         },
         /// Repay secondary asset of specified amount to Red Bank
-        ///
-        /// NOTE: sender must make sure the position has sufficient amount of secondary asset
-        /// (repay amount + tax), either by depositing or swapping
         Repay {
             amount: Uint128,
         },

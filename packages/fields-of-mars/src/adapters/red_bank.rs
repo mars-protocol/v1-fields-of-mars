@@ -50,8 +50,7 @@ impl RedBank {
         }))
     }
 
-    /// @notice Generate message for repaying a specified amount of asset
-    /// @dev Note: we do not deduct tax here
+    /// Generate message for repaying a specified amount of asset
     pub fn repay_msg(&self, asset: &Asset) -> StdResult<CosmosMsg> {
         match &asset.info {
             AssetInfo::Cw20(_) => Ok(asset.send_msg(

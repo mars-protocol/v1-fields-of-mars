@@ -201,9 +201,6 @@ impl Pair {
     }
 
     /// Find the return amount when swapping in an Astroport pool
-    ///
-    /// NOTE: Return amount in the Astroport event is *before* deducting tax. Must deduct tax to find
-    /// the actual received amount
     pub fn parse_swap_events(events: &[Event]) -> StdResult<AssetUnchecked> {
         let event = events
             .iter()
