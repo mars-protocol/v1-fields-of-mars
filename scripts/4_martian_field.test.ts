@@ -117,8 +117,8 @@ async function setupTest() {
     },
     treasury: treasury.key.accAddress,
     governance: deployer.key.accAddress,
-    max_ltv: "0.75", // 75%, i.e. for every 100 UST asset there must be no more than 75 UST debt
-    fee_rate: "0.2", // 20%
+    max_ltv: "0.75",    // 75%, i.e. for every 100 UST asset there must be no more than 75 UST debt
+    fee_rate: "0.2",    // 20%
     bonus_rate: "0.05", // 5%
   };
 
@@ -315,15 +315,15 @@ async function testConfig() {
     debt: "0",
     ancUstPool: {
       assets: [
-        { amount: "420000000" }, // uusd
-        { amount: "69000000" },  // uANC
+        { amount: "420000000" },  // uusd
+        { amount: "69000000" },   // uANC
       ],
       total_share: "170235131",
     },
     astroUstPool: {
       assets: [
-        { amount: "150000000" }, // uusd
-        { amount: "100000000" }, // uASTRO
+        { amount: "150000000" },  // uusd
+        { amount: "100000000" },  // uASTRO
       ],
       total_share: "122474487",
     },
@@ -356,67 +356,66 @@ async function testConfig() {
 // user1 unlocked uANC    0 + 69000000 = 69000000
 //
 // Step 2. borrow
-// attempts to borrow 420000000 uusd; receives deductTax(420000000) = 419580419 uusd
+// borrow 420000000 uusd
 // ---
 // total debt units       0 + 420000000000000 = 420000000000000
 // user1 debt units       0 + 420000000000000 = 420000000000000
-// user1 unlocked uusd    0 + 419580419 = 419580419
+// user1 unlocked uusd    0 + 420000000 = 420000000
 // debt                   0 + 420000000 = 420000000
 //
 // Step 3. provide liquidity
-// sends 69000000 uANC + deductTax(419580419) = 419161257 uusd to primary pool
-// total tx cost is addTax(419161257) = 419580418 uusd
-// mint amount = min(170235131 * 69000000 / 69000000, 170235131 * 419161257 / 420000000) = 169895170 uLP
+// sends 69000000 uANC + 420000000 uusd to primary pool
+// mint amount = min(170235131 * 69000000 / 69000000, 170235131 * 420000000 / 420000000) = 170235131 uLP
 // ---
 // user1 unlocked uANC    69000000 - 69000000 = 0
-// user1 unlocked uusd    419580419 - 419580418 = 1
-// user1 unlocked uLP     0 + 169895170 = 169895170
+// user1 unlocked uusd    420000000 - 420000000 = 0
+// user1 unlocked uLP     0 + 170235131 = 170235131
 // primary pool uANC      69000000 + 69000000 = 138000000
-// primary pool uusd      420000000 + 419161257 = 839161257
-// primary pool uLP       170235131 + 169895170 = 340130301
+// primary pool uusd      420000000 + 420000000 = 840000000
+// primary pool uLP       170235131 + 170235131 = 340470262
 //
 // Step 4. bond
-// send 169895170 uLP to Astro generator
+// send 170235131 uLP to Astro generator
 // contract should receive 1000000 uASTRO + 500000 uANC
 // ---
-// total bond units       0 + 169895170000000 = 169895170000000
-// user1 bond units       0 + 169895170000000 = 169895170000000
-// user1 unlocked uLP     169895170 - 169895170 = 0
-// bond                   0 + 169895170 = 169895170
+// total bond units       0 + 170235131000000 = 170235131000000
+// user1 bond units       0 + 170235131000000 = 170235131000000
+// user1 unlocked uLP     170235131 - 170235131 = 0
+// bond                   0 + 170235131 = 170235131
 // pending reward uASTRO  0 + 1000000 = 1000000
 // pending reward uANC    0 + 500000 = 500000
 //
 // Result
 // ---
-// total bond units       169895170000000
+// total bond units       170235131000000
 // total debt units       420000000000000
 // pending reward uASTRO  1000000
 // pending reward uANC    500000
-// user1 bond units       169895170000000
+// user1 bond units       170235131000000
 // user1 debt units       420000000000000
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// bond                   169895170
+// bond                   170235131
 // debt                   420000000
 // primary pool uANC      138000000
-// primary pool uusd      839161257
-// primary pool uLP       340130301
+// primary pool uusd      840000000
+// primary pool uLP       340470262
 // astro pool uASTRO      100000000
 // astro pool uusd        150000000
 // astro pool uLP         122474487
 //
 // State health:
-// ANC price = computeXykSwapOutput(1000000, 138000000, 839161257) / 1000000 = 6.037131
-// primary value = 138000000 * 6.037131 = 833124078
-// secondary value = 839161257 * 1 = 839161257
-// pool value = 2 * sqrt(833124078 * 839161257) = 1672274436
-// total bond value = 1672274436 * 169895170 / 340130301 = 835301496
+// ANC price = computeXykSwapOutput(1000000, 138000000, 840000000) / 1000000 = 6.043165
+// primary value = 138000000 * 6.043165 = 833956770
+// secondary value = 840000000 * 1 = 840000000
+// pool value = 2 * sqrt(833956770 * 840000000) = 1673945860
+// total bond value = 1673945860 * 170235131 / 340470262 = 836972930
 // total debt value = 420000000
 //
 // User1 health:
 // same as state as user1 is the only user now
-// ltv = 420000000 / 835301496 = 0.502812459945600288
+// ltv = 420000000 / 836972930 = 0.501808344028521926
 //--------------------------------------------------------------------------------------------------
 
 async function testOpenPosition1() {
@@ -454,44 +453,42 @@ async function testOpenPosition1() {
   console.log(chalk.green("Done!"), "\ntxhash:", txhash);
 
   await verifier.verify({
-    bond: "169895170",
+    bond: "170235131",
     debt: "420000000",
     ancUstPool: {
       assets: [
-        { amount: "839161257" }, // uusd
-        { amount: "138000000" }, // uANC
+        { amount: "840000000" },  // uusd
+        { amount: "138000000" },  // uANC
       ],
-      total_share: "340130301",
+      total_share: "340470262",
     },
     astroUstPool: {
       assets: [
-        { amount: "150000000" }, // uusd
-        { amount: "100000000" }, // uASTRO
+        { amount: "150000000" },  // uusd
+        { amount: "100000000" },  // uASTRO
       ],
       total_share: "122474487",
     },
     state: {
-      total_bond_units: "169895170000000",
+      total_bond_units: "170235131000000",
       total_debt_units: "420000000000000",
       pending_rewards: [
-        { amount: "1000000" }, // uASTRO
-        { amount: "500000" },  // uANC
+        { amount: "1000000" },    // uASTRO
+        { amount: "500000" },     // uANC
       ],
     },
     users: [
       {
         address: user1.key.accAddress,
         position: {
-          bond_units: "169895170000000",
+          bond_units: "170235131000000",
           debt_units: "420000000000000",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          unlocked_assets: [],
         },
         health: {
-          bond_value: "835301496",
+          bond_value: "836972930",
           debt_value: "420000000",
-          ltv: "0.502812459945600288",
+          ltv: "0.501808344028521926",
         },
       },
     ],
@@ -503,20 +500,20 @@ async function testOpenPosition1() {
 //
 // Prior to execution:
 // ---
-// total bond units       169895170000000
+// total bond units       170235131000000
 // total debt units       420000000000000
 // pending reward uASTRO  1000000
 // pending reward uANC    500000
-// user1 bond units       169895170000000
+// user1 bond units       170235131000000
 // user1 debt units       420000000000000
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// bond                   169895170
+// bond                   170235131
 // debt                   420000000
 // primary pool uANC      138000000
-// primary pool uusd      839161257
-// primary pool uLP       340130301
+// primary pool uusd      840000000
+// primary pool uLP       340470262
 // astro pool uASTRO      100000000
 // astro pool uusd        150000000
 // astro pool uLP         122474487
@@ -530,95 +527,88 @@ async function testOpenPosition1() {
 // Step 2. charge fees
 // ASTRO fee = 2000000 * 0.2 = 400000 uASTRO
 // ANC fee = 1000000 * 0.2 = 200000 uANC
-// UST fee after tax = deductTax(585884) = 585298 uusd
-// tranfer cost = addTax(585298) = 585883
 // ---
 // pending reward uASTRO  2000000 - 400000 = 1600000
 // pending reward uANC    1000000 - 200000 = 800000
 //
 // Step 3. swap ASTRO >> UST
 // return amount = computeXykSwapOutput(1600000, 100000000, 150000000) = 2355118 uusd
-// return amount after tax = deductTax(2355118) = 2352765 uusd
-// transfer cost = addTax(2352765) = 2355117 uusd
 // ---
 // pending reward uASTRO  1600000 - 1600000 = 0
-// pending reward uusd    0 + 2352765 = 2352765
+// pending reward uusd    0 + 2355118 = 2355118
 // astro pool uASTRO      100000000 + 1600000 = 101600000
-// astro pool uusd        150000000 - 2355117 = 147644883
+// astro pool uusd        150000000 - 2355118 = 147644882
 //
 // Step 4. balance
-// ANC price = computeXykSwapOutput(1000000, 138000000, 839161257) / 1e6 = 6.037131
-// ANC value = 800000 * 6.037131 = 4829704
-// UST value = 2352765 * 1 = 2352765
-// value diff = 4829704 - 2352765 = 2476939
-// value to swap = 2476939 / 2 = 1238469
-// amount to swap = 800000 * 1238469 / 4829704 = 205142
-// UST return amount = computeXykSwapOutput(205142, 138000000, 839161257) = 1241855
-// UST return amount after tax = deductTax(1241855) = 1240614
-// transfer cost = addTax(1240614) = 1241854
+// ANC price = computeXykSwapOutput(1000000, 138000000, 840000000) / 1e6 = 6.043165
+// ANC value = 800000 * 6.043165 = 4834532
+// UST value = 2355118 * 1 = 2355118
+// value diff = 4834532 - 2355118 = 2479414
+// value to swap = 2479414 / 2 = 1239707
+// amount to swap = 800000 * 1239707 / 4834532 = 205142
+// UST return amount = computeXykSwapOutput(205142, 138000000, 840000000) = 1243096
 // ---
 // pending reward uANC    800000 - 205142 = 594858
-// pending reward uusd    2352765 + 1240614 = 3593379
+// pending reward uusd    2355118 + 1243096 = 3598214
 // primary pool uANC      138000000 + 205142 = 138205142
-// primary pool uusd      839161257 - 1241854 = 837919403
+// primary pool uusd      840000000 - 1243096 = 838756904
 //
 // Step 2. provide liquidity
-// sends 594858 uANC + deductTax(3593379) = 3589789 uusd to pool
-// transfer cost = addTax(3589789) = 3593378 uusd
-// shares minted = min(340130301 * 594858 / 138205142, 340130301 * 3589789 / 837919403) = 1457175 uLP
+// sends 594858 uANC + 3598214 uusd to pool
+// shares minted = min(340470262 * 594858 / 138205142, 340470262 * 3598214 / 838756904) = 1460595 uLP
 // ---
 // pending reward uANC    594858 - 594858 = 0
-// pending reward uusd    3593379 - 3593378 = 1
-// pending reward uLP     0 + 1457175 = 1457175
+// pending reward uusd    3598214 - 3598214 = 0
+// pending reward uLP     0 + 1460593 = 1460593
 // primary pool uANC      138205142 + 594858 = 138800000
-// primary pool uusd      837919403 + 3589789 = 841509192
-// primary pool uLP       340130301 + 1457175 = 341587476
+// primary pool uusd      838756904 + 3598214 = 842355118
+// primary pool uLP       340470262 + 1460595 = 341930857
 //
 // Step 4. bond
-// send 1457175 uLP to staking contract
+// send 1460595 uLP to staking contract
 // bond units should not change in a harvest transaction
 // when we bond, we receive another 1000000 uASTRO + 500000 uANC
-// this is not how the actual Astro generator will behave (since we already claimed rewards in the
-// same tx) but still, our contract should account for this propoerly
+// NOTE: this is not how the actual Astro generator will behave (since we already claimed rewards in
+// the same tx) but still, our contract should account for this propoerly
 // ---
-// pending reward uLP     1457175 - 1457175 = 0
-// bond                   169895170 + 1457175 = 171352345
+// pending reward uLP     1460595 - 1460595 = 0
+// bond                   170235131 + 1460595 = 171695726
 // pending reward uASTRO  0 + 1000000 = 1000000
 // pending reward uANC    0 + 500000 = 500000
 //
 // Result
 // ---
-// total bond units       169895170000000
+// total bond units       170235131000000
 // total debt units       420000000000000
 // pending reward uASTRO  1000000
 // pending reward uANC    500000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
-// user1 bond units       169895170000000
+// user1 bond units       170235131000000
 // user1 debt units       420000000000000
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// bond                   171352345
+// bond                   171695726
 // debt                   420000000
 // primary pool uANC      138800000
-// primary pool uusd      841509192
-// primary pool uLP       341587476
+// primary pool uusd      842355118
+// primary pool uLP       341930857
 // astro pool uASTRO      101600000
-// astro pool uusd        147644883
+// astro pool uusd        147644882
 // astro pool uLP         122474487
 //
 // State health:
-// ANC price = computeXykSwapOutput(1000000, 138800000, 841509192) / 1000000 = 6.019379
-// primary value = 138800000 * 6.019379 = 835489805
-// secondary value = 841509192 * 1 = 841509192
-// pool value = 2 * sqrt(835489805 * 841509192) = 1676988194
-// total bond value = 1676988194 * 171352345 / 341587476 = 841236519
+// ANC price = computeXykSwapOutput(1000000, 138800000, 842355118) / 1000000 = 6.025430
+// primary value = 138800000 * 6.025430 = 836329684
+// secondary value = 842355118 * 1 = 842355118
+// pool value = 2 * sqrt(836329684 * 842355118) = 1678673988
+// total bond value = 1678673988 * 171695726 / 341930857 = 842922313
 // total debt value = 420000000
 //
 // User1 health:
 // same as state as user1 is the only user now
-// ltv = 420000000 / 841236519 = 0.499265058653498612
+// ltv = 420000000 / 842922313 = 0.498266558522101905
 //--------------------------------------------------------------------------------------------------
 
 async function testHarvest() {
@@ -634,45 +624,42 @@ async function testHarvest() {
   console.log(chalk.green("Done!"), "\ntxhash:", txhash);
 
   await verifier.verify({
-    bond: "171352345",
+    bond: "171695726",
     debt: "420000000",
     ancUstPool: {
       assets: [
-        { amount: "841509192" }, // uusd
-        { amount: "138800000" }, // uANC
+        { amount: "842355118" },  // uusd
+        { amount: "138800000" },  // uANC
       ],
-      total_share: "341587476",
+      total_share: "341930857",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644883" }, // uusd
-        { amount: "101600000" }, // uASTRO
+        { amount: "147644882" },  // uusd
+        { amount: "101600000" },  // uASTRO
       ],
       total_share: "122474487",
     },
     state: {
-      total_bond_units: "169895170000000",
+      total_bond_units: "170235131000000",
       total_debt_units: "420000000000000",
       pending_rewards: [
-        { amount: "1" },       // uusd
-        { amount: "1000000" }, // uASTRO
-        { amount: "500000" },  // uANC
+        { amount: "1000000" },    // uASTRO
+        { amount: "500000" },     // uANC
       ],
     },
     users: [
       {
         address: user1.key.accAddress,
         position: {
-          bond_units: "169895170000000",
+          bond_units: "170235131000000",
           debt_units: "420000000000000",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          unlocked_assets: [],
         },
         health: {
-          bond_value: "841236519",
+          bond_value: "842922313",
           debt_value: "420000000",
-          ltv: "0.499265058653498612",
+          ltv: "0.498266558522101905",
         },
       },
     ],
@@ -684,58 +671,58 @@ async function testHarvest() {
 //
 // Prior to execution:
 // ---
-// total bond units       169895170000000
+// total bond units       170235131000000
 // total debt units       420000000000000
 // pending reward uASTRO  1000000
 // pending reward uANC    500000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
-// user1 bond units       169895170000000
+// user1 bond units       170235131000000
 // user1 debt units       420000000000000
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// bond                   171352345
+// bond                   171695726
 // debt                   420000000
 // primary pool uANC      138800000
-// primary pool uusd      841509192
-// primary pool uLP       341587476
+// primary pool uusd      842355118
+// primary pool uLP       341930857
 // astro pool uASTRO      101600000
-// astro pool uusd        147644883
+// astro pool uusd        147644882
 // astro pool uLP         122474487
 //
 // We forcibly set the strategy's debt to 441000000 to simulate accrual of a 5% interest
 //
 // Result
 // ---
-// total bond units       169895170000000
+// total bond units       170235131000000
 // total debt units       420000000000000
 // pending reward uASTRO  1000000
 // pending reward uANC    500000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
-// user1 bond units       169895170000000
+// user1 bond units       170235131000000
 // user1 debt units       420000000000000
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// bond                   171352345
+// bond                   171695726
 // debt                   441000000
 // primary pool uANC      138800000
-// primary pool uusd      841509192
-// primary pool uLP       341587476
+// primary pool uusd      842355118
+// primary pool uLP       341930857
 // astro pool uASTRO      101600000
-// astro pool uusd        147644883
+// astro pool uusd        147644882
 // astro pool uLP         122474487
 //
 // State health:
-// ANC price = 6.019379 (unchanged)
-// total bond value = 841236519 (unchanged)
+// ANC price = 6.025430 (unchanged)
+// total bond value = 842922313 (unchanged)
 // total debt value = 441000000 uusd
 //
 // User1 health:
 // same as state as user1 is the only user now
-// ltv = 441000000 / 841236519 = 0.524228311586173543
+// ltv = 441000000 / 842922313 = 0.523179886448207001
 //--------------------------------------------------------------------------------------------------
 
 async function testAccrueInterest() {
@@ -752,45 +739,42 @@ async function testAccrueInterest() {
   console.log(chalk.green("Done!"), "\ntxhash:", txhash);
 
   await verifier.verify({
-    bond: "171352345",
+    bond: "171695726",
     debt: "441000000",
     ancUstPool: {
       assets: [
-        { amount: "841509192" }, // uusd
-        { amount: "138800000" }, // uANC
+        { amount: "842355118" },  // uusd
+        { amount: "138800000" },  // uANC
       ],
-      total_share: "341587476",
+      total_share: "341930857",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644883" }, // uusd
-        { amount: "101600000" }, // uASTRO
+        { amount: "147644882" },  // uusd
+        { amount: "101600000" },  // uASTRO
       ],
       total_share: "122474487",
     },
     state: {
-      total_bond_units: "169895170000000",
+      total_bond_units: "170235131000000",
       total_debt_units: "420000000000000",
       pending_rewards: [
-        { amount: "1" },       // uusd
-        { amount: "1000000" }, // uASTRO
-        { amount: "500000" },  // uANC
+        { amount: "1000000" },    // uASTRO
+        { amount: "500000" },     // uANC
       ],
     },
     users: [
       {
         address: user1.key.accAddress,
         position: {
-          bond_units: "169895170000000",
+          bond_units: "170235131000000",
           debt_units: "420000000000000",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          unlocked_assets: [],
         },
         health: {
-          bond_value: "841236519",
+          bond_value: "842922313",
           debt_value: "441000000",
-          ltv: "0.524228311586173543",
+          ltv: "0.523179886448207001",
         },
       },
     ],
@@ -802,24 +786,24 @@ async function testAccrueInterest() {
 //
 // Prior to execution:
 // ---
-// total bond units       169895170000000
+// total bond units       170235131000000
 // total debt units       420000000000000
 // pending reward uASTRO  1000000
 // pending reward uANC    500000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
-// user1 bond units       169895170000000
+// user1 bond units       170235131000000
 // user1 debt units       420000000000000
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// bond                   171352345
+// bond                   171695726
 // debt                   441000000
 // primary pool uANC      138800000
-// primary pool uusd      841509192
-// primary pool uLP       341587476
+// primary pool uusd      842355118
+// primary pool uLP       341930857
 // astro pool uASTRO      101600000
-// astro pool uusd        147644883
+// astro pool uusd        147644882
 // astro pool uLP         122474487
 //
 // Step 1. deposit
@@ -829,84 +813,82 @@ async function testAccrueInterest() {
 // user2 unlocked uusd    0 + 150000000 = 150000000
 //
 // Step 2. borrow
-// to balance 34500000 uANC, needs 841509192 * 34500000 / 138800000 = 209164748 uusd
-// user deposits 150000000, needs to borrow 209164748 - 150000000 = 59164748 uusd
-// attempts to borrow 59164748 uusd; should receive deductTax(59164748) = 59105642 uusd
-// debt units to add = 420000000000000 * 59164748 / 441000000 = 56347379047619
+// to balance 34500000 uANC, needs 842355118 * 34500000 / 138800000 = 209375011 uusd
+// user deposits 150000000, needs to borrow 209375011 - 150000000 = 59375011 uusd
+// debt units to add = 420000000000000 * 59375011 / 441000000 = 56547629523809
 // ---
-// total debt units       420000000000000 + 56347379047619 = 476347379047619
-// user2 debt units       0 + 56347379047619 = 56347379047619
-// user2 unlocked uusd    150000000 + 59105642 = 209105642
-// debt                   441000000 + 59164748 = 500164748
+// total debt units       420000000000000 + 56547629523809 = 476547629523809
+// user2 debt units       0 + 56547629523809 = 56547629523809
+// user2 unlocked uusd    150000000 + 59375011 = 209375011
+// debt                   441000000 + 59375011 = 500375011
 //
 // Step 3. provide liquidity
-// sends 34500000 uANC + deductTax(209105642) = 208896745 uusd to primary pool
-// transfer cost = addTax(208896745) = 209105641 uusd
-// mint amount = min(341587476 * 34500000 / 138800000, 341587476 * 208896745 / 841509192) = 84795879 uLP
+// sends 34500000 uANC + 209375011 uusd to primary pool
+// mint amount = min(341930857 * 34500000 / 138800000, 341930857 * 209375011 / 842355118) = 84990018 uLP
 // ---
 // user2 unlocked uANC    34500000 - 34500000 = 0
-// user2 unlocked uusd    209105642 - 209105641 = 1
-// user2 unlocked uLP     0 + 84795879 = 84795879
+// user2 unlocked uusd    209375011 - 209375011 = 1
+// user2 unlocked uLP     0 + 84990018 = 84990018
 // primary pool uANC      138800000 + 34500000 = 173300000
-// primary pool uusd      841509192 + 208896745 = 1050405937
-// primary pool uLP       341587476 + 84795879 = 426383355
+// primary pool uusd      842355118 + 209375011 = 1051730129
+// primary pool uLP       341930857 + 84990018 = 426920875
 //
 // Step 4. bond
-// send 84795879 uLP to Astro generator
+// send 84990018 uLP to Astro generator
 // contract should receive 1000000 uASTRO + 500000 uANC
-// bond units to add = 169895170000000 * 84795879 / 171352345 = 84074777488481
+// bond units to add = 170235131000000 * 84990018 / 171695726 = 84267018084785
 // ---
-// total bond units       169895170000000 + 84074777488481 = 253969947488481
-// user2 bond units       0 + 84074777488481 = 84074777488481
-// user2 unlocked uLP     84795879 - 84795879 = 0
-// bond                   171352345 + 84795879 = 256148224
+// total bond units       170235131000000 + 84267018084785 = 254502149084785
+// user2 bond units       0 + 84267018084785 = 84267018084785
+// user2 unlocked uLP     84990018 - 84990018 = 0
+// bond                   171695726 + 84990018 = 256685744
 // pending reward uASTRO  1000000 + 1000000 = 2000000
 // pending reward uANC    500000 + 500000 = 1000000
 //
 // Result
 // ---
-// total bond units       253969947488481
-// total debt units       476347379047619
+// total bond units       254502149084785
+// total debt units       476547629523809
 // pending reward uASTRO  2000000
 // pending reward uANC    1000000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
-// user1 bond units       169895170000000
+// user1 bond units       170235131000000
 // user1 debt units       420000000000000
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// user2 bond units       84074777488481
-// user2 debt units       56347379047619
+// user2 bond units       84267018084785
+// user2 debt units       56547629523809
 // user2 unlocked uANC    0
-// user2 unlocked uusd    1
+// user2 unlocked uusd    0
 // user2 unlocked uLP     0
-// bond                   256148224
-// debt                   500164748
+// bond                   256685744
+// debt                   500375011
 // primary pool uANC      173300000
-// primary pool uusd      1050405937
-// primary pool uLP       426383355
+// primary pool uusd      1051730129
+// primary pool uLP       426920875
 // astro pool uASTRO      101600000
-// astro pool uusd        147644883
+// astro pool uusd        147644882
 // astro pool uLP         122474487
 //
 // State health:
-// ANC price = computeXykSwapOutput(1000000, 173300000, 1050405937) / 1e6 = 6.026425
-// primary value = 173300000 * 6.026425 = 1044379452
-// secondary value = 1050405937 * 1 = 1050405937
-// pool value = 2 * sqrt(1044379452 * 1050405937) = 2094776720
-// total bond value = 2094776720 * 256148224 / 426383355 = 1258429369
-// total debt value = 500164748
+// ANC price = computeXykSwapOutput(1000000, 173300000, 1051730129) / 1e6 = 6.034022
+// primary value = 173300000 * 6.034022 = 1045696012
+// secondary value = 1051730129 * 1 = 1051730129
+// pool value = 2 * sqrt(1045696012 * 1051730129) = 2097417460
+// total bond value = 2097417460 * 256685744 / 426920875 = 1261070124
+// total debt value = 500375011
 //
 // User1 health:
-// bond value = 1258429369 * 169895170000000 / 253969947488481 = 841836105
-// debt value = 500164748 * 420000000000000 / 476347379047619 = 441000000
-// ltv = 441000000 / 841836105 = 0.523854937298038553
+// bond value = 1261070124 * 170235131000000 / 254502149084785 = 843523084
+// debt value = 500375011 * 420000000000000 / 476547629523809 = 441000000
+// ltv = 441000000 / 843523084 = 0.522807269136928563
 //
 // User2 health:
-// bond value = 1258429369 * 84074777488481 / 253969947488481 = 416593263
-// debt value = 500164748 * 56347379047619 / 476347379047619 = 59164747
-// ltv = 59164747 / 416593263 = 0.142020412365621956
+// bond value = 1261070124 * 84267018084785 / 254502149084785 = 417547039
+// debt value = 500375011 * 56547629523809 / 476547629523809 = 59375010
+// ltv = 59375010 / 417547039 = 0.142199571435590996
 //--------------------------------------------------------------------------------------------------
 
 async function testOpenPosition2() {
@@ -941,7 +923,7 @@ async function testOpenPosition2() {
           },
           {
             borrow: {
-              amount: "59164748",
+              amount: "59375011",
             },
           },
           {
@@ -959,60 +941,55 @@ async function testOpenPosition2() {
   console.log(chalk.green("Done!"), "\ntxhash:", txhash);
 
   await verifier.verify({
-    bond: "256148224",
-    debt: "500164748",
+    bond: "256685744",
+    debt: "500375011",
     ancUstPool: {
       assets: [
-        { amount: "1050405937" }, // uusd
-        { amount: "173300000" }, // uANC
+        { amount: "1051730129" }, // uusd
+        { amount: "173300000" },  // uANC
       ],
-      total_share: "426383355",
+      total_share: "426920875",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644883" }, // uusd
-        { amount: "101600000" }, // uASTRO
+        { amount: "147644882" },  // uusd
+        { amount: "101600000" },  // uASTRO
       ],
       total_share: "122474487",
     },
     state: {
-      total_bond_units: "253969947488481",
-      total_debt_units: "476347379047619",
+      total_bond_units: "254502149084785",
+      total_debt_units: "476547629523809",
       pending_rewards: [
-        { amount: "1" },       // uusd
-        { amount: "2000000" }, // uASTRO
-        { amount: "1000000" }, // uANC
+        { amount: "2000000" },    // uASTRO
+        { amount: "1000000" },    // uANC
       ],
     },
     users: [
       {
         address: user1.key.accAddress,
         position: {
-          bond_units: "169895170000000",
+          bond_units: "170235131000000",
           debt_units: "420000000000000",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          unlocked_assets: [],
         },
         health: {
-          bond_value: "841836105",
+          bond_value: "843523084",
           debt_value: "441000000",
-          ltv: "0.523854937298038553",
+          ltv: "0.522807269136928563",
         },
       },
       {
         address: user2.key.accAddress,
         position: {
-          bond_units: "84074777488481",
-          debt_units: "56347379047619",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          bond_units: "84267018084785",
+          debt_units: "56547629523809",
+          unlocked_assets: [],
         },
         health: {
-          bond_value: "416593263",
-          debt_value: "59164747",
-          ltv: "0.142020412365621956",
+          bond_value: "417547039",
+          debt_value: "59375010",
+          ltv: "0.142199571435590996",
         },
       },
     ],
@@ -1024,87 +1001,86 @@ async function testOpenPosition2() {
 //
 // Prior to execution:
 // ---
-// total bond units       253969947488481
-// total debt units       476347379047619
+// total bond units       254502149084785
+// total debt units       476547629523809
 // pending reward uASTRO  2000000
 // pending reward uANC    1000000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
-// user1 bond units       169895170000000
+// user1 bond units       170235131000000
 // user1 debt units       420000000000000
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// user2 bond units       84074777488481
-// user2 debt units       56347379047619
+// user2 bond units       84267018084785
+// user2 debt units       56547629523809
 // user2 unlocked uANC    0
-// user2 unlocked uusd    1
+// user2 unlocked uusd    0
 // user2 unlocked uLP     0
-// bond                   256148224
-// debt                   500164748
+// bond                   256685744
+// debt                   500375011
 // primary pool uANC      173300000
-// primary pool uusd      1050405937
-// primary pool uLP       426383355
+// primary pool uusd      1051730129
+// primary pool uLP       426920875
 // astro pool uASTRO      101600000
-// astro pool uusd        147644883
+// astro pool uusd        147644882
 // astro pool uLP         122474487
 //
 // Step 1. receiving user deposit
-// user1 deposits 100.1 UST to contract
+// user1 deposits 100 UST to contract
 // ---
-// user1 unlocked uusd  1 + 100100000 = 100100001
+// user1 unlocked uusd    0 + 100000000 = 100000000
 //
 // Step 2. repay
 // repay 100 UST
-// transaction cost: addTax(100000000) = 100100000
 // debt units to reduce: 420000000000000 * 100000000 / 441000000 = 95238095238095
 // ---
-// debt                 500164748 - 100000000 = 400164748
-// total debt units     476347379047619 - 95238095238095 = 381109283809524
-// user1 debt units     420000000000000 - 95238095238095 = 324761904761905
-// user1 unlocked uusd  100100001 - 100100000 = 1
+// debt                   500375011 - 100000000 = 400375011
+// total debt units       476547629523809 - 95238095238095 = 381309534285714
+// user1 debt units       420000000000000 - 95238095238095 = 324761904761905
+// user1 unlocked uusd    100000000 - 100000000 = 0
 //
 // Result
 // ---
-// total bond units       253969947488481
-// total debt units       381109283809524
+// total bond units       254502149084785
+// total debt units       381309534285714
 // pending reward uASTRO  2000000
 // pending reward uANC    1000000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
-// user1 bond units       169895170000000
+// user1 bond units       170235131000000
 // user1 debt units       324761904761905
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// user2 bond units       84074777488481
-// user2 debt units       56347379047619
+// user2 bond units       84267018084785
+// user2 debt units       56547629523809
 // user2 unlocked uANC    0
-// user2 unlocked uusd    1
+// user2 unlocked uusd    0
 // user2 unlocked uLP     0
-// bond                   256148224
-// debt                   400164748
+// bond                   256685744
+// debt                   400375011
 // primary pool uANC      173300000
-// primary pool uusd      1050405937
-// primary pool uLP       426383355
+// primary pool uusd      1051730129
+// primary pool uLP       426920875
 // astro pool uASTRO      101600000
-// astro pool uusd        147644883
+// astro pool uusd        147644882
 // astro pool uLP         122474487
 //
 // State health:
-// ANC price = 6.026425 (unchanged)
-// total bond value = 1258429369 (unchanged)
-// total debt value = 400164748
+// ANC price = 6.034022 (unchanged)
+// total bond value = 1261070124 (unchanged)
+// total debt value = 400375011
 //
 // User1 health:
-// bond value = 1258429369 * 169895170000000 / 253969947488481 = 841836105
-// debt value = 400164748 * 324761904761905 / 381109283809524 = 341000000
-// ltv = 341000000 / 841836105 = 0.405066969656759969
+// bond value = 1261070124 * 170235131000000 / 254502149084785 = 843523084
+// debt value = 400375011 * 324761904761905 / 381309534285714 = 341000000
+// ltv = 341000000 / 843523084 = 0.404256867972092154
 //
 // User2 health:
-// bond value = 1258429369 * 84074777488481 / 253969947488481 = 416593263
-// debt value = 400164748 * 56347379047619 / 381109283809524 = 59164747
-// ltv = 59164747 / 416593263 = 0.142020412365621956
+// bond value = 1261070124 * 84267018084785 / 254502149084785 = 417547039
+// debt value = 400375011 * 56547629523809 / 381309534285714 = 59375010
+// ltv = 59375010 / 417547039 = 0.142199571435590996
 //--------------------------------------------------------------------------------------------------
 
 async function testPayDebt() {
@@ -1120,8 +1096,8 @@ async function testPayDebt() {
               info: {
                 native: "uusd",
               },
-              amount: "100500000", // we need to deposit slightly more than 100 UST to cover tax
-            },                     // the excess deposit will be refunded in the end
+              amount: "100000000",
+            },
           },
           {
             repay: {
@@ -1131,67 +1107,62 @@ async function testPayDebt() {
         ],
       },
       {
-        uusd: "100500000",
+        uusd: "100000000",
       }
     ),
   ]);
   console.log(chalk.green("Done!"), "\ntxhash:", txhash);
 
   await verifier.verify({
-    bond: "256148224",
-    debt: "400164748",
+    bond: "256685744",
+    debt: "400375011",
     ancUstPool: {
       assets: [
-        { amount: "1050405937" }, // uusd
+        { amount: "1051730129" }, // uusd
         { amount: "173300000" },  // uANC
       ],
-      total_share: "426383355",
+      total_share: "426920875",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644883" }, // uusd
-        { amount: "101600000" }, // uASTRO
+        { amount: "147644882" },  // uusd
+        { amount: "101600000" },  // uASTRO
       ],
       total_share: "122474487",
     },
     state: {
-      total_bond_units: "253969947488481",
-      total_debt_units: "381109283809524",
+      total_bond_units: "254502149084785",
+      total_debt_units: "381309534285714",
       pending_rewards: [
-        { amount: "1" },       // uusd
-        { amount: "2000000" }, // uASTRO
-        { amount: "1000000" }, // uANC
+        { amount: "2000000" },    // uASTRO
+        { amount: "1000000" },    // uANC
       ],
     },
     users: [
       {
         address: user1.key.accAddress,
         position: {
-          bond_units: "169895170000000",
+          bond_units: "170235131000000",
           debt_units: "324761904761905",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          unlocked_assets: [],
         },
         health: {
-          bond_value: "841836105",
+          bond_value: "843523084",
           debt_value: "341000000",
-          ltv: "0.405066969656759969",
+          ltv: "0.404256867972092154",
         },
       },
       {
         address: user2.key.accAddress,
         position: {
-          bond_units: "84074777488481",
-          debt_units: "56347379047619",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          bond_units: "84267018084785",
+          debt_units: "56547629523809",
+          unlocked_assets: [],
         },
         health: {
-          bond_value: "416593263",
-          debt_value: "59164747",
-          ltv: "0.142020412365621956",
+          bond_value: "417547039",
+          debt_value: "59375010",
+          ltv: "0.142199571435590996",
         },
       },
     ],
@@ -1203,109 +1174,105 @@ async function testPayDebt() {
 //
 // Prior to execution:
 // ---
-// total bond units       253969947488481
-// total debt units       381109283809524
+// total bond units       254502149084785
+// total debt units       381309534285714
 // pending reward uASTRO  2000000
 // pending reward uANC    1000000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
-// user1 bond units       169895170000000
+// user1 bond units       170235131000000
 // user1 debt units       324761904761905
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// user2 bond units       84074777488481
-// user2 debt units       56347379047619
+// user2 bond units       84267018084785
+// user2 debt units       56547629523809
 // user2 unlocked uANC    0
-// user2 unlocked uusd    1
+// user2 unlocked uusd    0
 // user2 unlocked uLP     0
-// bond                   256148224
-// debt                   400164748
+// bond                   256685744
+// debt                   400375011
 // primary pool uANC      173300000
-// primary pool uusd      1050405937
-// primary pool uLP       426383355
+// primary pool uusd      1051730129
+// primary pool uLP       426920875
 // astro pool uASTRO      101600000
-// astro pool uusd        147644883
+// astro pool uusd        147644882
 // astro pool uLP         122474487
 //
 // Step 1. unbond
-// user1 has 169895170000000 bond units; we try reduce it by 30000000000000
-// amount to unbond: 256148224 * 30000000000000 / 253969947488481 = 30257307
+// user1 has 170235131000000 bond units; we try reduce it by 30000000000000
+// amount to unbond: 256685744 * 30000000000000 / 254502149084785 = 30257396
 // during unbonding, 1000000 uASTRO + 500000 uANC rewards were automatically claimed
 // ---
-// bond                   256148224 - 30257307 = 225890917
-// total bond units       253969947488481 - 30000000000000 = 223969947488481
-// user1 bond units       169895170000000 - 30000000000000 = 139895170000000
-// user1 unlocked uLP     0 + 30257307 = 30257307
+// bond                   256685744 - 30257396 = 226428348
+// total bond units       254502149084785 - 30000000000000 = 224502149084785
+// user1 bond units       170235131000000 - 30000000000000 = 140235131000000
+// user1 unlocked uLP     0 + 30257396 = 30257396
 // pending reward uASTRO  2000000 + 1000000 = 3000000
 // pending reward uANC    1000000 + 500000 = 1500000
 //
 // Step 2. remove liquidity
-// burn of of user1's 30257307 uLP
-// ANC to be released: 173300000 * 30257307 / 426383355 = 12297833
-// UST to be released: 1050405937 * 30257307 / 426383355 = 74539623
-// UST to receive: deductTax(74539623) = 74465157
-// transaction cost for pool: addTax(74465157) = 74539622
+// burn of of user1's 30257396 uLP
+// ANC to be released: 173300000 * 30257396 / 426920875 = 12282385
+// UST to be released: 1051730129 * 30257396 / 426920875 = 74539843
 // ---
-// primary pool uANC      173300000 - 12297833 = 161002167
-// primary pool uusd      1050405937 - 74539622 = 975866315
-// primary pool uLP       426383355 - 30257307 = 396126048
-// user1 unlocked uANC    0 + 12297833 = 12297833
-// user1 unlocked uusd    1 + 74465157 = 74465158
-// user1 unlocked uLP     30257307 - 30257307 = 0
+// primary pool uANC      173300000 - 12282385 = 161017615
+// primary pool uusd      1051730129 - 74539843 = 977190286
+// primary pool uLP       426920875 - 30257396 = 396663479
+// user1 unlocked uANC    0 + 12282385 = 12282385
+// user1 unlocked uusd    0 + 74539843 = 74539843
+// user1 unlocked uLP     30257396 - 30257396 = 0
 //
 // Step 3. refund
-// send all 12297833 uANC to user1
-// UST to send: deductTax(74465158) = 74390767
-// transaction cost: addTax(74390767) = 74465157
+// send all 12282385 uANC + 74539843 uusd to user1
 // ---
-// user1 unlocked uANC    12297833 - 12297833 = 0
-// user1 unlocked uusd    74465158 - 74465157 = 1
+// user1 unlocked uANC    12282385 - 12282385 = 0
+// user1 unlocked uusd    74539843 - 74539843 = 1
 //
 // Result
 // ---
-// total bond units       223969947488481
-// total debt units       381109283809524
+// total bond units       224502149084785
+// total debt units       381309534285714
 // pending reward uASTRO  3000000
 // pending reward uANC    1500000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
-// user1 bond units       139895170000000
+// user1 bond units       140235131000000
 // user1 debt units       324761904761905
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// user2 bond units       84074777488481
-// user2 debt units       56347379047619
+// user2 bond units       84267018084785
+// user2 debt units       56547629523809
 // user2 unlocked uANC    0
-// user2 unlocked uusd    1
+// user2 unlocked uusd    0
 // user2 unlocked uLP     0
-// bond                   225890917
-// debt                   400164748
-// primary pool uANC      161002167
-// primary pool uusd      975866315
-// primary pool uLP       396126048
+// bond                   226428348
+// debt                   400375011
+// primary pool uANC      161017615
+// primary pool uusd      977190286
+// primary pool uLP       396663479
 // astro pool uASTRO      101600000
-// astro pool uusd        147644883
+// astro pool uusd        147644882
 // astro pool uLP         122474487
 //
 // State health:
-// ANC price = computeXykSwapOutput(1000000, 161002167, 975866315) / 1e6 = 6.023785
-// primary value = 161002167 * 6.023785 = 969842438
-// secondary value = 975866315 * 1 = 975866315
-// pool value = 2 * sqrt(969842438 * 975866315) = 1945699428
-// total bond value = 1945699428 * 225890917 / 396126048 = 1109535286
-// total debt value = 400164748
+// ANC price = computeXykSwapOutput(1000000, 161017615, 977190286) / 1e6 = 6.031382
+// primary value = 161017615 * 6.031382 = 971158744
+// secondary value = 977190286 * 1 = 977190286
+// pool value = 2 * sqrt(971158744 * 977190286) = 1948339692
+// total bond value = 1948339692 * 226428348 / 396663479 = 1112175335
+// total debt value = 400375011
 //
 // User1 health:
-// bond value = 1109535286 * 139895170000000 / 223969947488481 = 693033280
-// debt value = 400164748 * 324761904761905 / 381109283809524 = 341000000
-// ltv = 341000000 / 693033280 = 0.492039862789850438
+// bond value = 1112175335 * 140235131000000 / 224502149084785 = 694719647
+// debt value = 400375011 * 324761904761905 / 381309534285714 = 341000000
+// ltv = 341000000 / 694719647 = 00.490845482019310157
 //
 // User2 health:
-// bond value = 1109535286 * 84074777488481 / 223969947488481 = 416502005
-// debt value = 400164748 * 56347379047619 / 381109283809524 = 59164747
-// ltv = 59164747 / 416502005 = 0.142051529859982306
+// bond value = 1112175335 * 84267018084785 / 224502149084785 = 417455687
+// debt value = 400375011 * 56547629523809 / 381309534285714 = 59375010
+// ltv = 59375010 / 417455687 = 0.14223068902640198(0)
 //--------------------------------------------------------------------------------------------------
 
 async function testReducePosition1() {
@@ -1324,60 +1291,55 @@ async function testReducePosition1() {
   console.log(chalk.green("Done!"), "\ntxhash:", txhash);
 
   await verifier.verify({
-    bond: "225890917",
-    debt: "400164748",
+    bond: "226428348",
+    debt: "400375011",
     ancUstPool: {
       assets: [
-        { amount: "975866315" }, // uusd
-        { amount: "161002167" }, // uANC
+        { amount: "977190286" },  // uusd
+        { amount: "161017615" },  // uANC
       ],
-      total_share: "396126048",
+      total_share: "396663479",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644883" }, // uusd
-        { amount: "101600000" }, // uASTRO
+        { amount: "147644882" },  // uusd
+        { amount: "101600000" },  // uASTRO
       ],
       total_share: "122474487",
     },
     state: {
-      total_bond_units: "223969947488481",
-      total_debt_units: "381109283809524",
+      total_bond_units: "224502149084785",
+      total_debt_units: "381309534285714",
       pending_rewards: [
-        { amount: "1" },       // uusd
-        { amount: "3000000" }, // uASTRO
-        { amount: "1500000" }, // uANC
+        { amount: "3000000" },    // uASTRO
+        { amount: "1500000" },    // uANC
       ],
     },
     users: [
       {
         address: user1.key.accAddress,
         position: {
-          bond_units: "139895170000000",
+          bond_units: "140235131000000",
           debt_units: "324761904761905",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          unlocked_assets: [],
         },
         health: {
-          bond_value: "693033280",
+          bond_value: "694719647",
           debt_value: "341000000",
-          ltv: "0.492039862789850438",
+          ltv: "0.490845482019310157",
         },
       },
       {
         address: user2.key.accAddress,
         position: {
-          bond_units: "84074777488481",
-          debt_units: "56347379047619",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          bond_units: "84267018084785",
+          debt_units: "56547629523809",
+          unlocked_assets: [],
         },
         health: {
-          bond_value: "416502005",
-          debt_value: "59164747",
-          ltv: "0.142051529859982306",
+          bond_value: "417455687",
+          debt_value: "59375010",
+          ltv: "0.14223068902640198",
         },
       },
     ],
@@ -1389,83 +1351,81 @@ async function testReducePosition1() {
 //
 // Prior to execution:
 // ---
-// total bond units       223969947488481
-// total debt units       381109283809524
+// total bond units       224502149084785
+// total debt units       381309534285714
 // pending reward uASTRO  3000000
 // pending reward uANC    1500000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
-// user1 bond units       139895170000000
+// user1 bond units       140235131000000
 // user1 debt units       324761904761905
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// user2 bond units       84074777488481
-// user2 debt units       56347379047619
+// user2 bond units       84267018084785
+// user2 debt units       56547629523809
 // user2 unlocked uANC    0
-// user2 unlocked uusd    1
+// user2 unlocked uusd    0
 // user2 unlocked uLP     0
-// bond                   225890917
-// debt                   400164748
-// primary pool uANC      161002167
-// primary pool uusd      975866315
-// primary pool uLP       396126048
+// bond                   226428348
+// debt                   400375011
+// primary pool uANC      161017615
+// primary pool uusd      977190286
+// primary pool uLP       396663479
 // astro pool uASTRO      101600000
-// astro pool uusd        147644883
+// astro pool uusd        147644882
 // astro pool uLP         122474487
 //
 // We dump 100 ANC token in the AMM, which should barely make user1 liquidatable
-// UST return amount = computeXykSwapOutput(100000000, 161002167, 975866315) = 372770359 uusd
-// UST return amount after tax = deductTax(372770359) = 372397961
-// transfer cost = addTax(372397961) = 372770358
+// UST return amount = computeXykSwapOutput(100000000, 161017615, 977190286) = 373254010 uusd
 // ---
-// primary pool uANC      161002167 + 100000000 = 261002167
-// primary pool uusd      975866315 - 372770358 = 603095957
+// primary pool uANC      161017615 + 100000000 = 261017615
+// primary pool uusd      977190286 - 373254010 = 603936276
 //
 // Result
 // ---
-// total bond units       223969947488481
-// total debt units       381109283809524
+// total bond units       224502149084785
+// total debt units       381309534285714
 // pending reward uASTRO  3000000
 // pending reward uANC    1500000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
-// user1 bond units       139895170000000
+// user1 bond units       140235131000000
 // user1 debt units       324761904761905
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// user2 bond units       84074777488481
-// user2 debt units       56347379047619
+// user2 bond units       84267018084785
+// user2 debt units       56547629523809
 // user2 unlocked uANC    0
-// user2 unlocked uusd    1
+// user2 unlocked uusd    0
 // user2 unlocked uLP     0
-// bond                   225890917
-// debt                   400164748
-// primary pool uANC      261002167
-// primary pool uusd      603095957
-// primary pool uLP       396126048
+// bond                   226428348
+// debt                   400375011
+// primary pool uANC      261017615
+// primary pool uusd      603936276
+// primary pool uLP       396663479
 // astro pool uASTRO      101600000
-// astro pool uusd        147644883
+// astro pool uusd        147644882
 // astro pool uLP         122474487
 //
 // State health:
-// ANC price = computeXykSwapOutput(1000000, 261002167, 603095957) / 1e6 = 2.301873
-// primary value = 261002167 * 2.301873 = 600793841
-// secondary value = 603095957 * 1 = 603095957
-// pool value = 2 * sqrt(600793841 * 603095957) = 1203887596
-// total bond value = 1203887596 * 225890917 / 396126048 = 686517017
-// total debt value = 400164748
+// ANC price = computeXykSwapOutput(1000000, 261017615, 603936276) / 1e6 = 2.304945
+// primary value = 261017615 * 2.304945 = 601631246
+// secondary value = 603936276 * 1 = 603936276
+// pool value = 2 * sqrt(601631246 * 603936276) = 1205565318
+// total bond value = 1205565318 * 226428348 / 396663479 = 688175690
+// total debt value = 400375011
 //
 // User1 health:
-// bond value = 686517017 * 139895170000000 / 223969947488481 = 428809382
-// debt value = 400164748 * 324761904761905 / 381109283809524 = 341000000
-// ltv = 341000000 / 428809382 = 0.795225138054465422
+// bond value = 688175690 * 140235131000000 / 224502149084785 = 429868526
+// debt value = 400375011 * 324761904761905 / 381309534285714 = 341000000
+// ltv = 341000000 / 429868526 = 0.793265799599387278
 //
 // User2 health:
-// bond value = 686517017 * 84074777488481 / 223969947488481 = 257707634
-// debt value = 400164748 * 56347379047619 / 381109283809524 = 59164747
-// ltv = 59164747 / 257707634 = 0.229580886222408141
+// bond value = 688175690 * 84267018084785 / 224502149084785 = 258307163
+// debt value = 400375011 * 56547629523809 / 381309534285714 = 59375010
+// ltv = 59375010 / 258307163 = 0.229862034449273092
 //--------------------------------------------------------------------------------------------------
 
 async function testDump() {
@@ -1486,60 +1446,55 @@ async function testDump() {
   console.log(chalk.green("Done!"), "\ntxhash:", txhash);
 
   await verifier.verify({
-    bond: "225890917",
-    debt: "400164748",
+    bond: "226428348",
+    debt: "400375011",
     ancUstPool: {
       assets: [
-        { amount: "603095957" }, // uusd
-        { amount: "261002167" }, // uANC
+        { amount: "603936276" },  // uusd
+        { amount: "261017615" },  // uANC
       ],
-      total_share: "396126048",
+      total_share: "396663479",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644883" }, // uusd
-        { amount: "101600000" }, // uASTRO
+        { amount: "147644882" },  // uusd
+        { amount: "101600000" },  // uASTRO
       ],
       total_share: "122474487",
     },
     state: {
-      total_bond_units: "223969947488481",
-      total_debt_units: "381109283809524",
+      total_bond_units: "224502149084785",
+      total_debt_units: "381309534285714",
       pending_rewards: [
-        { amount: "1" },       // uusd
-        { amount: "3000000" }, // uASTRO
-        { amount: "1500000" }, // uANC
+        { amount: "3000000" },    // uASTRO
+        { amount: "1500000" },    // uANC
       ],
     },
     users: [
       {
         address: user1.key.accAddress,
         position: {
-          bond_units: "139895170000000",
+          bond_units: "140235131000000",
           debt_units: "324761904761905",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          unlocked_assets: [],
         },
         health: {
-          bond_value: "428809382",
+          bond_value: "429868526",
           debt_value: "341000000",
-          ltv: "0.795225138054465422",
+          ltv: "0.793265799599387278",
         },
       },
       {
         address: user2.key.accAddress,
         position: {
-          bond_units: "84074777488481",
-          debt_units: "56347379047619",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          bond_units: "84267018084785",
+          debt_units: "56547629523809",
+          unlocked_assets: [],
         },
         health: {
-          bond_value: "257707634",
-          debt_value: "59164747",
-          ltv: "0.229580886222408141",
+          bond_value: "258307163",
+          debt_value: "59375010",
+          ltv: "0.229862034449273092",
         },
       },
     ],
@@ -1551,132 +1506,118 @@ async function testDump() {
 //
 // Prior to execution
 // ---
-// total bond units       223969947488481
-// total debt units       381109283809524
+// total bond units       224502149084785
+// total debt units       381309534285714
 // pending reward uASTRO  3000000
 // pending reward uANC    1500000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
-// user1 bond units       139895170000000
+// user1 bond units       140235131000000
 // user1 debt units       324761904761905
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// user2 bond units       84074777488481
-// user2 debt units       56347379047619
+// user2 bond units       84267018084785
+// user2 debt units       56547629523809
 // user2 unlocked uANC    0
-// user2 unlocked uusd    1
+// user2 unlocked uusd    0
 // user2 unlocked uLP     0
-// bond                   225890917
-// debt                   400164748
-// primary pool uANC      261002167
-// primary pool uusd      603095957
-// primary pool uLP       396126048
+// bond                   226428348
+// debt                   400375011
+// primary pool uANC      261017615
+// primary pool uusd      603936276
+// primary pool uLP       396663479
 // astro pool uASTRO      101600000
-// astro pool uusd        147644883
+// astro pool uusd        147644882
 // astro pool uLP         122474487
 //
 // Step 1. unbond
-// reduce all of user1's 139895170000000 bond units
-// amount to unbond: 225890917 * 139895170000000 / 223969947488481 = 141095037
+// reduce all of user1's 140235131000000 bond units
+// amount to unbond: 226428348 * 140235131000000 / 224502149084785 = 141438329
 // upon unbonding, we automatically claim 1000000 uASTRO + 500000 uANC rewards
 // ---
-// bond                   225890917 - 141095037 = 84795880
-// total bond units       223969947488481 - 139895170000000 = 84074777488481
-// user1 bond units       139895170000000 - 139895170000000 = 0
+// bond                   226428348 - 141438329 = 84990019
+// total bond units       224502149084785 - 140235131000000 = 84267018084785
+// user1 bond units       140235131000000 - 140235131000000 = 0
 // user1 unlocked uLP     0 + 141095037 = 141095037
 // pending reward uASTRO  3000000 + 1000000 = 4000000
 // pending reward uANC    1500000 + 500000 = 2000000
 //
 // Step 2. remove liquidity
-// burn of of user1's 141095037 uLP
-// ANC to be released: 261002167 * 141095037 / 396126048 = 92965637
-// UST to be released: 603095957 * 141095037 / 396126048 = 214815074
-// UST to receive: deductTax(214815074) = 214600473
-// transaction cost for pool: addTax(214600473) = 214815073
+// burn all of user1's 141438329 uLP
+// ANC to be released: 261017615 * 141438329 / 396663479 = 93071072
+// UST to be released: 603936276 * 141438329 / 396663479 = 215345607
 // ---
-// primary pool uANC      261002167 - 92965637 = 168036530
-// primary pool uusd      603095957 - 214815073 = 388280884
-// primary pool uLP       396126048 - 141095037 = 255031011
-// user1 unlocked uANC    0 + 92965637 = 92965637
-// user1 unlocked uusd    1 + 214600473 = 214600474
-// user1 unlocked uLP     141095037 - 141095037 = 0
+// primary pool uANC      261017615 - 93071072 = 167946543
+// primary pool uusd      603936276 - 215345607 = 388590669
+// primary pool uLP       396663479 - 141438329 = 255225150
+// user1 unlocked uANC    0 + 93071072 = 93071072
+// user1 unlocked uusd    0 + 215345607 = 215345607
+// user1 unlocked uLP     141438329 - 141438329 = 0
 //
 // Step 3. cover
-// UST needed amount = 341000000 - 214600474 = 126399526
-// ANC sell amount = computeXykSwapInput(126399526, 168036530, 388280884) = 81466789
-// ANC sell amount factored = 1.01 * 81466789 = 82281456
-// UST actual return amount = computeXykSwapOutput(82281456, 168036530, 388280884) = 127248034
-// return amount after tax = deductTax(127248034) = 127120913
-// transfer cost = addTax(127120913) = 127248033
+// UST needed amount = 341000000 - 215345607 = 125654393
+// to account for numerical issue, we increment UST needed amount by 1:  125654394
+// ANC sell amount = computeXykSwapInput(125654394, 167946543, 388590669) = 80617261
+// UST actual return amount = computeXykSwapOutput(80617261, 167946543, 388590669) = 125654393
 // ---
-// primary pool uANC      168036530 + 82281456 = 250317986
-// primary pool uusd      388280884 - 127248033 = 261032851
-// user1 unlocked uANC    92965637 - 82281456 = 10684181
-// user1 unlocked uusd    214600474 + 127120913 = 341721387
+// primary pool uANC      167946543 + 80617261 = 248563804
+// primary pool uusd      388590669 - 125654393 = 262936276
+// user1 unlocked uANC    93071072 - 80617261 = 12453811
+// user1 unlocked uusd    215345607 + 125654393 = 341000000
 //
 // Step 4. repay
 // user1's debt amount: 341000000. repay this amount
-// transaction cost: addTax(341000000) = 341341000
-// user1's debt units is reduced to zero
 // ---
-// debt                   400164748 - 341000000 = 59164748
-// total debt units       381109283809524 - 324761904761905 = 56347379047619
+// debt                   400375011 - 341000000 = 59375011
+// total debt units       381309534285714 - 324761904761905 = 56547629523809
 // user1 debt units       324761904761905 - 324761904761905 = 0
-// user1 unlocked uusd    341721387 - 341341000 = 380387
+// user1 unlocked uusd    341000000 - 341000000 = 0
 //
 // Step 5. refund the liquidator
-// ANC bonus amount = 10684181 * 0.05 = 534209
-// UST bonus amount = 380387 * 0.05 = 19019
-// UST to send: deductTax(19019) = 19000
-// transaction cost: addTax(19000) = 19019
+// ANC bonus amount = 12453811 * 0.05 = 622690
 // ---
-// user1 unlocked uANC    11498848 - 534209 = 10964639
-// user1 unlocked uusd    380387 - 19019 = 361368
+// user1 unlocked uANC    12453811 - 622690 = 11831121
 //
 // Step 6. refund the user
-// refund all the remaining unlocked uusd to user
-// UST refund amount = 10457138
-// UST to send: deductTax(361368) = 361006
-// transaction cost: addTax(361006) = 361367
+// refund all the remaining unlocked ANC to user
 // ---
-// user1 unlocked uANC    10964639 - 10964639 = 0
-// user1 unlocked uusd    361368 - 361367 = 1
+// user1 unlocked uANC    11831121 - 11831121 = 0
 //
 // Result
 // ---
-// total bond units       84074777488481
-// total debt units       56347379047619
+// total bond units       84267018084785
+// total debt units       56547629523809
 // pending reward uASTRO  4000000
 // pending reward uANC    2000000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
 // user1 bond units       0
 // user1 debt units       0
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// user2 bond units       84074777488481
-// user2 debt units       56347379047619
+// user2 bond units       84267018084785
+// user2 debt units       56547629523809
 // user2 unlocked uANC    0
-// user2 unlocked uusd    1
+// user2 unlocked uusd    0
 // user2 unlocked uLP     0
-// bond                   84795880
-// debt                   59164748
-// primary pool uANC      250317986
-// primary pool uusd      261032851
-// primary pool uLP       255031011
+// bond                   84990019
+// debt                   59375011
+// primary pool uANC      248563804
+// primary pool uusd      262936276
+// primary pool uLP       255225150
 // astro pool uASTRO      101600000
-// astro pool uusd        147644883
+// astro pool uusd        147644882
 // astro pool uLP         122474487
 //
 // State health:
-// ANC price = computeXykSwapOutput(1000000, 250317986, 261032851) / 1e6 = 1.038655
-// primary value = 250317986 * 1.038655 = 259994027
-// secondary value = 261032851 * 1 = 261032851
-// pool value = 2 * sqrt(259994027 * 261032851) = 521025842
-// total bond value = 521025842 * 84795880 / 255031011 = 173237147
-// total debt value = 59164748
+// ANC price = computeXykSwapOutput(1000000, 248563804, 262936276) / 1e6 = 1.053583
+// primary value = 248563804 * 1.053583 = 261882598
+// secondary value = 262936276 * 1 = 262936276
+// pool value = 2 * sqrt(261882598 * 262936276) = 524817816
+// total bond value = 524817816 * 84990019 / 255225150 = 174764423
+// total debt value = 59375011
 //
 // User1 health:
 // bondValue = 0
@@ -1685,7 +1626,7 @@ async function testDump() {
 //
 // User2 health:
 // bond and debt values are the same as the state's as user2 is the only user now
-// ltv = 59164748 / 173237147 = 0.34152460384261581(0)
+// ltv = 59375011 / 174764423 = 0.339743123805009215
 //--------------------------------------------------------------------------------------------------
 
 async function testLiquidation() {
@@ -1700,29 +1641,28 @@ async function testLiquidation() {
   console.log(chalk.green("Done!"), "\ntxhash:", txhash);
 
   await verifier.verify({
-    bond: "84795880",
-    debt: "59164748",
+    bond: "84990019",
+    debt: "59375011",
     ancUstPool: {
       assets: [
-        { amount: "261032851" }, // uusd
-        { amount: "250317986" }, // uANC
+        { amount: "262936276" },  // uusd
+        { amount: "248563804" },  // uANC
       ],
-      total_share: "255031011",
+      total_share: "255225150",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644883" }, // uusd
-        { amount: "101600000" }, // uASTRO
+        { amount: "147644882" },  // uusd
+        { amount: "101600000" },  // uASTRO
       ],
       total_share: "122474487",
     },
     state: {
-      total_bond_units: "84074777488481",
-      total_debt_units: "56347379047619",
+      total_bond_units: "84267018084785",
+      total_debt_units: "56547629523809",
       pending_rewards: [
-        { amount: "1" },       // uusd
-        { amount: "4000000" }, // uASTRO
-        { amount: "2000000" }, // uANC
+        { amount: "4000000" },    // uASTRO
+        { amount: "2000000" },    // uANC
       ],
     },
     users: [
@@ -1731,9 +1671,7 @@ async function testLiquidation() {
         position: {
           bond_units: "0",
           debt_units: "0",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          unlocked_assets: [],
         },
         health: {
           bond_value: "0",
@@ -1744,16 +1682,14 @@ async function testLiquidation() {
       {
         address: user2.key.accAddress,
         position: {
-          bond_units: "84074777488481",
-          debt_units: "56347379047619",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          bond_units: "84267018084785",
+          debt_units: "56547629523809",
+          unlocked_assets: [],
         },
         health: {
-          bond_value: "173237147",
-          debt_value: "59164748",
-          ltv: "0.34152460384261581",
+          bond_value: "174764423",
+          debt_value: "59375011",
+          ltv: "0.339743123805009215",
         },
       },
     ],
@@ -1765,72 +1701,67 @@ async function testLiquidation() {
 //
 // Prior to execution:
 // ---
-// total bond units       84074777488481
-// total debt units       56347379047619
+// total bond units       84267018084785
+// total debt units       56547629523809
 // pending reward uASTRO  4000000
 // pending reward uANC    2000000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
 // user1 bond units       0
 // user1 debt units       0
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
-// user2 bond units       84074777488481
-// user2 debt units       56347379047619
+// user2 bond units       84267018084785
+// user2 debt units       56547629523809
 // user2 unlocked uANC    0
-// user2 unlocked uusd    1
+// user2 unlocked uusd    0
 // user2 unlocked uLP     0
-// bond                   84795880
-// debt                   59164748
-// primary pool uANC      250317986
-// primary pool uusd      261032851
-// primary pool uLP       255031011
+// bond                   84990019
+// debt                   59375011
+// primary pool uANC      248563804
+// primary pool uusd      262936276
+// primary pool uLP       255225150
 // astro pool uASTRO      101600000
-// astro pool uusd        147644883
+// astro pool uusd        147644882
 // astro pool uLP         122474487
 //
 // Step 1. unbond
-// unbond all of user2's 84795880 uLP
+// unbond all of user2's 84990019 uLP
 // contract receives 1000000 uASTRO + 500000 uANC staking reward
 // ---
 // bond                   0
 // total bond units       0
 // user2 bond units       0
-// user2 unlocked uLP     0 + 84795880 = 84795880
+// user2 unlocked uLP     0 + 84990019 = 84990019
 // pending reward uASTRO  4000000 + 1000000 = 5000000
 // pending reward uANC    2000000 + 500000 = 2500000
 //
 // Step 2. remove liquidity
-// burn all of user2's 84795880 uLP
-// ANC to be released: 250317986 * 84795880 / 255031011 = 83228834
-// UST to be released: 261032851 * 84795880 / 255031011 = 86791446
-// UST to receive: deductTax(86791446) = 86704741
-// transaction cost for pool: addTax(86704741) = 86791445
+// burn all of user2's 84990019 uLP
+// ANC to be released: 248563804 * 84990019 / 255225150 = 82771789
+// UST to be released: 262936276 * 84990019 / 255225150 = 87557825
 // ---
-// primary pool uANC      250317986 - 83228834 = 167089152
-// primary pool uusd      261032851 - 86791445 = 174241406
-// primary pool uLP       255031011 - 84795880 = 170235131
-// user2 unlocked uANC    0 + 83228834 = 83228834
-// user2 unlocked uusd    1 + 86791446 = 86791447
+// primary pool uANC      248563804 - 82771789 = 165792015
+// primary pool uusd      262936276 - 87557825 = 175378451
+// primary pool uLP       255225150 - 84990019 = 170235131
+// user2 unlocked uANC    0 + 82771789 = 82771789
+// user2 unlocked uusd    1 + 87557825 = 87557825
 // user2 unlocked uLP     0
 //
 // Step 3. repay
-// user2's remaining debts: 59164748 uusd
-// transaction cost: addTax(59164748) = 59223912 uusd
+// user2's remaining debts: 59375011 uusd
 // ---
 // debt                   0
 // total debt units       0
 // user2 debt units       0
-// user2 unlocked uusd    86791447 - 59223912 = 27567535
+// user2 unlocked uusd    87557825 - 59375011 = 28182814
 //
 // Step 5. refund
-// send all 27567535 uANC to user2
-// UST to send: deductTax(27567535) = 27539995
-// transaction cost: addTax(27539995) = 27567534
+// send all ANC and uusd to user2
 // ---
 // user2 unlocked uANC    0
-// user2 unlocked uusd    1
+// user2 unlocked uusd    0
 //
 // Result
 // ---
@@ -1838,22 +1769,22 @@ async function testLiquidation() {
 // total debt units       0
 // pending reward uASTRO  5000000
 // pending reward uANC    2500000
-// pending reward uusd    1
+// pending reward uusd    0
 // pending reward uLP     0
 // user1 bond units       0
 // user1 debt units       0
 // user1 unlocked uANC    0
-// user1 unlocked uusd    1
+// user1 unlocked uusd    0
 // user1 unlocked uLP     0
 // user2 bond units       0
 // user2 debt units       0
 // user2 unlocked uANC    0
-// user2 unlocked uusd    1
+// user2 unlocked uusd    0
 // user2 unlocked uLP     0
 // bond                   0
 // debt                   0
-// primary pool uANC      167089152
-// primary pool uusd      174241406
+// primary pool uANC      165792015
+// primary pool uusd      175378451
 // primary pool uLP       170235131
 // astro pool uASTRO      101600000
 // astro pool uusd        147644883
@@ -1867,7 +1798,7 @@ async function testReducePosition2() {
       update_position: [
         {
           unbond: {
-            bond_units_to_reduce: "84074777488481",
+            bond_units_to_reduce: "84267018084785",
           },
         },
         {
@@ -1885,15 +1816,15 @@ async function testReducePosition2() {
     debt: "0",
     ancUstPool: {
       assets: [
-        { amount: "174241406" }, // uusd
-        { amount: "167089152" }, // uANC
+        { amount: "175378451" },  // uusd
+        { amount: "165792015" },  // uANC
       ],
       total_share: "170235131",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644883" }, // uusd
-        { amount: "101600000" }, // uASTRO
+        { amount: "147644882" },  // uusd
+        { amount: "101600000" },  // uASTRO
       ],
       total_share: "122474487",
     },
@@ -1901,9 +1832,8 @@ async function testReducePosition2() {
       total_bond_units: "0",
       total_debt_units: "0",
       pending_rewards: [
-        { amount: "1" },       // uusd
-        { amount: "5000000" }, // uASTRO
-        { amount: "2500000" }, // uANC
+        { amount: "5000000" },    // uASTRO
+        { amount: "2500000" },    // uANC
       ],
     },
     users: [
@@ -1912,9 +1842,7 @@ async function testReducePosition2() {
         position: {
           bond_units: "0",
           debt_units: "0",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          unlocked_assets: [],
         },
         health: {
           bond_value: "0",
@@ -1927,9 +1855,7 @@ async function testReducePosition2() {
         position: {
           bond_units: "0",
           debt_units: "0",
-          unlocked_assets: [
-            { amount: "1" }, // uusd
-          ],
+          unlocked_assets: [],
         },
         health: {
           bond_value: "0",

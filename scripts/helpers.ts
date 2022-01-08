@@ -18,7 +18,7 @@ import {
 export async function sendTransaction(terra: LCDClient, sender: Wallet, msgs: Msg[]) {
   const tx = await sender.createAndSignTx({
     msgs,
-    gasPrices: "0.15uusd",
+    gasPrices: "0.155uusd", // bombay has increased gas price from 0.15 to 0.155 uusd
     gasAdjustment: 1.4,
   });
   const result = await terra.tx.broadcast(tx);
@@ -101,32 +101,4 @@ export function encodeBase64(obj: any) {
 export function encodeUtf8(str: string) {
   const encoder = new TextEncoder();
   return Array.from(encoder.encode(str));
-}
-
-/**
- * Given a total amount of UST, find the deviverable amount, after tax, if we transfer this amount
- *
- * NOTE: Assumes a tax rate of 0.1% and a cap of 1000000 (must be configured in LocalTerra/config.genesis.json)
- */
-export function deductTax(amount: number) {
-  const DECIMAL_FRACTION = new BN("1000000000000000000");
-  const tax = Math.min(
-    amount -
-      new BN(amount)
-        .mul(DECIMAL_FRACTION)
-        .div(DECIMAL_FRACTION.div(new BN(1000)).add(DECIMAL_FRACTION))
-        .toNumber(),
-    1000000
-  );
-  return amount - tax;
-}
-
-/**
- * Given a intended deliverable amount of UST, find the total amount necessary for deliver this amount
- *
- * NOTE: Assumes a tax rate of 0.1% and a cap of 1000000 (must be configured in LocalTerra/config.genesis.json)
- */
-export function addTax(amount: number) {
-  const tax = Math.min(new BN(amount).div(new BN(1000)).toNumber(), 1000000);
-  return amount + tax;
 }
