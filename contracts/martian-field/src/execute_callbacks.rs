@@ -474,11 +474,28 @@ pub fn cover(
         .unwrap_or_else(|| Asset::new(config.secondary_asset_info.clone(), 0u128));
 
     // calculate how much additional secondary asset is needed to fully pay off the user's debt 
-    let secondary_needed_amount = if debt_amount > secondary_available.amount {
+    let mut secondary_needed_amount = if debt_amount > secondary_available.amount {
         debt_amount - secondary_available.amount  // no need for underflow check here
     } else {
         return Ok(Response::default());
     };
+
+    // NOTE: due to numerical reason, if we estimate offer amount using exactly the needed return
+    // amount, the actual return amount may be one unit less than what we need
+    //
+    // for example, assume a pair of assets A and B, with depths 167946543 A + 388590669 B
+    // we want the swap to return 125654393 B, so we calculate
+    // computeXykSwapInput(125654393, 167946543, 388590669) = 80617260
+    //
+    // however, if we offer 80617260 A, the swap returns
+    // computeXykSwapOutput(80617260, 167946543, 388590669) = 125654392
+    // which is one unit of B less than what we need (125654392 returned vs 125654393 needed)
+    //
+    // to account for this, we increment `secondary_needed_amount` by one unit before the reverse
+    // simulation
+    //
+    // not a very elegant solution, but it works and is the best i can come up with rn
+    secondary_needed_amount += Uint128::new(1);
     let secondary_needed = Asset::new(config.secondary_asset_info.clone(), secondary_needed_amount);
 
     // reverse simulate how much primary asset needs to be sold
