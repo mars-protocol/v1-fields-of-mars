@@ -188,6 +188,19 @@ pub struct Health {
     pub ltv: Option<Decimal>,
 }
 
+/// Every time the user invokes `update_position`, we record a snaphot of the position
+///
+/// This snapshot does have any impact on the contract's normal functioning. Rather it is used by
+/// the frontend to calculate PnL. Once we have the infrastructure for calculating PnL off-chain 
+/// available, we will migrate the contract to delete this
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Snapshot {
+    pub time: u64,
+    pub height: u64,
+    pub position: PositionUnchecked,
+    pub health: Health,
+}
+
 //--------------------------------------------------------------------------------------------------
 // Message and response types
 //--------------------------------------------------------------------------------------------------
@@ -357,6 +370,11 @@ pub mod msg {
         },
         /// Calculate a user's current LTV; throw error if it is above the maximum LTV
         AssertHealth {
+            user_addr: Addr,
+        },
+        /// See the comment on struct `Snapshot`. This callback should be removed at some point
+        /// after launch when our tx indexing infrastructure is ready
+        Snapshot {
             user_addr: Addr,
         },
     }

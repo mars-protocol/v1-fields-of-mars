@@ -81,6 +81,9 @@ fn execute_callback(deps: DepsMut, env: Env, info: MessageInfo, msg: CallbackMsg
         CallbackMsg::AssertHealth {
             user_addr,
         } => callbacks::assert_health(deps, env, user_addr),
+        CallbackMsg::Snapshot {
+            user_addr,
+        } => callbacks::snapshot(deps, env, user_addr),
     }
 }
 
