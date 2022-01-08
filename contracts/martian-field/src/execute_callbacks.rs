@@ -241,8 +241,8 @@ pub fn borrow(
 
     let secondary_asset_to_borrow = Asset::new(config.secondary_asset_info.clone(), borrow_amount);
 
-    state.total_debt_units += debt_units_to_add;
-    position.debt_units += debt_units_to_add;
+    state.total_debt_units = state.total_debt_units.checked_add(debt_units_to_add)?;
+    position.debt_units = position.debt_units.checked_add(debt_units_to_add)?;
     position.unlocked_assets.add(&secondary_asset_to_borrow)?;
 
     STATE.save(deps.storage, &state)?;
@@ -285,8 +285,8 @@ pub fn repay(
 
     let secondary_asset_to_repay = Asset::new(config.secondary_asset_info.clone(), repay_amount);
 
-    state.total_debt_units -= debt_units_to_deduct;
-    position.debt_units -= debt_units_to_deduct;
+    state.total_debt_units = state.total_debt_units.checked_sub(debt_units_to_deduct)?;
+    position.debt_units = position.debt_units.checked_sub(debt_units_to_deduct)?;
     position.unlocked_assets.deduct(&secondary_asset_to_repay)?;
 
     STATE.save(deps.storage, &state)?;
@@ -412,7 +412,7 @@ pub fn balance(
     // to find the optimal swap amount. i have worked out the math somewhere else and will later
     // implement it as a separate smart contract
     //
-    // for the time being, the less optimial method is ok as long as we harvest frequently - that is,
+    // for the time being, the less optimial method is ok as long as we harvest frequently; that is,
     // the amount that needs to be swapped is not very large at each harvest, so it should not incur
     // too much slippage
     let higher_value = cmp::max(primary_asset_value, secondary_asset_value);
