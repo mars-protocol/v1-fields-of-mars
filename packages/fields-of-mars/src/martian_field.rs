@@ -1,4 +1,6 @@
-use cosmwasm_std::{to_binary, Addr, Api, CosmosMsg, Decimal, StdResult, Uint128, WasmMsg};
+use std::str::FromStr;
+
+use cosmwasm_std::{to_binary, Addr, Api, CosmosMsg, Decimal, StdResult, Uint128, WasmMsg, StdError};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -6,6 +8,10 @@ use serde::{Deserialize, Serialize};
 use cw_asset::{AssetInfoBase, AssetListBase};
 
 use crate::adapters::{GeneratorBase, OracleBase, PairBase, RedBankBase};
+
+const MAX_MAX_LTV: &str = "0.9";
+const MAX_FEE_RATE: &str = "0.1";
+const MAX_BONUS_RATE: &str = "0.05";
 
 //--------------------------------------------------------------------------------------------------
 // Config
@@ -99,6 +105,33 @@ impl ConfigUnchecked {
             fee_rate: self.fee_rate,
             bonus_rate: self.bonus_rate,
         })
+    }
+}
+
+impl Config {
+    pub fn validate(&self) -> StdResult<()> {
+        let max_max_ltv = Decimal::from_str(MAX_MAX_LTV)?;
+        if self.max_ltv > max_max_ltv {
+            return Err(StdError::generic_err(
+                format!("invalid max ltv: {}; must be <= {}", self.max_ltv, MAX_MAX_LTV)
+            ));
+        }
+
+        let max_fee_rate = Decimal::from_str(MAX_FEE_RATE)?;
+        if self.fee_rate > max_fee_rate {
+            return Err(StdError::generic_err(
+                format!("invalid fee rate: {}; must be <= {}", self.fee_rate, MAX_FEE_RATE)
+            ));
+        }
+
+        let max_bonus_rate = Decimal::from_str(MAX_BONUS_RATE)?;
+        if self.bonus_rate > max_bonus_rate {
+            return Err(StdError::generic_err(
+                format!("invalid bonus rate: {}; must be <= {}", self.bonus_rate, MAX_BONUS_RATE)
+            ));
+        }
+
+        Ok(())
     }
 }
 
