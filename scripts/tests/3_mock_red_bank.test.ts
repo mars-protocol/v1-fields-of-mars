@@ -2,7 +2,8 @@ import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract, MsgSend } from "@terra-money/terra.js";
 import { expect } from "chai";
 import { deployRedBank } from "./fixture";
-import { queryNativeBalance, sendTransaction } from "./helpers";
+import { queryNativeBalance } from "../helpers/queries";
+import { sendTransaction } from "../helpers/tx";
 import { UserAssetDebtResponse } from "./types";
 
 const terra = new LocalTerra();
@@ -16,11 +17,11 @@ let bank: string;
 //--------------------------------------------------------------------------------------------------
 
 async function setupTest() {
-  ({ bank } = await deployRedBank(terra, deployer));
+  ({ bank } = await deployRedBank(deployer));
 
   process.stdout.write("Fund contract with LUNA and UST...");
 
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgSend(deployer.key.accAddress, bank, { uluna: 100000000, uusd: 100000000 }),
   ]);
 
@@ -36,7 +37,7 @@ async function testBorrow() {
 
   const userLunaBalanceBefore = await queryNativeBalance(terra, user.key.accAddress, "uluna");
 
-  await sendTransaction(terra, user, [
+  await sendTransaction(user, [
     new MsgExecuteContract(user.key.accAddress, bank, {
       borrow: {
         asset: {
@@ -76,7 +77,7 @@ async function testBorrow() {
 async function testRepay() {
   process.stdout.write("2. Repay LUNA... ");
 
-  await sendTransaction(terra, user, [
+  await sendTransaction(user, [
     new MsgExecuteContract(
       user.key.accAddress,
       bank,
@@ -112,7 +113,7 @@ async function testRepay() {
 async function testSetUserDebt() {
   process.stdout.write("3. [mock] Set user debt... ");
 
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, bank, {
       set_user_debt: {
         user_address: user.key.accAddress,

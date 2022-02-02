@@ -1,0 +1,33 @@
+{
+  "primary_asset_info": {
+    "native": "uluna"
+  },
+  "secondary_asset_info": {
+    "native": "uusd"
+  },
+  "astro_token_info": {
+    "cw20": "terra1cc2up8erdqn2l7nz37qjgvnqy56sr38aj9vqry"
+  },
+  "primary_pair": {
+    "contract_addr": "terra12eq2zmdmycvx9n6skwpu9kqxts0787rekjnlwm",
+    "liquidity_token": "terra1sjpns87xfa48hwy6pwqdchxzsrsmmewsxjwvcj"
+  },
+  "astro_pair": {
+    "contract_addr": "terra1dk57pl4v4ut9kwsmtrv9k4kkn9fxrh290zvg2w",
+    "liquidity_token": "terra1uahqpnm4p3ag8ma40xhtft96uvuxy6vn9p6x9v"
+  },
+  "astro_generator": {
+    "contract_addr": "terra1cmqhxgna6uasnycgdcx974uq8u56rp2ta3r356"
+  },
+  "red_bank": {
+    "contract_addr": "terra19fy8q4vx6uzv4rmhvvp329fgr5343qrunntq60"
+  },
+  "oracle": {
+    "contract_addr": "terra1uxs9f90kr2lgt3tpkpyk5dllqrwra5tgwv0pc5"
+  },
+  "treasury": "terra1u4sk8992wz4c9p5c8ckffj4h8vh97hfeyw9x5n",
+  "governance": "terra1w0acggjar67f7l4phnvqzeg0na0k5fcn9lv5zz",
+  "max_ltv": "0.75",
+  "fee_rate": "0.05",
+  "bonus_rate": "0.05"
+}

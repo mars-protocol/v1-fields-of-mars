@@ -7,7 +7,9 @@ import {
   deployAstroportPair,
   deployAstroGenerator,
 } from "./fixture";
-import { sendTransaction, encodeBase64, queryCw20Balance } from "./helpers";
+import { encodeBase64 } from "../helpers/encoding";
+import { queryCw20Balance } from "../helpers/queries";
+import { sendTransaction } from "../helpers/tx";
 import { PendingTokenResponse } from "./types";
 
 const terra = new LocalTerra();
@@ -26,23 +28,21 @@ let astroGenerator: string;
 //--------------------------------------------------------------------------------------------------
 
 async function setupTest() {
-  let { cw20CodeId, address } = await deployCw20Token(terra, deployer);
+  const { cw20CodeId, address } = await deployCw20Token(deployer);
   testToken = address;
 
-  ({ address } = await deployCw20Token(terra, deployer, cw20CodeId, "Astroport Token", "ASTRO"));
-  astroToken = address;
+  const result = await deployCw20Token(deployer, cw20CodeId, "Astroport Token", "ASTRO");
+  astroToken = result.address;
 
-  ({ astroportFactory } = await deployAstroportFactory(terra, deployer, cw20CodeId));
+  ({ astroportFactory } = await deployAstroportFactory(deployer, cw20CodeId));
 
   ({ astroportPair, astroportLpToken } = await deployAstroportPair(
-    terra,
     deployer,
     astroportFactory,
     testToken
   ));
 
   ({ astroGenerator } = await deployAstroGenerator(
-    terra,
     deployer,
     astroportLpToken,
     astroToken,
@@ -51,7 +51,7 @@ async function setupTest() {
 
   process.stdout.write("Minting TEST token to user... ");
 
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, testToken, {
       mint: {
         recipient: user.key.accAddress,
@@ -64,7 +64,7 @@ async function setupTest() {
 
   process.stdout.write("Minting TEST token to generator... ");
 
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, testToken, {
       mint: {
         recipient: astroGenerator,
@@ -77,7 +77,7 @@ async function setupTest() {
 
   process.stdout.write("Minting ASTRO token to generator... ");
 
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, astroToken, {
       mint: {
         recipient: astroGenerator,
@@ -91,7 +91,7 @@ async function setupTest() {
   process.stdout.write("User providing TEST + UST liquidity to Astroport pair... ");
 
   // user should receive sqrt(69420000000 * 88888000000) = 78553198279 liquidity tokens
-  await sendTransaction(terra, user, [
+  await sendTransaction(user, [
     new MsgExecuteContract(user.key.accAddress, testToken, {
       increase_allowance: {
         amount: "69420000000",
@@ -148,7 +148,7 @@ async function testDeposit() {
 
   expect(userDepositBefore).to.equal("0");
 
-  await sendTransaction(terra, user, [
+  await sendTransaction(user, [
     new MsgExecuteContract(user.key.accAddress, astroportLpToken, {
       send: {
         contract: astroGenerator,
@@ -189,7 +189,7 @@ async function testReward() {
   process.stdout.write("2. Query and withdraw reward... ");
 
   // claim reward by sending a withdraw tx with zero amount
-  await sendTransaction(terra, user, [
+  await sendTransaction(user, [
     new MsgExecuteContract(user.key.accAddress, astroGenerator, {
       withdraw: {
         lp_token: astroportLpToken,
@@ -229,7 +229,7 @@ async function testReward() {
 async function testWithdraw() {
   process.stdout.write("3. Withdraw liquidity tokens... ");
 
-  await sendTransaction(terra, user, [
+  await sendTransaction(user, [
     new MsgExecuteContract(user.key.accAddress, astroGenerator, {
       withdraw: {
         lp_token: astroportLpToken,

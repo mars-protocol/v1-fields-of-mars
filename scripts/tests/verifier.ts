@@ -24,8 +24,8 @@ export interface CheckData {
   }[];
 }
 
-function _generateRow(name: string, expected: any, actual: any) {
-  return [name, expected, actual, expected == actual ? chalk.green("true") : chalk.red("false")];
+function _generateRow<T = string | number | null>(name: string, expected: T, actual: T) {
+  return [name, expected, actual, expected === actual ? chalk.green("true") : chalk.red("false")];
 }
 
 /**
@@ -88,7 +88,7 @@ export class Verifier {
       state: {},
     });
 
-    let _users: {
+    const _users: {
       address: string;
       position: PositionResponse;
       health: HealthResponse;
@@ -123,7 +123,7 @@ export class Verifier {
   async verify(expected: CheckData) {
     const actual = await this.query(expected.users);
 
-    let rows = [
+    let rows: (string | number | null)[][] = [
       // header
       ["variable", "expected            ", "actual              ", "match"],
       // bond

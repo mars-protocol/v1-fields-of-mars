@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import { LocalTerra, MsgExecuteContract, MsgSend } from "@terra-money/terra.js";
-import { sendTransaction, encodeBase64 } from "./helpers";
+import { sendTransaction } from "../helpers/tx";
+import { encodeBase64 } from "../helpers/encoding";
 import {
   deployCw20Token,
   deployAstroportFactory,
@@ -44,22 +45,15 @@ let verifier: Verifier;
 //--------------------------------------------------------------------------------------------------
 
 async function setupTest() {
-  let { cw20CodeId, address } = await deployCw20Token(
-    terra,
-    deployer,
-    undefined,
-    "Anchor Token",
-    "ANC"
-  );
+  const { cw20CodeId, address } = await deployCw20Token(deployer, undefined, "Anchor Token", "ANC");
   anchorToken = address;
 
-  ({ address } = await deployCw20Token(terra, deployer, cw20CodeId, "Astroport Token", "ASTRO"));
-  astroToken = address;
+  const result = await deployCw20Token(deployer, cw20CodeId, "Astroport Token", "ASTRO");
+  astroToken = result.address;
 
-  ({ astroportFactory } = await deployAstroportFactory(terra, deployer, cw20CodeId));
+  ({ astroportFactory } = await deployAstroportFactory(deployer, cw20CodeId));
 
   let { astroportPair, astroportLpToken } = await deployAstroportPair(
-    terra,
     deployer,
     astroportFactory,
     anchorToken
@@ -68,7 +62,6 @@ async function setupTest() {
   ancUstLpToken = astroportLpToken;
 
   ({ astroportPair, astroportLpToken } = await deployAstroportPair(
-    terra,
     deployer,
     astroportFactory,
     astroToken
@@ -77,16 +70,15 @@ async function setupTest() {
   astroUstLpToken = astroportLpToken;
 
   ({ astroGenerator } = await deployAstroGenerator(
-    terra,
     deployer,
     ancUstLpToken,
     astroToken,
     anchorToken
   ));
 
-  ({ oracle } = await deployOracle(terra, deployer));
+  ({ oracle } = await deployOracle(deployer));
 
-  ({ bank } = await deployRedBank(terra, deployer));
+  ({ bank } = await deployRedBank(deployer));
 
   config = {
     primary_asset_info: {
@@ -117,15 +109,15 @@ async function setupTest() {
     },
     treasury: treasury.key.accAddress,
     governance: deployer.key.accAddress,
-    max_ltv: "0.75",    // 75%, i.e. for every 100 UST asset there must be no more than 75 UST debt
-    fee_rate: "0.2",    // 20%
+    max_ltv: "0.75", // 75%, i.e. for every 100 UST asset there must be no more than 75 UST debt
+    fee_rate: "0.2", // 20%
     bonus_rate: "0.05", // 5%
   };
 
-  ({ field } = await deployMartianField(terra, deployer, config));
+  ({ field } = await deployMartianField(deployer, config));
 
   process.stdout.write("Configuring ANC and UST price oracle...");
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, oracle, {
       set_asset: {
         asset: {
@@ -159,7 +151,7 @@ async function setupTest() {
   console.log(chalk.green("Done!"));
 
   process.stdout.write("Fund deployer and users with ANC... ");
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, anchorToken, {
       mint: {
         recipient: deployer.key.accAddress,
@@ -182,7 +174,7 @@ async function setupTest() {
   console.log(chalk.green("Done!"));
 
   process.stdout.write("Fund deployer with ASTRO... ");
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, astroToken, {
       mint: {
         recipient: deployer.key.accAddress,
@@ -193,7 +185,7 @@ async function setupTest() {
   console.log(chalk.green("Done!"));
 
   process.stdout.write("Fund Astro generator contract with ANC and ASTRO... ");
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, anchorToken, {
       mint: {
         recipient: astroGenerator,
@@ -210,7 +202,7 @@ async function setupTest() {
   console.log(chalk.green("Done!"));
 
   process.stdout.write("Fund Mars contract with UST...");
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgSend(deployer.key.accAddress, bank, { uusd: 100000000000 }),
   ]);
   console.log(chalk.green("Done!"));
@@ -218,7 +210,7 @@ async function setupTest() {
   // deployer provides 69 ANC + 420 UST
   // should receive sqrt(69000000 * 420000000) = 170235131 uLP
   process.stdout.write("Provide initial liquidity to ANC-UST Pair... ");
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, anchorToken, {
       increase_allowance: {
         amount: "69000000",
@@ -260,7 +252,7 @@ async function setupTest() {
   // deployer provides 100 ASTRO + 150 UST
   // should receive sqrt(100000000 * 150000000) = 122474487 uLP
   process.stdout.write("Provide initial liquidity to ASTRO-UST Pair... ");
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, astroToken, {
       increase_allowance: {
         amount: "100000000",
@@ -315,15 +307,15 @@ async function testConfig() {
     debt: "0",
     ancUstPool: {
       assets: [
-        { amount: "420000000" },  // uusd
-        { amount: "69000000" },   // uANC
+        { amount: "420000000" }, // uusd
+        { amount: "69000000" }, // uANC
       ],
       total_share: "170235131",
     },
     astroUstPool: {
       assets: [
-        { amount: "150000000" },  // uusd
-        { amount: "100000000" },  // uASTRO
+        { amount: "150000000" }, // uusd
+        { amount: "100000000" }, // uASTRO
       ],
       total_share: "122474487",
     },
@@ -420,7 +412,7 @@ async function testConfig() {
 
 async function testOpenPosition1() {
   process.stdout.write("\n2. Opening position for user 1... ");
-  const { txhash } = await sendTransaction(terra, user1, [
+  const { txhash } = await sendTransaction(user1, [
     new MsgExecuteContract(user1.key.accAddress, anchorToken, {
       increase_allowance: {
         amount: "69000000",
@@ -457,15 +449,15 @@ async function testOpenPosition1() {
     debt: "420000000",
     ancUstPool: {
       assets: [
-        { amount: "840000000" },  // uusd
-        { amount: "138000000" },  // uANC
+        { amount: "840000000" }, // uusd
+        { amount: "138000000" }, // uANC
       ],
       total_share: "340470262",
     },
     astroUstPool: {
       assets: [
-        { amount: "150000000" },  // uusd
-        { amount: "100000000" },  // uASTRO
+        { amount: "150000000" }, // uusd
+        { amount: "100000000" }, // uASTRO
       ],
       total_share: "122474487",
     },
@@ -473,8 +465,8 @@ async function testOpenPosition1() {
       total_bond_units: "170235131000000",
       total_debt_units: "420000000000000",
       pending_rewards: [
-        { amount: "1000000" },    // uASTRO
-        { amount: "500000" },     // uANC
+        { amount: "1000000" }, // uASTRO
+        { amount: "500000" }, // uANC
       ],
     },
     users: [
@@ -613,7 +605,7 @@ async function testOpenPosition1() {
 
 async function testHarvest() {
   process.stdout.write("\n3. Harvesting... ");
-  const { txhash } = await sendTransaction(terra, deployer, [
+  const { txhash } = await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, field, {
       harvest: {
         max_spread: "0.02", // if not specified, Astroport applied a default max spread of 0.5%
@@ -628,15 +620,15 @@ async function testHarvest() {
     debt: "420000000",
     ancUstPool: {
       assets: [
-        { amount: "842355118" },  // uusd
-        { amount: "138800000" },  // uANC
+        { amount: "842355118" }, // uusd
+        { amount: "138800000" }, // uANC
       ],
       total_share: "341930857",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644882" },  // uusd
-        { amount: "101600000" },  // uASTRO
+        { amount: "147644882" }, // uusd
+        { amount: "101600000" }, // uASTRO
       ],
       total_share: "122474487",
     },
@@ -644,8 +636,8 @@ async function testHarvest() {
       total_bond_units: "170235131000000",
       total_debt_units: "420000000000000",
       pending_rewards: [
-        { amount: "1000000" },    // uASTRO
-        { amount: "500000" },     // uANC
+        { amount: "1000000" }, // uASTRO
+        { amount: "500000" }, // uANC
       ],
     },
     users: [
@@ -727,7 +719,7 @@ async function testHarvest() {
 
 async function testAccrueInterest() {
   process.stdout.write("\n4. Accruing interest... ");
-  const { txhash } = await sendTransaction(terra, deployer, [
+  const { txhash } = await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, bank, {
       set_user_debt: {
         user_address: field,
@@ -743,15 +735,15 @@ async function testAccrueInterest() {
     debt: "441000000",
     ancUstPool: {
       assets: [
-        { amount: "842355118" },  // uusd
-        { amount: "138800000" },  // uANC
+        { amount: "842355118" }, // uusd
+        { amount: "138800000" }, // uANC
       ],
       total_share: "341930857",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644882" },  // uusd
-        { amount: "101600000" },  // uASTRO
+        { amount: "147644882" }, // uusd
+        { amount: "101600000" }, // uASTRO
       ],
       total_share: "122474487",
     },
@@ -759,8 +751,8 @@ async function testAccrueInterest() {
       total_bond_units: "170235131000000",
       total_debt_units: "420000000000000",
       pending_rewards: [
-        { amount: "1000000" },    // uASTRO
-        { amount: "500000" },     // uANC
+        { amount: "1000000" }, // uASTRO
+        { amount: "500000" }, // uANC
       ],
     },
     users: [
@@ -893,7 +885,7 @@ async function testAccrueInterest() {
 
 async function testOpenPosition2() {
   process.stdout.write("\n5. Opening position for user 2... ");
-  const { txhash } = await sendTransaction(terra, user2, [
+  const { txhash } = await sendTransaction(user2, [
     new MsgExecuteContract(user2.key.accAddress, anchorToken, {
       increase_allowance: {
         amount: "34500000",
@@ -946,14 +938,14 @@ async function testOpenPosition2() {
     ancUstPool: {
       assets: [
         { amount: "1051730129" }, // uusd
-        { amount: "173300000" },  // uANC
+        { amount: "173300000" }, // uANC
       ],
       total_share: "426920875",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644882" },  // uusd
-        { amount: "101600000" },  // uASTRO
+        { amount: "147644882" }, // uusd
+        { amount: "101600000" }, // uASTRO
       ],
       total_share: "122474487",
     },
@@ -961,8 +953,8 @@ async function testOpenPosition2() {
       total_bond_units: "254502149084785",
       total_debt_units: "476547629523809",
       pending_rewards: [
-        { amount: "2000000" },    // uASTRO
-        { amount: "1000000" },    // uANC
+        { amount: "2000000" }, // uASTRO
+        { amount: "1000000" }, // uANC
       ],
     },
     users: [
@@ -1085,7 +1077,7 @@ async function testOpenPosition2() {
 
 async function testPayDebt() {
   process.stdout.write("\n6. User 1 paying debt... ");
-  const { txhash } = await sendTransaction(terra, user1, [
+  const { txhash } = await sendTransaction(user1, [
     new MsgExecuteContract(
       user1.key.accAddress,
       field,
@@ -1119,14 +1111,14 @@ async function testPayDebt() {
     ancUstPool: {
       assets: [
         { amount: "1051730129" }, // uusd
-        { amount: "173300000" },  // uANC
+        { amount: "173300000" }, // uANC
       ],
       total_share: "426920875",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644882" },  // uusd
-        { amount: "101600000" },  // uASTRO
+        { amount: "147644882" }, // uusd
+        { amount: "101600000" }, // uASTRO
       ],
       total_share: "122474487",
     },
@@ -1134,8 +1126,8 @@ async function testPayDebt() {
       total_bond_units: "254502149084785",
       total_debt_units: "381309534285714",
       pending_rewards: [
-        { amount: "2000000" },    // uASTRO
-        { amount: "1000000" },    // uANC
+        { amount: "2000000" }, // uASTRO
+        { amount: "1000000" }, // uANC
       ],
     },
     users: [
@@ -1277,7 +1269,7 @@ async function testPayDebt() {
 
 async function testReducePosition1() {
   process.stdout.write("\n7. User 1 reducing position... ");
-  const { txhash } = await sendTransaction(terra, user1, [
+  const { txhash } = await sendTransaction(user1, [
     new MsgExecuteContract(user1.key.accAddress, field, {
       update_position: [
         {
@@ -1295,15 +1287,15 @@ async function testReducePosition1() {
     debt: "400375011",
     ancUstPool: {
       assets: [
-        { amount: "977190286" },  // uusd
-        { amount: "161017615" },  // uANC
+        { amount: "977190286" }, // uusd
+        { amount: "161017615" }, // uANC
       ],
       total_share: "396663479",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644882" },  // uusd
-        { amount: "101600000" },  // uASTRO
+        { amount: "147644882" }, // uusd
+        { amount: "101600000" }, // uASTRO
       ],
       total_share: "122474487",
     },
@@ -1311,8 +1303,8 @@ async function testReducePosition1() {
       total_bond_units: "224502149084785",
       total_debt_units: "381309534285714",
       pending_rewards: [
-        { amount: "3000000" },    // uASTRO
-        { amount: "1500000" },    // uANC
+        { amount: "3000000" }, // uASTRO
+        { amount: "1500000" }, // uANC
       ],
     },
     users: [
@@ -1430,14 +1422,14 @@ async function testReducePosition1() {
 
 async function testDump() {
   process.stdout.write("\n8. Dumping ANC to crash the price... ");
-  const { txhash } = await sendTransaction(terra, deployer, [
+  const { txhash } = await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, anchorToken, {
       send: {
         amount: "100000000",
         contract: ancUstPair,
         msg: encodeBase64({
           swap: {
-            max_spread: "0.5"
+            max_spread: "0.5",
           },
         }),
       },
@@ -1450,15 +1442,15 @@ async function testDump() {
     debt: "400375011",
     ancUstPool: {
       assets: [
-        { amount: "603936276" },  // uusd
-        { amount: "261017615" },  // uANC
+        { amount: "603936276" }, // uusd
+        { amount: "261017615" }, // uANC
       ],
       total_share: "396663479",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644882" },  // uusd
-        { amount: "101600000" },  // uASTRO
+        { amount: "147644882" }, // uusd
+        { amount: "101600000" }, // uASTRO
       ],
       total_share: "122474487",
     },
@@ -1466,8 +1458,8 @@ async function testDump() {
       total_bond_units: "224502149084785",
       total_debt_units: "381309534285714",
       pending_rewards: [
-        { amount: "3000000" },    // uASTRO
-        { amount: "1500000" },    // uANC
+        { amount: "3000000" }, // uASTRO
+        { amount: "1500000" }, // uANC
       ],
     },
     users: [
@@ -1631,7 +1623,7 @@ async function testDump() {
 
 async function testLiquidation() {
   process.stdout.write("\n9. Liquidation user 1... ");
-  const { txhash } = await sendTransaction(terra, liquidator, [
+  const { txhash } = await sendTransaction(liquidator, [
     new MsgExecuteContract(liquidator.key.accAddress, field, {
       liquidate: {
         user: user1.key.accAddress,
@@ -1645,15 +1637,15 @@ async function testLiquidation() {
     debt: "59375011",
     ancUstPool: {
       assets: [
-        { amount: "262936276" },  // uusd
-        { amount: "248563804" },  // uANC
+        { amount: "262936276" }, // uusd
+        { amount: "248563804" }, // uANC
       ],
       total_share: "255225150",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644882" },  // uusd
-        { amount: "101600000" },  // uASTRO
+        { amount: "147644882" }, // uusd
+        { amount: "101600000" }, // uASTRO
       ],
       total_share: "122474487",
     },
@@ -1661,8 +1653,8 @@ async function testLiquidation() {
       total_bond_units: "84267018084785",
       total_debt_units: "56547629523809",
       pending_rewards: [
-        { amount: "4000000" },    // uASTRO
-        { amount: "2000000" },    // uANC
+        { amount: "4000000" }, // uASTRO
+        { amount: "2000000" }, // uANC
       ],
     },
     users: [
@@ -1793,7 +1785,7 @@ async function testLiquidation() {
 
 async function testReducePosition2() {
   process.stdout.write("\n10. User 2 closhing position... ");
-  const { txhash } = await sendTransaction(terra, user2, [
+  const { txhash } = await sendTransaction(user2, [
     new MsgExecuteContract(user2.key.accAddress, field, {
       update_position: [
         {
@@ -1816,15 +1808,15 @@ async function testReducePosition2() {
     debt: "0",
     ancUstPool: {
       assets: [
-        { amount: "175378451" },  // uusd
-        { amount: "165792015" },  // uANC
+        { amount: "175378451" }, // uusd
+        { amount: "165792015" }, // uANC
       ],
       total_share: "170235131",
     },
     astroUstPool: {
       assets: [
-        { amount: "147644882" },  // uusd
-        { amount: "101600000" },  // uASTRO
+        { amount: "147644882" }, // uusd
+        { amount: "101600000" }, // uASTRO
       ],
       total_share: "122474487",
     },
@@ -1832,8 +1824,8 @@ async function testReducePosition2() {
       total_bond_units: "0",
       total_debt_units: "0",
       pending_rewards: [
-        { amount: "5000000" },    // uASTRO
-        { amount: "2500000" },    // uANC
+        { amount: "5000000" }, // uASTRO
+        { amount: "2500000" }, // uANC
       ],
     },
     users: [

@@ -7,7 +7,8 @@ import {
   deployAstroportPair,
   deployOracle,
 } from "./fixture";
-import { sendTransaction, encodeUtf8 } from "./helpers";
+import { encodeUtf8 } from "../helpers/encoding";
+import { sendTransaction } from "../helpers/tx";
 import { SimulationResponse } from "./types";
 
 const terra = new LocalTerra();
@@ -24,18 +25,18 @@ let oracle: string;
 //--------------------------------------------------------------------------------------------------
 
 async function setupTest() {
-  let { cw20CodeId, address } = await deployCw20Token(terra, deployer);
+  const { cw20CodeId, address } = await deployCw20Token(deployer);
   testToken = address;
 
-  ({ astroportFactory } = await deployAstroportFactory(terra, deployer, cw20CodeId));
+  ({ astroportFactory } = await deployAstroportFactory(deployer, cw20CodeId));
 
-  ({ astroportPair } = await deployAstroportPair(terra, deployer, astroportFactory, testToken));
+  ({ astroportPair } = await deployAstroportPair(deployer, astroportFactory, testToken));
 
-  ({ oracle } = await deployOracle(terra, deployer));
+  ({ oracle } = await deployOracle(deployer));
 
   process.stdout.write("Setting asset: Fixed...");
 
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, oracle, {
       set_asset: {
         asset: {
@@ -56,7 +57,7 @@ async function setupTest() {
 
   process.stdout.write("Setting asset: Spot...");
 
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, oracle, {
       set_asset: {
         asset: {
@@ -78,7 +79,7 @@ async function setupTest() {
 
   process.stdout.write("Fund user with tokens... ");
 
-  await sendTransaction(terra, deployer, [
+  await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, testToken, {
       mint: {
         recipient: user.key.accAddress,
@@ -91,7 +92,7 @@ async function setupTest() {
 
   process.stdout.write("Providing liquidity to Astroport pair... ");
 
-  await sendTransaction(terra, user, [
+  await sendTransaction(user, [
     new MsgExecuteContract(user.key.accAddress, testToken, {
       increase_allowance: {
         amount: "694200000000",

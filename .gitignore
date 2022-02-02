@@ -30,5 +30,7 @@ artifacts/
 # Private TypeScript files are preceeded by an underscore
 **/_*.ts
 
+# Instantiate message files
+scripts/msgs/*.json
+
 packages/mars-core
-packages/mars-periphery

@@ -1,14 +1,13 @@
 import * as path from "path";
 import chalk from "chalk";
-import { LCDClient, MsgExecuteContract, Wallet } from "@terra-money/terra.js";
-import { storeCode, instantiateContract, sendTransaction } from "./helpers";
+import { MsgExecuteContract, Wallet } from "@terra-money/terra.js";
+import { storeCode, instantiateContract, sendTransaction } from "../helpers/tx";
 
 //--------------------------------------------------------------------------------------------------
 // CW20
 //--------------------------------------------------------------------------------------------------
 
 export async function deployCw20Token(
-  terra: LCDClient,
   deployer: Wallet,
   codeId?: number,
   name?: string,
@@ -23,9 +22,8 @@ export async function deployCw20Token(
     process.stdout.write("Uploading CW20 code... ");
 
     codeId = await storeCode(
-      terra,
       deployer,
-      path.resolve(__dirname, "../artifacts/astroport_token.wasm")
+      path.resolve(__dirname, "../../artifacts/astroport_token.wasm")
     );
 
     console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
@@ -33,7 +31,7 @@ export async function deployCw20Token(
 
   process.stdout.write(`Instantiating ${symbol} token contract... `);
 
-  const result = await instantiateContract(terra, deployer, deployer, codeId, {
+  const result = await instantiateContract(deployer, codeId, {
     name,
     symbol,
     decimals,
@@ -54,17 +52,12 @@ export async function deployCw20Token(
 // Astroport factory
 //--------------------------------------------------------------------------------------------------
 
-export async function deployAstroportFactory(
-  terra: LCDClient,
-  deployer: Wallet,
-  cw20CodeId: number
-) {
+export async function deployAstroportFactory(deployer: Wallet, cw20CodeId: number) {
   process.stdout.write("Uploading Astroport factory code... ");
 
   const factoryCodeId = await storeCode(
-    terra,
     deployer,
-    path.resolve(__dirname, "../artifacts/astroport_factory.wasm")
+    path.resolve(__dirname, "../../artifacts/astroport_factory.wasm")
   );
 
   console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${factoryCodeId}`);
@@ -72,16 +65,15 @@ export async function deployAstroportFactory(
   process.stdout.write("Uploading Astroport pair code... ");
 
   const pairCodeId = await storeCode(
-    terra,
     deployer,
-    path.resolve(__dirname, "../artifacts/astroport_pair.wasm")
+    path.resolve(__dirname, "../../artifacts/astroport_pair.wasm")
   );
 
   console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${pairCodeId}`);
 
   process.stdout.write("Instantiating Astroport factory contract... ");
 
-  const result = await instantiateContract(terra, deployer, deployer, factoryCodeId, {
+  const result = await instantiateContract(deployer, factoryCodeId, {
     pair_configs: [
       {
         code_id: pairCodeId,
@@ -108,14 +100,13 @@ export async function deployAstroportFactory(
 //--------------------------------------------------------------------------------------------------
 
 export async function deployAstroportPair(
-  terra: LCDClient,
   deployer: Wallet,
   astroportFactory: string,
   cw20Token: string
 ) {
   process.stdout.write("Creating Astroport pair... ");
 
-  const result = await sendTransaction(terra, deployer, [
+  const result = await sendTransaction(deployer, [
     new MsgExecuteContract(deployer.key.accAddress, astroportFactory, {
       create_pair: {
         pair_type: {
@@ -150,7 +141,6 @@ export async function deployAstroportPair(
 //--------------------------------------------------------------------------------------------------
 
 export async function deployAstroGenerator(
-  terra: LCDClient,
   deployer: Wallet,
   liquidityToken: string,
   astroToken: string,
@@ -159,16 +149,15 @@ export async function deployAstroGenerator(
   process.stdout.write("Uploading mock Astroport generator code... ");
 
   const codeId = await storeCode(
-    terra,
     deployer,
-    path.resolve(__dirname, "../artifacts/mock_astro_generator.wasm")
+    path.resolve(__dirname, "../../artifacts/mock_astro_generator.wasm")
   );
 
   console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
 
   process.stderr.write("Instantiating mock Astroport generator contract... ");
 
-  const result = await instantiateContract(terra, deployer, deployer, codeId, {
+  const result = await instantiateContract(deployer, codeId, {
     liquidity_token: liquidityToken,
     astro_token: astroToken,
     proxy_reward_token: proxyRewardToken,
@@ -185,20 +174,19 @@ export async function deployAstroGenerator(
 // Mock oracle
 //--------------------------------------------------------------------------------------------------
 
-export async function deployOracle(terra: LCDClient, deployer: Wallet) {
+export async function deployOracle(deployer: Wallet) {
   process.stdout.write("Uploading mock Oracle code... ");
 
   const codeId = await storeCode(
-    terra,
     deployer,
-    path.resolve(__dirname, "../artifacts/mock_oracle.wasm")
+    path.resolve(__dirname, "../../artifacts/mock_oracle.wasm")
   );
 
   console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
 
   process.stdout.write("Instantiating mock Oracle contract... ");
 
-  const result = await instantiateContract(terra, deployer, deployer, codeId, {});
+  const result = await instantiateContract(deployer, codeId, {});
 
   const oracle = result.logs[0].events[0].attributes[3].value;
 
@@ -211,20 +199,19 @@ export async function deployOracle(terra: LCDClient, deployer: Wallet) {
 // Mock Red Bank
 //--------------------------------------------------------------------------------------------------
 
-export async function deployRedBank(terra: LCDClient, deployer: Wallet) {
+export async function deployRedBank(deployer: Wallet) {
   process.stdout.write("Uploading mock Red Bank code... ");
 
   const codeId = await storeCode(
-    terra,
     deployer,
-    path.resolve(__dirname, "../artifacts/mock_red_bank.wasm")
+    path.resolve(__dirname, "../../artifacts/mock_red_bank.wasm")
   );
 
   console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
 
   process.stdout.write("Instantiating mock Red Bank contract... ");
 
-  const result = await instantiateContract(terra, deployer, deployer, codeId, {});
+  const result = await instantiateContract(deployer, codeId, {});
 
   const bank = result.logs[0].events[0].attributes[3].value;
 
@@ -237,24 +224,19 @@ export async function deployRedBank(terra: LCDClient, deployer: Wallet) {
 // Martian Field
 //--------------------------------------------------------------------------------------------------
 
-export async function deployMartianField(
-  terra: LCDClient,
-  deployer: Wallet,
-  instantiateMsg: object
-) {
+export async function deployMartianField(deployer: Wallet, instantiateMsg: object) {
   process.stdout.write("Uploading Martian Field code... ");
 
   const codeId = await storeCode(
-    terra,
     deployer,
-    path.resolve(__dirname, "../artifacts/martian_field.wasm")
+    path.resolve(__dirname, "../../artifacts/martian_field.wasm")
   );
 
   console.log(chalk.green("Done!"), `${chalk.blue("codeId")}=${codeId}`);
 
   process.stdout.write("Instantiating Martian Field contract... ");
 
-  const result = await instantiateContract(terra, deployer, deployer, codeId, instantiateMsg);
+  const result = await instantiateContract(deployer, codeId, instantiateMsg);
 
   const field = result.logs[0].events[0].attributes[3].value;
 

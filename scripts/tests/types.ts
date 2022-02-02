@@ -39,7 +39,7 @@ export type UserAssetDebtResponse = {
   denom?: string;
   asset_label?: string;
   asset_reference?: number[];
-  asset_type?: { native: {} } | { cw20: {} };
+  asset_type?: { native: object } | { cw20: object };
   amount_scaled?: string;
 };
 
