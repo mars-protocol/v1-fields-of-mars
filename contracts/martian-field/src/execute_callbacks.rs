@@ -417,7 +417,7 @@ pub fn balance(
     // too much slippage
     let higher_value = cmp::max(primary_asset_value, secondary_asset_value);
     let lower_value = cmp::min(primary_asset_value, secondary_asset_value);
-    let value_diff = higher_value.checked_div(lower_value)?;
+    let value_diff = higher_value.checked_sub(lower_value)?;
     let value_to_swap = value_diff.multiply_ratio(1u128, 2u128);
 
     let offer_asset = Asset::new(

@@ -609,7 +609,7 @@ async function testHarvest() {
     new MsgExecuteContract(deployer.key.accAddress, field, {
       harvest: {
         max_spread: "0.02", // if not specified, Astroport applied a default max spread of 0.5%
-        slippage_tolerance: undefined,
+        slippage_tolerance: "0.5",
       },
     }),
   ]);
