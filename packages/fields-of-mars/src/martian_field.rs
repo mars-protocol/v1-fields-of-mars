@@ -10,8 +10,8 @@ use cw_asset::{AssetInfoBase, AssetListBase};
 use crate::adapters::{GeneratorBase, OracleBase, PairBase, RedBankBase};
 
 const MAX_MAX_LTV: &str = "0.9";
-const MAX_FEE_RATE: &str = "0.1";
-const MAX_BONUS_RATE: &str = "0.05";
+const MAX_FEE_RATE: &str = "0.2";
+const MAX_BONUS_RATE: &str = "0.1";
 
 //--------------------------------------------------------------------------------------------------
 // Config
