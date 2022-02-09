@@ -9,7 +9,7 @@ use cw_asset::{AssetInfoBase, AssetListBase};
 
 use crate::adapters::{GeneratorBase, OracleBase, PairBase, RedBankBase};
 
-const MIN_MAX_LTV: &str = "0.8";
+const MIN_MAX_LTV: &str = "0.75";
 const MAX_MAX_LTV: &str = "0.9";
 const MAX_FEE_RATE: &str = "0.2";
 const MAX_BONUS_RATE: &str = "0.1";
@@ -437,6 +437,15 @@ pub mod msg {
         },
         /// Query the health of a user's position: value of assets, debts, and LTV. Response: `Health`
         Health {
+            user: String,
+        },
+        /// Query the snapshot of a user's position
+        /// 
+        /// NOTE: Snapshot is a temporary functionality used for calculating the user's PnL, which
+        /// is to be displayed the frontend. Once the frontend team has built an off-chain indexing
+        /// facility that can calculate PnL without the use of snapshots, this query function will 
+        /// be removed.
+        Snapshot {
             user: String,
         },
     }
