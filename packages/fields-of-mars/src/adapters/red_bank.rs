@@ -45,6 +45,7 @@ impl RedBank {
             msg: to_binary(&ExecuteMsg::Borrow {
                 asset: to_mars_asset(&asset.info), // NOTE: to be replaced with `into` later
                 amount: asset.amount,
+                recipient: None,
             })?,
             funds: vec![],
         }))
@@ -58,13 +59,16 @@ impl RedBank {
                 to_binary(&Cw20ExecuteMsg::Send {
                     contract: self.contract_addr.to_string(),
                     amount: asset.amount,
-                    msg: to_binary(&ReceiveMsg::RepayCw20 {})?,
+                    msg: to_binary(&ReceiveMsg::RepayCw20 {
+                        on_behalf_of: None,
+                    })?,
                 })?,
             )?),
             AssetInfo::Native(denom) => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: self.contract_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::RepayNative {
                     denom: denom.into(),
+                    on_behalf_of: None,
                 })?,
                 funds: vec![Coin {
                     denom: denom.clone(),

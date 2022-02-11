@@ -60,7 +60,7 @@ pub fn execute_receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
     match from_binary(&cw20_msg.msg)? {
-        ReceiveMsg::RepayCw20 {} => {
+        ReceiveMsg::RepayCw20 { .. } => {
             let repayer_addr = deps.api.addr_validate(&cw20_msg.sender)?;
             let denom = info.sender.to_string();
             execute_repay(deps, env, info, repayer_addr, &denom, cw20_msg.amount)
