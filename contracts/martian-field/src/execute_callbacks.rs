@@ -234,7 +234,7 @@ pub fn borrow(
     )?;
 
     let debt_units_to_add = if total_debt_amount.is_zero() {
-        borrow_amount * DEFAULT_DEBT_UNITS_PER_ASSET_BORROWED
+        borrow_amount.checked_mul(DEFAULT_DEBT_UNITS_PER_ASSET_BORROWED)?
     } else {
         state.total_debt_units.multiply_ratio(borrow_amount, total_debt_amount)
     };
@@ -417,7 +417,7 @@ pub fn balance(
     // too much slippage
     let higher_value = cmp::max(primary_asset_value, secondary_asset_value);
     let lower_value = cmp::min(primary_asset_value, secondary_asset_value);
-    let value_diff = higher_value - lower_value; // don't need underflow check here
+    let value_diff = higher_value.checked_sub(lower_value)?;
     let value_to_swap = value_diff.multiply_ratio(1u128, 2u128);
 
     let offer_asset = Asset::new(
@@ -475,7 +475,7 @@ pub fn cover(
 
     // calculate how much additional secondary asset is needed to fully pay off the user's debt 
     let mut secondary_needed_amount = if debt_amount > secondary_available.amount {
-        debt_amount - secondary_available.amount  // no need for underflow check here
+        debt_amount.checked_sub(secondary_available.amount)?
     } else {
         return Ok(Response::default());
     };

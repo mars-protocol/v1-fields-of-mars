@@ -6,14 +6,14 @@ use cosmwasm_std::{
 use cw_asset::{Asset, AssetInfo};
 
 use fields_of_mars::martian_field::msg::{Action, CallbackMsg};
-use fields_of_mars::martian_field::{Config, ConfigUnchecked, State};
+use fields_of_mars::martian_field::{Config, State};
 
 use crate::health::compute_health;
 use crate::helpers::assert_sent_fund;
 use crate::state::{CONFIG, POSITION, STATE};
 
-pub fn init_storage(deps: DepsMut, msg: ConfigUnchecked) -> StdResult<Response> {
-    CONFIG.save(deps.storage, &msg.check(deps.api)?)?;
+pub fn init_storage(deps: DepsMut, config: Config) -> StdResult<Response> {
+    CONFIG.save(deps.storage, &config)?;
     STATE.save(deps.storage, &State::default())?;
     Ok(Response::default())
 }
@@ -312,13 +312,15 @@ pub fn liquidate(
 }
 
 pub fn update_config(deps: DepsMut, info: MessageInfo, new_config: Config) -> StdResult<Response> {
+    // Only governance can update config
     let config = CONFIG.load(deps.storage)?;
-
     if info.sender != config.governance {
         return Err(StdError::generic_err("only governance can update config"));
     }
 
-    CONFIG.save(deps.storage, &new_config)?;
+    // New config must be valid
+    config.validate()?;
 
+    CONFIG.save(deps.storage, &new_config)?;
     Ok(Response::default())
 }

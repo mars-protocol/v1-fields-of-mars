@@ -12,7 +12,9 @@ use crate::{execute, execute_callbacks as callbacks, execute_replies as replies,
 
 #[entry_point]
 pub fn instantiate(deps: DepsMut, _env: Env, _info: MessageInfo, msg: InstantiateMsg) -> StdResult<Response> {
-    execute::init_storage(deps, msg)
+    let config = msg.check(deps.api)?;
+    config.validate()?;
+    execute::init_storage(deps, config)
 }
 
 #[entry_point]
