@@ -514,7 +514,7 @@ pub fn cover(
             2,
             &primary_to_sell,
             None,
-            Some(Decimal::from_ratio(1u128, 2u128)), // TODO: may not be a good idea. should think about this
+            Some(Decimal::from_ratio(1u128, 20u128)), // 5%. NOTE
         )?)
         .add_attribute("action", "martian_field :: callback :: cover")
         .add_attribute("debt_amount", debt_amount)
