@@ -48,7 +48,7 @@ pub fn after_provide_liquidity(
     // `shares_minted` should really be `liquidity_token_minted` according to my naming convention,
     // but it's a bit too long and doesn't look very good on Terra Finder's UI, so I opt for a shorter one
     Ok(Response::new()
-        .add_attribute("action", "martian_field :: reply :: after_provide_liquidity")
+        .add_attribute("action", "martian_field/reply/after_provide_liquidity")
         .add_attribute("shares_minted", minted_amount))
 }
 
@@ -74,7 +74,7 @@ pub fn after_withdraw_liquidity(
     CACHED_USER_ADDR.remove(deps.storage);
 
     Ok(Response::new()
-        .add_attribute("action", "martian_field :: reply :: after_withdraw_liquidity")
+        .add_attribute("action", "martian_field/reply/after_withdraw_liquidity")
         .add_attribute("user", user_addr)
         .add_attribute("primary_withdrawn", primary_asset_withdrawn.amount)
         .add_attribute("secondary_withdrawn", secondary_asset_withdrawn.amount))
@@ -115,6 +115,6 @@ pub fn after_swap(deps: DepsMut, response: SubMsgExecutionResponse) -> StdResult
     CACHED_USER_ADDR.remove(deps.storage);
 
     Ok(Response::new()
-        .add_attribute("action", "martian_field :: reply :: after_swap")
+        .add_attribute("action", "martian_field/reply/after_swap")
         .add_attribute("returned_asset", returned_asset.to_string()))
 }

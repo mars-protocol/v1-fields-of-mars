@@ -116,7 +116,7 @@ pub fn update_position(
     Ok(Response::new()
         .add_messages(msgs)
         .add_messages(callback_msgs)
-        .add_attribute("action", "martian_field :: excute :: update_position")
+        .add_attribute("action", "martian_field/execute/update_position")
         .add_attributes(attrs))
 }
 
@@ -242,7 +242,7 @@ pub fn harvest(
     Ok(Response::new()
         .add_messages(msgs)
         .add_messages(callback_msgs)
-        .add_attribute("action", "martian_field :: execute :: harvest")
+        .add_attribute("action", "martian_field/execute/harvest")
         .add_event(event))
 }
 
@@ -324,7 +324,7 @@ pub fn liquidate(
 
     Ok(Response::new()
         .add_messages(callback_msgs)
-        .add_attribute("action", "martian_field :: excute :: liquidate")
+        .add_attribute("action", "martian_field/execute/liquidate")
         .add_event(event))
 }
 
