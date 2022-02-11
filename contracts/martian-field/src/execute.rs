@@ -199,9 +199,6 @@ pub fn harvest(
 
     // if there are ASTRO tokens available to be reinvested, we first swap it to the secondary asset
     // asset
-    //
-    // TODO: we either add mandatory slippage checks here, or make `Harvest` permissioned so that
-    // this won't be sandwich attacked
     let mut callbacks: Vec<CallbackMsg> = vec![];
     if let Some(astro_token) = state.pending_rewards.find(&config.astro_token_info) {
         callbacks.push(CallbackMsg::Swap {
@@ -279,8 +276,6 @@ pub fn liquidate(
     //
     // now, we calculate how much additional secondary asset is needed to fully pay off debt, and 
     // reverse-simulate how much primary asset needs to be sold
-    //
-    // TODO: add slippage checks to the swap step so that liquidation cannot be sandwich attacked
     let callbacks = [
         CallbackMsg::Unbond {
             user_addr: user_addr.clone(),
