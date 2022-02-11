@@ -134,14 +134,19 @@ fn handle_deposit(
         return Ok(());
     }
 
-    // if asset is a native token, we assert that the same amount was indeed received
-    // if asset is a CW20 token, we transfer the specified amount from the user's wallet
+    // If asset is a native token, we assert that the same amount was indeed received
+    // If asset is a CW20 token, we:
+    // - Transfer the specified amount from the user's wallet
+    // - Remove the asset from the list. After every deposit action has been processed, assert that 
+    // the asset list is empty. This way, we ensure the user doesn't send any extra fund, which will 
+    // be lost in the contract
     match &asset.info {
         AssetInfo::Cw20(_) => {
             msgs.push(asset.transfer_from_msg(sender_addr, contract_addr)?);
         }
         AssetInfo::Native(_) => {
             assert_sent_fund(asset, received_coins)?;
+            received_coins.deduct(asset)?;
         }
     }
 
