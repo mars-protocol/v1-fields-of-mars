@@ -474,35 +474,37 @@ pub fn cover(
         .unwrap_or_else(|| Asset::new(config.secondary_asset_info.clone(), 0u128));
 
     // calculate how much additional secondary asset is needed to fully pay off the user's debt 
-    let mut secondary_needed_amount = if debt_amount > secondary_available.amount {
+    let secondary_needed_amount = if debt_amount > secondary_available.amount {
         debt_amount.checked_sub(secondary_available.amount)?
     } else {
         return Ok(Response::default());
     };
-
-    // NOTE: due to numerical reason, if we estimate offer amount using exactly the needed return
-    // amount, the actual return amount may be one unit less than what we need
-    //
-    // for example, assume a pair of assets A and B, with depths 167946543 A + 388590669 B
-    // we want the swap to return 125654393 B, so we calculate
-    // computeXykSwapInput(125654393, 167946543, 388590669) = 80617260
-    //
-    // however, if we offer 80617260 A, the swap returns
-    // computeXykSwapOutput(80617260, 167946543, 388590669) = 125654392
-    // which is one unit of B less than what we need (125654392 returned vs 125654393 needed)
-    //
-    // to account for this, we increment `secondary_needed_amount` by one unit before the reverse
-    // simulation
-    //
-    // not a very elegant solution, but it works and is the best i can come up with rn
-    secondary_needed_amount += Uint128::new(1);
     let secondary_needed = Asset::new(config.secondary_asset_info.clone(), secondary_needed_amount);
 
-    // reverse simulate how much primary asset needs to be sold
-    let primary_sell_amount = config.primary_pair.query_reverse_simulate(
+    // reverse-simulate how much primary asset needs to be sold
+    let mut primary_sell_amount = config.primary_pair.query_reverse_simulate(
         &deps.querier, 
         &secondary_needed
     )?;
+
+    // NOTE: due to integer rounding, if we estimate offer amount using exactly the needed return
+    // amount, the actual return amount may be one unit less than what we need
+    //
+    // for example, consider LUNA-UST pair with depths 1497005315 uluna + 24450395383 uusd
+    // we want the swap to return 1291320960 uusd, so we calculate
+    // computeXykSwapInput(1291320960, 1497005315, 24450395383) = 83736355
+    //
+    // however, if we offer 80617260 uluna, the swap returns
+    // computeXykSwapOutput(83736355, 1497005315, 24450395383) = 1291320945
+    // which is 15uusd short of what we need
+    //
+    // to get our desired output, we actually need to offer 1 unit of LUNA more than the reverse-
+    // simulated amount: 83736355 + 1 = 83736356
+    // computeXykSwapOutput(83736356, 1497005315, 24450395383) = 1291320960
+    // which is exactly the amount we need 
+    //
+    // not a very elegant solution, but it works and is the best i can come up with rn
+    primary_sell_amount = primary_sell_amount.checked_add(Uint128::new(1))?;
     let primary_to_sell = Asset::new(config.primary_asset_info.clone(), primary_sell_amount);
 
     position.unlocked_assets.deduct(&primary_to_sell)?;
