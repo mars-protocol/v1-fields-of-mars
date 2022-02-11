@@ -17,9 +17,9 @@ fields-of-mars = { path = "../../packages/fields-of-mars" }
 
 mars-core = { path = "../../packages/mars-core" }
 
-cosmwasm-std = "0.16.0"
-cw20 = "0.9.1"
-cw-storage-plus = "0.9.1"
+cosmwasm-std = "^0.16"
+cw20 = "^0.9"
+cw-storage-plus = "^0.9"
 
 cw-asset = { version = "0.3.2", features = ["legacy"] }
 
