@@ -58,6 +58,8 @@ pub struct ConfigBase<T> {
     pub treasury: T,
     /// Account who can update config
     pub governance: T,
+    /// Accounts who can harvest
+    pub operators: Vec<T>,
     /// Maximum loan-to-value ratio (LTV) above which a user can be liquidated
     pub max_ltv: Decimal,
     /// Percentage of profit to be charged as performance fee
@@ -82,6 +84,7 @@ impl From<Config> for ConfigUnchecked {
             oracle: config.oracle.into(),
             treasury: config.treasury.into(),
             governance: config.governance.into(),
+            operators: config.operators.iter().map(|op| op.to_string()).collect(),
             max_ltv: config.max_ltv,
             fee_rate: config.fee_rate,
             bonus_rate: config.bonus_rate,
@@ -102,6 +105,7 @@ impl ConfigUnchecked {
             oracle: self.oracle.check(api)?,
             treasury: api.addr_validate(&self.treasury)?,
             governance: api.addr_validate(&self.governance)?,
+            operators: self.operators.iter().map(|op| api.addr_validate(op)).collect::<StdResult<Vec<Addr>>>()?,
             max_ltv: self.max_ltv,
             fee_rate: self.fee_rate,
             bonus_rate: self.bonus_rate,

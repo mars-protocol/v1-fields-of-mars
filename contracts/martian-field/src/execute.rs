@@ -147,11 +147,17 @@ fn handle_deposit(
 pub fn harvest(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     max_spread: Option<Decimal>,
     slippage_tolerance: Option<Decimal>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
+
+    // only whitelisted operators can harvest
+    if !config.operators.contains(&info.sender) {
+        return Err(StdError::generic_err("caller is not a whitelisted operator"));
+    }
 
     // find how much reward is available to be claimed
     let rewards = config.astro_generator.query_rewards(
