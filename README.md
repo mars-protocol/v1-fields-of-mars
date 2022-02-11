@@ -164,25 +164,25 @@ ts-node 1_deploy.ts --network mainnet|testnet --msg /path/to/instantiate_msg.jso
 
 | Contract               | Address                                                                                                                                              |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LUNA-UST Pair          | [`terra12eq2zmdmycvx9n6skwpu9kqxts0787rekjnlwm`](https://finder.extraterrestrial.money/testnet/address/terra12eq2zmdmycvx9n6skwpu9kqxts0787rekjnlwm) |
-| LUNA-UST LP Token      | [`terra1sjpns87xfa48hwy6pwqdchxzsrsmmewsxjwvcj`](https://finder.extraterrestrial.money/testnet/address/terra1sjpns87xfa48hwy6pwqdchxzsrsmmewsxjwvcj) |
+| LUNA-UST Pair          | [`terra1e49fv4xm3c2znzpxmxs0z2z6y74xlwxspxt38s`](https://finder.extraterrestrial.money/testnet/address/terra1e49fv4xm3c2znzpxmxs0z2z6y74xlwxspxt38s) |
+| LUNA-UST LP Token      | [`terra1dqjpcqej9nxej80u0p56rhkrzlr6w8tp7txkmj`](https://finder.extraterrestrial.money/testnet/address/terra1dqjpcqej9nxej80u0p56rhkrzlr6w8tp7txkmj) |
 | ANC Token              | [`terra1747mad58h0w4y589y3sk84r5efqdev9q4r02pc`](https://finder.extraterrestrial.money/testnet/address/terra1747mad58h0w4y589y3sk84r5efqdev9q4r02pc) |
-| ANC-UST Pair           | [`terra12eq2zmdmycvx9n6skwpu9kqxts0787rekjnlwm`](https://finder.extraterrestrial.money/testnet/address/terra12eq2zmdmycvx9n6skwpu9kqxts0787rekjnlwm) |
-| ANC-UST LP Token       | [`terra1sjpns87xfa48hwy6pwqdchxzsrsmmewsxjwvcj`](https://finder.extraterrestrial.money/testnet/address/terra1sjpns87xfa48hwy6pwqdchxzsrsmmewsxjwvcj) |
+| ANC-UST Pair           | [`terra13r3vngakfw457dwhw9ef36mc8w6agggefe70d9`](https://finder.extraterrestrial.money/testnet/address/terra13r3vngakfw457dwhw9ef36mc8w6agggefe70d9) |
+| ANC-UST LP Token       | [`terra1agu2qllktlmf0jdkuhcheqtchnkppzrl4759y6`](https://finder.extraterrestrial.money/testnet/address/terra1agu2qllktlmf0jdkuhcheqtchnkppzrl4759y6) |
 | MIR Token              | [`terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u`](https://finder.extraterrestrial.money/testnet/address/terra10llyp6v3j3her8u3ce66ragytu45kcmd9asj3u) |
-| MIR-UST Pair           | [`terra1cz6qp8lfwht83fh9xm9n94kj04qc35ulga5dl0`](https://finder.extraterrestrial.money/testnet/address/terra1cz6qp8lfwht83fh9xm9n94kj04qc35ulga5dl0) |
-| MIR-UST LP Token       | [`terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j`](https://finder.extraterrestrial.money/testnet/address/terra1zrryfhlrpg49quz37u90ck6f396l4xdjs5s08j) |
-| ASTRO Token            | [`terra1cc2up8erdqn2l7nz37qjgvnqy56sr38aj9vqry`](https://finder.extraterrestrial.money/testnet/address/terra1cc2up8erdqn2l7nz37qjgvnqy56sr38aj9vqry) |
-| ASTRO-UST Pair         | [`terra1dk57pl4v4ut9kwsmtrv9k4kkn9fxrh290zvg2w`](https://finder.extraterrestrial.money/testnet/address/terra1dk57pl4v4ut9kwsmtrv9k4kkn9fxrh290zvg2w) |
-| ASTRO-UST LP Token     | [`terra1uahqpnm4p3ag8ma40xhtft96uvuxy6vn9p6x9v`](https://finder.extraterrestrial.money/testnet/address/terra1uahqpnm4p3ag8ma40xhtft96uvuxy6vn9p6x9v) |
-| Astro Generator        | [`terra1cmqhxgna6uasnycgdcx974uq8u56rp2ta3r356`](https://finder.extraterrestrial.money/testnet/address/terra1cmqhxgna6uasnycgdcx974uq8u56rp2ta3r356) |
+| MIR-UST Pair           | [`terra1xrt4j56mkefvhnyqqd5pgk7pfxullnkvsje7wx`](https://finder.extraterrestrial.money/testnet/address/terra1xrt4j56mkefvhnyqqd5pgk7pfxullnkvsje7wx) |
+| MIR-UST LP Token       | [`terra1efmcf22aweaj3zzjhzgyghv88dda0yk4j9jp29`](https://finder.extraterrestrial.money/testnet/address/terra1efmcf22aweaj3zzjhzgyghv88dda0yk4j9jp29) |
+| ASTRO Token            | [`terra1jqcw39c42mf7ngq4drgggakk3ymljgd3r5c3r5`](https://finder.extraterrestrial.money/testnet/address/terra1jqcw39c42mf7ngq4drgggakk3ymljgd3r5c3r5) |
+| ASTRO-UST Pair         | [`terra1ec0fnjk2u6mms05xyyrte44jfdgdaqnx0upesr`](https://finder.extraterrestrial.money/testnet/address/terra1ec0fnjk2u6mms05xyyrte44jfdgdaqnx0upesr) |
+| ASTRO-UST LP Token     | [`terra18zjm4scu5wqlskwafclxa9kpa9l3zrvju4vdry`](https://finder.extraterrestrial.money/testnet/address/terra18zjm4scu5wqlskwafclxa9kpa9l3zrvju4vdry) |
+| Astro Generator        | [`terra1gjm7d9nmewn27qzrvqyhda8zsfl40aya7tvaw5`](https://finder.extraterrestrial.money/testnet/address/terra1gjm7d9nmewn27qzrvqyhda8zsfl40aya7tvaw5) |
 | Mars Oracle            | [`terra1uxs9f90kr2lgt3tpkpyk5dllqrwra5tgwv0pc5`](https://finder.extraterrestrial.money/testnet/address/terra1uxs9f90kr2lgt3tpkpyk5dllqrwra5tgwv0pc5) |
 | Mars Red Bank          | [`terra19fy8q4vx6uzv4rmhvvp329fgr5343qrunntq60`](https://finder.extraterrestrial.money/testnet/address/terra19fy8q4vx6uzv4rmhvvp329fgr5343qrunntq60) |
 | Mars Treasury          | [`terra1u4sk8992wz4c9p5c8ckffj4h8vh97hfeyw9x5n`](https://finder.extraterrestrial.money/testnet/address/terra1u4sk8992wz4c9p5c8ckffj4h8vh97hfeyw9x5n) |
 | Mars Governance        | [`terra1w0acggjar67f7l4phnvqzeg0na0k5fcn9lv5zz`](https://finder.extraterrestrial.money/testnet/address/terra1w0acggjar67f7l4phnvqzeg0na0k5fcn9lv5zz) |
-| Martian Field LUNA-UST | [`terra1jx2qgq0vcvywy87aelw9l3n5l2sy62nzkuhl00`](https://finder.extraterrestrial.money/testnet/address/terra1jx2qgq0vcvywy87aelw9l3n5l2sy62nzkuhl00) |
-| Martian Field ANC-UST  | [``](https://finder.extraterrestrial.money/testnet/address/)                                                                                         |
-| Martian Field MIR-UST  | [``](https://finder.extraterrestrial.money/testnet/address/)                                                                                         |
+| Martian Field LUNA-UST | [`terra17svlhx8ydy8fkjfqdum2lwydplxrdmc5yycs7u`](https://finder.extraterrestrial.money/testnet/address/terra17svlhx8ydy8fkjfqdum2lwydplxrdmc5yycs7u) |
+| Martian Field ANC-UST  | [`terra17v2zkzxzxfnt97fa23jxanq9awd0jr0l7mzkg0`](https://finder.extraterrestrial.money/testnet/address/terra17v2zkzxzxfnt97fa23jxanq9awd0jr0l7mzkg0) |
+| Martian Field MIR-UST  | [`terra1vd9l22zw6qxjthmd9r8xxt803804ja2te2svat`](https://finder.extraterrestrial.money/testnet/address/terra1vd9l22zw6qxjthmd9r8xxt803804ja2te2svat) |
 
 ## License
 
