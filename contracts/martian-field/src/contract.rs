@@ -110,6 +110,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Health {
             user,
         } => to_binary(&queries::query_health(deps, env, user)?),
+        QueryMsg::Snapshot {
+            user,
+        } => to_binary(&queries::query_snapshot(deps, user)?),
     }
 }
 
