@@ -3,7 +3,7 @@ use cosmwasm_std::{
     StdError, StdResult, Storage,
 };
 
-use cw_asset::{Asset, AssetInfo};
+use cw_asset::{Asset, AssetInfo, AssetList};
 
 use fields_of_mars::martian_field::msg::{Action, CallbackMsg};
 use fields_of_mars::martian_field::{Config, State};
@@ -25,9 +25,9 @@ pub fn update_position(
     actions: Vec<Action>,
 ) -> StdResult<Response> {
     let api = deps.api;
-
     let config = CONFIG.load(deps.storage)?;
-
+    
+    let mut received_coins = AssetList::from(info.funds);
     let mut msgs: Vec<CosmosMsg> = vec![];
     let mut attrs: Vec<Attribute> = vec![];
     let mut callbacks: Vec<CallbackMsg> = vec![];
@@ -37,8 +37,9 @@ pub fn update_position(
         match action {
             Action::Deposit(asset) => handle_deposit(
                 deps.storage,
-                &env,
-                &info,
+                &env.contract.address,
+                &info.sender,
+                &mut received_coins,
                 &asset.check(api)?,
                 &mut msgs,
                 &mut attrs,
@@ -84,6 +85,15 @@ pub fn update_position(
         }
     }
 
+    // after all deposits have been handled, we assert that the `received_natives` list is empty
+    // this way, we ensure that the user does not send any extra fund which will get lost in the 
+    // contract
+    if received_coins.len() > 0 {
+        return Err(StdError::generic_err(
+            format!("extra funds received: {}", received_coins.to_string())
+        ));
+    }
+
     // after user selected actions, we executes two more callbacks:
     // - refund assets that are not deployed in the yield farm to user
     // - assert LTV is healthy; if not, throw error and revert all actions
@@ -112,8 +122,9 @@ pub fn update_position(
 
 fn handle_deposit(
     storage: &mut dyn Storage,
-    env: &Env,
-    info: &MessageInfo,
+    contract_addr: &Addr,
+    sender_addr: &Addr,
+    received_coins: &mut AssetList,
     asset: &Asset,
     msgs: &mut Vec<CosmosMsg>,
     attrs: &mut Vec<Attribute>,
@@ -127,17 +138,17 @@ fn handle_deposit(
     // if asset is a CW20 token, we transfer the specified amount from the user's wallet
     match &asset.info {
         AssetInfo::Cw20(_) => {
-            msgs.push(asset.transfer_from_msg(&info.sender, &env.contract.address)?);
+            msgs.push(asset.transfer_from_msg(sender_addr, contract_addr)?);
         }
         AssetInfo::Native(_) => {
-            assert_sent_fund(asset, &info.funds)?;
+            assert_sent_fund(asset, received_coins)?;
         }
     }
 
     // increase the user's unlocked asset amount
-    let mut position = POSITION.load(storage, &info.sender).unwrap_or_default();
+    let mut position = POSITION.load(storage, sender_addr).unwrap_or_default();
     position.unlocked_assets.add(asset)?;
-    POSITION.save(storage, &info.sender, &position)?;
+    POSITION.save(storage, sender_addr, &position)?;
 
     attrs.push(attr("deposit_received", asset.to_string()));
 
