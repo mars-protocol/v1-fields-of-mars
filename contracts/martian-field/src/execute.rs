@@ -3,7 +3,7 @@ use cosmwasm_std::{
     StdError, StdResult, Storage,
 };
 
-use cw_asset::{Asset, AssetInfo};
+use cw_asset::{Asset, AssetInfo, AssetList};
 
 use fields_of_mars::martian_field::msg::{Action, CallbackMsg};
 use fields_of_mars::martian_field::{Config, State};
@@ -25,9 +25,9 @@ pub fn update_position(
     actions: Vec<Action>,
 ) -> StdResult<Response> {
     let api = deps.api;
-
     let config = CONFIG.load(deps.storage)?;
-
+    
+    let mut received_coins = AssetList::from(info.funds);
     let mut msgs: Vec<CosmosMsg> = vec![];
     let mut attrs: Vec<Attribute> = vec![];
     let mut callbacks: Vec<CallbackMsg> = vec![];
@@ -37,8 +37,9 @@ pub fn update_position(
         match action {
             Action::Deposit(asset) => handle_deposit(
                 deps.storage,
-                &env,
-                &info,
+                &env.contract.address,
+                &info.sender,
+                &mut received_coins,
                 &asset.check(api)?,
                 &mut msgs,
                 &mut attrs,
@@ -84,6 +85,15 @@ pub fn update_position(
         }
     }
 
+    // after all deposits have been handled, we assert that the `received_natives` list is empty
+    // this way, we ensure that the user does not send any extra fund which will get lost in the 
+    // contract
+    if received_coins.len() > 0 {
+        return Err(StdError::generic_err(
+            format!("extra funds received: {}", received_coins.to_string())
+        ));
+    }
+
     // after user selected actions, we executes two more callbacks:
     // - refund assets that are not deployed in the yield farm to user
     // - assert LTV is healthy; if not, throw error and revert all actions
@@ -106,14 +116,15 @@ pub fn update_position(
     Ok(Response::new()
         .add_messages(msgs)
         .add_messages(callback_msgs)
-        .add_attribute("action", "martian_field :: excute :: update_position")
+        .add_attribute("action", "martian_field/execute/update_position")
         .add_attributes(attrs))
 }
 
 fn handle_deposit(
     storage: &mut dyn Storage,
-    env: &Env,
-    info: &MessageInfo,
+    contract_addr: &Addr,
+    sender_addr: &Addr,
+    received_coins: &mut AssetList,
     asset: &Asset,
     msgs: &mut Vec<CosmosMsg>,
     attrs: &mut Vec<Attribute>,
@@ -123,21 +134,26 @@ fn handle_deposit(
         return Ok(());
     }
 
-    // if asset is a native token, we assert that the same amount was indeed received
-    // if asset is a CW20 token, we transfer the specified amount from the user's wallet
+    // If asset is a native token, we assert that the same amount was indeed received
+    // If asset is a CW20 token, we:
+    // - Transfer the specified amount from the user's wallet
+    // - Remove the asset from the list. After every deposit action has been processed, assert that 
+    // the asset list is empty. This way, we ensure the user doesn't send any extra fund, which will 
+    // be lost in the contract
     match &asset.info {
         AssetInfo::Cw20(_) => {
-            msgs.push(asset.transfer_from_msg(&info.sender, &env.contract.address)?);
+            msgs.push(asset.transfer_from_msg(sender_addr, contract_addr)?);
         }
         AssetInfo::Native(_) => {
-            assert_sent_fund(asset, &info.funds)?;
+            assert_sent_fund(asset, received_coins)?;
+            received_coins.deduct(asset)?;
         }
     }
 
     // increase the user's unlocked asset amount
-    let mut position = POSITION.load(storage, &info.sender).unwrap_or_default();
+    let mut position = POSITION.load(storage, sender_addr).unwrap_or_default();
     position.unlocked_assets.add(asset)?;
-    POSITION.save(storage, &info.sender, &position)?;
+    POSITION.save(storage, sender_addr, &position)?;
 
     attrs.push(attr("deposit_received", asset.to_string()));
 
@@ -147,11 +163,17 @@ fn handle_deposit(
 pub fn harvest(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     max_spread: Option<Decimal>,
     slippage_tolerance: Option<Decimal>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
+
+    // only whitelisted operators can harvest
+    if !config.operators.contains(&info.sender) {
+        return Err(StdError::generic_err("caller is not a whitelisted operator"));
+    }
 
     // find how much reward is available to be claimed
     let rewards = config.astro_generator.query_rewards(
@@ -182,9 +204,6 @@ pub fn harvest(
 
     // if there are ASTRO tokens available to be reinvested, we first swap it to the secondary asset
     // asset
-    //
-    // TODO: we either add mandatory slippage checks here, or make `Harvest` permissioned so that
-    // this won't be sandwich attacked
     let mut callbacks: Vec<CallbackMsg> = vec![];
     if let Some(astro_token) = state.pending_rewards.find(&config.astro_token_info) {
         callbacks.push(CallbackMsg::Swap {
@@ -225,7 +244,7 @@ pub fn harvest(
     Ok(Response::new()
         .add_messages(msgs)
         .add_messages(callback_msgs)
-        .add_attribute("action", "martian_field :: execute :: harvest")
+        .add_attribute("action", "martian_field/execute/harvest")
         .add_event(event))
 }
 
@@ -262,8 +281,6 @@ pub fn liquidate(
     //
     // now, we calculate how much additional secondary asset is needed to fully pay off debt, and 
     // reverse-simulate how much primary asset needs to be sold
-    //
-    // TODO: add slippage checks to the swap step so that liquidation cannot be sandwich attacked
     let callbacks = [
         CallbackMsg::Unbond {
             user_addr: user_addr.clone(),
@@ -307,7 +324,7 @@ pub fn liquidate(
 
     Ok(Response::new()
         .add_messages(callback_msgs)
-        .add_attribute("action", "martian_field :: excute :: liquidate")
+        .add_attribute("action", "martian_field/execute/liquidate")
         .add_event(event))
 }
 

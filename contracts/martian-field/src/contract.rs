@@ -25,7 +25,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::Harvest {
             max_spread,
             slippage_tolerance,
-        } => execute::harvest(deps, env, max_spread, slippage_tolerance),
+        } => execute::harvest(deps, env, info, max_spread, slippage_tolerance),
         ExecuteMsg::Liquidate {
             user,
         } => execute::liquidate(deps, env, info, api.addr_validate(&user)?),

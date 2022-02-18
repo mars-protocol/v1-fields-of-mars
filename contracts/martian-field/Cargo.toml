@@ -15,8 +15,8 @@ backtraces = ["cosmwasm-std/backtraces"]
 [dependencies]
 fields-of-mars = { path = "../../packages/fields-of-mars" }
 
-cosmwasm-std = "0.16.0"
-cw-storage-plus = "0.8.0"
+cosmwasm-std = "^0.16"
+cw-storage-plus = "^0.9"
 
 cw-asset = { version = "0.3.2", features = ["legacy"] }
 

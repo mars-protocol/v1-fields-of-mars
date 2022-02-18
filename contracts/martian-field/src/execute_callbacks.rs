@@ -65,7 +65,7 @@ pub fn provide_liquidity(
             &[primary_asset_to_provide.clone(), secondary_asset_to_provide.clone()],
             slippage_tolerance,
         )?)
-        .add_attribute("action", "martian_field :: callback :: provide_liquidity")
+        .add_attribute("action", "martian_field/callback/provide_liquidity")
         .add_attribute("primary_provided", primary_asset_to_provide.amount)
         .add_attribute("secondary_provided", secondary_asset_to_provide.amount))
 }
@@ -88,7 +88,7 @@ pub fn withdraw_liquidity(deps: DepsMut, user_addr: Addr) -> StdResult<Response>
 
     Ok(Response::new()
         .add_submessage(config.primary_pair.withdraw_submsg(1, liquidity_token_to_burn.amount)?)
-        .add_attribute("action", "martian_field :: callback :: withdraw_liquidity")
+        .add_attribute("action", "martian_field/callback/withdraw_liquidity")
         .add_attribute("shares_burned", liquidity_token_to_burn.amount))
 }
 
@@ -159,7 +159,7 @@ pub fn bond(deps: DepsMut, env: Env, user_addr_option: Option<Addr>) -> StdResul
                 .astro_generator
                 .bond_msg(&config.primary_pair.liquidity_token, liquidity_tokens_to_bond.amount)?,
         )
-        .add_attribute("action", "martian_field :: callback :: bond")
+        .add_attribute("action", "martian_field/callback/bond")
         .add_attribute("bond_units_added", bond_units_to_add)
         .add_attribute("shares_bonded", liquidity_tokens_to_bond.amount))
 }
@@ -210,7 +210,7 @@ pub fn unbond(
                 .astro_generator
                 .unbond_msg(&config.primary_pair.liquidity_token, amount_to_unbond)?,
         )
-        .add_attribute("action", "martian_field :: callback :: unbond")
+        .add_attribute("action", "martian_field/callback/unbond")
         .add_attribute("bond_units_deducted", bond_units_to_deduct)
         .add_attribute("shares_unbonded", amount_to_unbond))
 }
@@ -250,7 +250,7 @@ pub fn borrow(
 
     Ok(Response::new()
         .add_message(config.red_bank.borrow_msg(&secondary_asset_to_borrow)?)
-        .add_attribute("action", "martian_field :: callback :: borrow")
+        .add_attribute("action", "martian_field/callback/borrow")
         .add_attribute("debt_units_added", debt_units_to_add)
         .add_attribute("secondary_borrowed", secondary_asset_to_borrow.amount))
 }
@@ -294,7 +294,7 @@ pub fn repay(
 
     Ok(Response::new()
         .add_message(config.red_bank.repay_msg(&secondary_asset_to_repay)?)
-        .add_attribute("action", "martian_field :: callback :: repay")
+        .add_attribute("action", "martian_field/callback/repay")
         .add_attribute("debt_units_deducted", debt_units_to_deduct)
         .add_attribute("secondary_repaid", secondary_asset_to_repay.amount))
 }
@@ -358,7 +358,7 @@ pub fn swap(
 
     Ok(Response::new()
         .add_submessage(pair.swap_submsg(2, &offer_asset, None, max_spread)?)
-        .add_attribute("action", "martian_field :: callback :: swap")
+        .add_attribute("action", "martian_field/callback/swap")
         .add_attribute("asset_offered", offer_asset.to_string()))
 }
 
@@ -441,7 +441,7 @@ pub fn balance(
     }
 
     Ok(res
-        .add_attribute("action", "martian_field :: callback :: balance")
+        .add_attribute("action", "martian_field/callback/balance")
         .add_attribute("primary_amount", primary_asset_amount)
         .add_attribute("secondary_amount", secondary_asset_amount)
         .add_attribute("primary_price", primary_asset_price.to_string())
@@ -474,35 +474,37 @@ pub fn cover(
         .unwrap_or_else(|| Asset::new(config.secondary_asset_info.clone(), 0u128));
 
     // calculate how much additional secondary asset is needed to fully pay off the user's debt 
-    let mut secondary_needed_amount = if debt_amount > secondary_available.amount {
+    let secondary_needed_amount = if debt_amount > secondary_available.amount {
         debt_amount.checked_sub(secondary_available.amount)?
     } else {
         return Ok(Response::default());
     };
-
-    // NOTE: due to numerical reason, if we estimate offer amount using exactly the needed return
-    // amount, the actual return amount may be one unit less than what we need
-    //
-    // for example, assume a pair of assets A and B, with depths 167946543 A + 388590669 B
-    // we want the swap to return 125654393 B, so we calculate
-    // computeXykSwapInput(125654393, 167946543, 388590669) = 80617260
-    //
-    // however, if we offer 80617260 A, the swap returns
-    // computeXykSwapOutput(80617260, 167946543, 388590669) = 125654392
-    // which is one unit of B less than what we need (125654392 returned vs 125654393 needed)
-    //
-    // to account for this, we increment `secondary_needed_amount` by one unit before the reverse
-    // simulation
-    //
-    // not a very elegant solution, but it works and is the best i can come up with rn
-    secondary_needed_amount += Uint128::new(1);
     let secondary_needed = Asset::new(config.secondary_asset_info.clone(), secondary_needed_amount);
 
-    // reverse simulate how much primary asset needs to be sold
-    let primary_sell_amount = config.primary_pair.query_reverse_simulate(
+    // reverse-simulate how much primary asset needs to be sold
+    let mut primary_sell_amount = config.primary_pair.query_reverse_simulate(
         &deps.querier, 
         &secondary_needed
     )?;
+
+    // NOTE: due to integer rounding, if we estimate offer amount using exactly the needed return
+    // amount, the actual return amount may be one unit less than what we need
+    //
+    // for example, consider LUNA-UST pair with depths 1497005315 uluna + 24450395383 uusd
+    // we want the swap to return 1291320960 uusd, so we calculate
+    // computeXykSwapInput(1291320960, 1497005315, 24450395383) = 83736355
+    //
+    // however, if we offer 80617260 uluna, the swap returns
+    // computeXykSwapOutput(83736355, 1497005315, 24450395383) = 1291320945
+    // which is 15uusd short of what we need
+    //
+    // to get our desired output, we actually need to offer 1 unit of LUNA more than the reverse-
+    // simulated amount: 83736355 + 1 = 83736356
+    // computeXykSwapOutput(83736356, 1497005315, 24450395383) = 1291320960
+    // which is exactly the amount we need 
+    //
+    // not a very elegant solution, but it works and is the best i can come up with rn
+    primary_sell_amount = primary_sell_amount.checked_add(Uint128::new(1))?;
     let primary_to_sell = Asset::new(config.primary_asset_info.clone(), primary_sell_amount);
 
     position.unlocked_assets.deduct(&primary_to_sell)?;
@@ -514,9 +516,9 @@ pub fn cover(
             2,
             &primary_to_sell,
             None,
-            Some(Decimal::from_ratio(1u128, 2u128)), // TODO: may not be a good idea. should think about this
+            Some(Decimal::from_ratio(1u128, 20u128)), // 5%. NOTE
         )?)
-        .add_attribute("action", "martian_field :: callback :: cover")
+        .add_attribute("action", "martian_field/callback/cover")
         .add_attribute("debt_amount", debt_amount)
         .add_attribute("secondary_available", secondary_available.amount)
         .add_attribute("secondary_needed", secondary_needed.amount)
@@ -546,7 +548,7 @@ pub fn refund(
 
     Ok(Response::new()
         .add_messages(assets_to_refund.transfer_msgs(&recipient_addr)?)
-        .add_attribute("action", "martian_field :: callback :: refund")
+        .add_attribute("action", "martian_field/callback/refund")
         .add_attribute("recipient", recipient_addr.to_string())
         .add_attributes(refund_attrs))
 }
@@ -587,7 +589,7 @@ pub fn assert_health(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Resp
         .add_attribute("ltv", &ltv_str);
 
     Ok(Response::new()
-        .add_attribute("action", "martian_field :: callback :: assert_health")
+        .add_attribute("action", "martian_field/callback/assert_health")
         .add_event(event))
 }
 
@@ -606,5 +608,5 @@ pub fn snapshot(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Response>
 
     SNAPSHOT.save(deps.storage, &user_addr, &snapshot)?;
 
-    Ok(Response::new().add_attribute("action", "martian_field :: callback :: snapshot"))
+    Ok(Response::new().add_attribute("action", "martian_field/callback/snapshot"))
 }
