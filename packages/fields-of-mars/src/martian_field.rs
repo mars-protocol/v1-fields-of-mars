@@ -369,9 +369,11 @@ pub mod msg {
         /// Repay specified amount of secondary asset to Red Bank;
         /// Reduce the user's debt units;
         /// Reduce the user's unlocked secondary asset amount
+        /// 
+        /// If `repay_amount` is not provided, then use all available unlocked secondary asset
         Repay {
             user_addr: Addr,
-            repay_amount: Uint128,
+            repay_amount: Option<Uint128>,
         },
         /// Swap a specified amount of primary asset to secondary asset;
         /// Reduce the user's unlocked primary asset amount;
@@ -407,8 +409,18 @@ pub mod msg {
             recipient_addr: Addr,
             percentage: Decimal,
         },
-        /// Calculate a user's current LTV; throw error if it is above the maximum LTV
+        /// Calculate a user's current LTV. If below the maximum LTV, emits a `position_updated`
+        /// event; if above the maximum LTV, throw an error
         AssertHealth {
+            user_addr: Addr,
+        },
+        /// Check whether the user still has an outstanding debt. If no, do nothing. If yes, waive 
+        /// the debt from the user's position, and emit a `bad_debt` event
+        ///  
+        /// Effectively, the bad debt is shared by all other users. An altrustic person can monitor
+        /// the event and repay the same amount of debt at Red Bank on behalf of the Fields contract, 
+        /// so that other users don't have to share the bad debt
+        ClearBadDebt {
             user_addr: Addr,
         },
         /// See the comment on struct `Snapshot`. This callback should be removed at some point
