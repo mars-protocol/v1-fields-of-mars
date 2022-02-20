@@ -55,6 +55,9 @@ pub fn compute_health(
     let pool_value_u128 = Uint128::new(pool_value.as_u128());
     let total_bonded_value = pool_value_u128.multiply_ratio(total_bonded_amount, total_shares);
 
+    // compute the value of the contract's total debt
+    let total_debt_value = total_debt_amount * secondary_price;
+
     // compute the value of the user's bonded liquidity tokens
     let bond_value = if state.total_bond_units.is_zero() {
         Uint128::zero()
@@ -66,7 +69,7 @@ pub fn compute_health(
     let debt_value = if state.total_debt_units.is_zero() {
         Uint128::zero()
     } else {
-        total_debt_amount.multiply_ratio(position.debt_units, state.total_debt_units)
+        total_debt_value.multiply_ratio(position.debt_units, state.total_debt_units)
     };
 
     // compute LTV
