@@ -35,12 +35,9 @@ const argv = yargs(process.argv)
   };
   const codeId = argv["code-id"] ? argv["code-id"] : await uploadCode();
 
-  const msgs = argv["contracts"].split(",").map(
-    (addr) =>
-      new MsgMigrateContract(admin.key.accAddress, addr, codeId, {
-        operators: [admin.key.accAddress],
-      })
-  );
+  const msgs = argv["contracts"]
+    .split(",")
+    .map((addr) => new MsgMigrateContract(admin.key.accAddress, addr, codeId, {}));
 
   const { txhash } = await sendTxWithConfirm(admin, msgs);
   console.log(`Contract migrated! txhash: ${txhash}`);
