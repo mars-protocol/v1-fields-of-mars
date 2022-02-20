@@ -13,14 +13,10 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-fields-of-mars = { path = "../../packages/fields-of-mars" }
-
 cosmwasm-std = "^0.16"
-cw-storage-plus = "^0.9"
-
 cw-asset = { version = "0.3.2", features = ["legacy"] }
-
-uint = "0.9.1"
-
+cw-storage-plus = "^0.9"
+fields-of-mars = { path = "../../packages/fields-of-mars" }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+uint = "0.9.1"

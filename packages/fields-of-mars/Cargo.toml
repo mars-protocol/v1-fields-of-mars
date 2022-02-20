@@ -8,14 +8,10 @@ repository = "https://github.com/mars-protocol/field-of-mars"
 
 [dependencies]
 astroport = "0.3.1"
-mars-core = { path = "../mars-core" }
-
 cosmwasm-std = "^0.16"
 cw20 = "^0.9"
-
-terra-cosmwasm = "2.2.0"
-
 cw-asset = { version = "0.3.2", features = ["legacy"] }
-
+mars-core = { path = "../mars-core" }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+terra-cosmwasm = "2.2.0"
