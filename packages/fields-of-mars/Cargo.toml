@@ -3,7 +3,7 @@ name = "fields-of-mars"
 version = "0.5.0"
 authors = ["larry_0x <larry@delphidigital.io>"]
 edition = "2018"
-license = "UNLICENSED"
+license = "GPL-3.0-or-later"
 repository = "https://github.com/mars-protocol/field-of-mars"
 
 [dependencies]

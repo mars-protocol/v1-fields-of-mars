@@ -186,4 +186,4 @@ ts-node 1_deploy.ts --network mainnet|testnet --msg /path/to/instantiate_msg.jso
 
 ## License
 
-Contents of this repository are open source under [GNU General Public License v3](https://www.gnu.org/licenses/gpl-3.0.en.html) or later.
+Contents of this repository are open source under [GNU General Public License v3](./LICENSE) or later.
