@@ -1,6 +1,6 @@
 [package]
 name = "mock-astro-generator"
-version = "0.5.0"
+version = "1.0.0"
 authors = ["larry_0x <larry@delphidigital.io>"]
 edition = "2018"
 license = "GPL-3.0-or-later"
