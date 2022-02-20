@@ -53,19 +53,33 @@ async function setupTest() {
 
   ({ astroportFactory } = await deployAstroportFactory(deployer, cw20CodeId));
 
-  let { astroportPair, astroportLpToken } = await deployAstroportPair(
-    deployer,
-    astroportFactory,
-    anchorToken
-  );
+  let { astroportPair, astroportLpToken } = await deployAstroportPair(deployer, astroportFactory, [
+    {
+      native_token: {
+        denom: "uusd",
+      },
+    },
+    {
+      token: {
+        contract_addr: anchorToken,
+      },
+    },
+  ]);
   ancUstPair = astroportPair;
   ancUstLpToken = astroportLpToken;
 
-  ({ astroportPair, astroportLpToken } = await deployAstroportPair(
-    deployer,
-    astroportFactory,
-    astroToken
-  ));
+  ({ astroportPair, astroportLpToken } = await deployAstroportPair(deployer, astroportFactory, [
+    {
+      native_token: {
+        denom: "uusd",
+      },
+    },
+    {
+      token: {
+        contract_addr: astroToken,
+      },
+    },
+  ]));
   astroUstPair = astroportPair;
   astroUstLpToken = astroportLpToken;
 
@@ -109,6 +123,7 @@ async function setupTest() {
     },
     treasury: treasury.key.accAddress,
     governance: deployer.key.accAddress,
+    operators: [deployer.key.accAddress],
     max_ltv: "0.75", // 75%, i.e. for every 100 UST asset there must be no more than 75 UST debt
     fee_rate: "0.2", // 20%
     bonus_rate: "0.05", // 5%
@@ -305,14 +320,14 @@ async function testConfig() {
   await verifier.verify({
     bond: "0",
     debt: "0",
-    ancUstPool: {
+    primaryPair: {
       assets: [
         { amount: "420000000" }, // uusd
         { amount: "69000000" }, // uANC
       ],
       total_share: "170235131",
     },
-    astroUstPool: {
+    astroPair: {
       assets: [
         { amount: "150000000" }, // uusd
         { amount: "100000000" }, // uASTRO
@@ -447,14 +462,14 @@ async function testOpenPosition1() {
   await verifier.verify({
     bond: "170235131",
     debt: "420000000",
-    ancUstPool: {
+    primaryPair: {
       assets: [
         { amount: "840000000" }, // uusd
         { amount: "138000000" }, // uANC
       ],
       total_share: "340470262",
     },
-    astroUstPool: {
+    astroPair: {
       assets: [
         { amount: "150000000" }, // uusd
         { amount: "100000000" }, // uASTRO
@@ -618,14 +633,14 @@ async function testHarvest() {
   await verifier.verify({
     bond: "171695726",
     debt: "420000000",
-    ancUstPool: {
+    primaryPair: {
       assets: [
         { amount: "842355118" }, // uusd
         { amount: "138800000" }, // uANC
       ],
       total_share: "341930857",
     },
-    astroUstPool: {
+    astroPair: {
       assets: [
         { amount: "147644882" }, // uusd
         { amount: "101600000" }, // uASTRO
@@ -733,14 +748,14 @@ async function testAccrueInterest() {
   await verifier.verify({
     bond: "171695726",
     debt: "441000000",
-    ancUstPool: {
+    primaryPair: {
       assets: [
         { amount: "842355118" }, // uusd
         { amount: "138800000" }, // uANC
       ],
       total_share: "341930857",
     },
-    astroUstPool: {
+    astroPair: {
       assets: [
         { amount: "147644882" }, // uusd
         { amount: "101600000" }, // uASTRO
@@ -935,14 +950,14 @@ async function testOpenPosition2() {
   await verifier.verify({
     bond: "256685744",
     debt: "500375011",
-    ancUstPool: {
+    primaryPair: {
       assets: [
         { amount: "1051730129" }, // uusd
         { amount: "173300000" }, // uANC
       ],
       total_share: "426920875",
     },
-    astroUstPool: {
+    astroPair: {
       assets: [
         { amount: "147644882" }, // uusd
         { amount: "101600000" }, // uASTRO
@@ -1108,14 +1123,14 @@ async function testPayDebt() {
   await verifier.verify({
     bond: "256685744",
     debt: "400375011",
-    ancUstPool: {
+    primaryPair: {
       assets: [
         { amount: "1051730129" }, // uusd
         { amount: "173300000" }, // uANC
       ],
       total_share: "426920875",
     },
-    astroUstPool: {
+    astroPair: {
       assets: [
         { amount: "147644882" }, // uusd
         { amount: "101600000" }, // uASTRO
@@ -1285,14 +1300,14 @@ async function testReducePosition1() {
   await verifier.verify({
     bond: "226428348",
     debt: "400375011",
-    ancUstPool: {
+    primaryPair: {
       assets: [
         { amount: "977190286" }, // uusd
         { amount: "161017615" }, // uANC
       ],
       total_share: "396663479",
     },
-    astroUstPool: {
+    astroPair: {
       assets: [
         { amount: "147644882" }, // uusd
         { amount: "101600000" }, // uASTRO
@@ -1440,14 +1455,14 @@ async function testDump() {
   await verifier.verify({
     bond: "226428348",
     debt: "400375011",
-    ancUstPool: {
+    primaryPair: {
       assets: [
         { amount: "603936276" }, // uusd
         { amount: "261017615" }, // uANC
       ],
       total_share: "396663479",
     },
-    astroUstPool: {
+    astroPair: {
       assets: [
         { amount: "147644882" }, // uusd
         { amount: "101600000" }, // uASTRO
@@ -1635,14 +1650,14 @@ async function testLiquidation() {
   await verifier.verify({
     bond: "84990019",
     debt: "59375011",
-    ancUstPool: {
+    primaryPair: {
       assets: [
         { amount: "262936276" }, // uusd
         { amount: "248563804" }, // uANC
       ],
       total_share: "255225150",
     },
-    astroUstPool: {
+    astroPair: {
       assets: [
         { amount: "147644882" }, // uusd
         { amount: "101600000" }, // uASTRO
@@ -1806,14 +1821,14 @@ async function testReducePosition2() {
   await verifier.verify({
     bond: "0",
     debt: "0",
-    ancUstPool: {
+    primaryPair: {
       assets: [
         { amount: "175378451" }, // uusd
         { amount: "165792015" }, // uANC
       ],
       total_share: "170235131",
     },
-    astroUstPool: {
+    astroPair: {
       assets: [
         { amount: "147644882" }, // uusd
         { amount: "101600000" }, // uASTRO

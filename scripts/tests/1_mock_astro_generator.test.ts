@@ -36,11 +36,18 @@ async function setupTest() {
 
   ({ astroportFactory } = await deployAstroportFactory(deployer, cw20CodeId));
 
-  ({ astroportPair, astroportLpToken } = await deployAstroportPair(
-    deployer,
-    astroportFactory,
-    testToken
-  ));
+  ({ astroportPair, astroportLpToken } = await deployAstroportPair(deployer, astroportFactory, [
+    {
+      native_token: {
+        denom: "uusd",
+      },
+    },
+    {
+      token: {
+        contract_addr: testToken,
+      },
+    },
+  ]));
 
   ({ astroGenerator } = await deployAstroGenerator(
     deployer,

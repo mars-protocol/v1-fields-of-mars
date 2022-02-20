@@ -102,7 +102,7 @@ export async function deployAstroportFactory(deployer: Wallet, cw20CodeId: numbe
 export async function deployAstroportPair(
   deployer: Wallet,
   astroportFactory: string,
-  cw20Token: string
+  legacyAssetInfos: object
 ) {
   process.stdout.write("Creating Astroport pair... ");
 
@@ -112,18 +112,7 @@ export async function deployAstroportPair(
         pair_type: {
           xyk: {},
         },
-        asset_infos: [
-          {
-            native_token: {
-              denom: "uusd",
-            },
-          },
-          {
-            token: {
-              contract_addr: cw20Token,
-            },
-          },
-        ],
+        asset_infos: legacyAssetInfos,
       },
     }),
   ]);
@@ -144,7 +133,7 @@ export async function deployAstroGenerator(
   deployer: Wallet,
   liquidityToken: string,
   astroToken: string,
-  proxyRewardToken: string
+  proxyRewardToken?: string
 ) {
   process.stdout.write("Uploading mock Astroport generator code... ");
 
