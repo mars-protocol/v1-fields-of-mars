@@ -18,7 +18,7 @@ export function computeXykSwapOutput(
 
   // ask_amount = (ask_pool - cp / (offer_pool + offer_amount))
   //
-  // NOTE: 
+  // NOTE:
   // 1. when calculating `afterDepthAfter`, Astroport first multiplies `DECIMAL_FRACTIONAL` then
   // divides in the end to offer more precision
   // 2. we assume a 0.3% commission rate
@@ -54,19 +54,17 @@ export function computeXykSwapInput(
 
   // offer_amount = cp / (ask_pool - ask_amount / (1 - commission_rate)) - offer_pool
   //
-  // NOTE: 
+  // NOTE:
   // 1. when calculating `afterDepthAfter`, Astroport first multiplies `DECIMAL_FRACTIONAL` then
   // divides in the end to offer more precision
   // 2. we assume a 0.3% commission rate
   const cp = offerDepth.mul(askDepth);
-  const oneMinusCommission = DECIMAL_FRACTIONAL.sub(DECIMAL_FRACTIONAL.mul(new BN(3)).div(new BN(1000)));
-  const invOneMinueCommission = DECIMAL_FRACTIONAL.mul(DECIMAL_FRACTIONAL).div(oneMinusCommission);
+  const oneSubFeeRate = DECIMAL_FRACTIONAL.sub(DECIMAL_FRACTIONAL.mul(new BN(3)).div(new BN(1000)));
+  const invOneSubFeeRate = DECIMAL_FRACTIONAL.mul(DECIMAL_FRACTIONAL).div(oneSubFeeRate);
 
   const offerAmount = cp
     .mul(DECIMAL_FRACTIONAL)
-    .div(
-      askDepth.sub(askAmount.mul(invOneMinueCommission).div(DECIMAL_FRACTIONAL))
-    )
+    .div(askDepth.sub(askAmount.mul(invOneSubFeeRate).div(DECIMAL_FRACTIONAL)))
     .div(DECIMAL_FRACTIONAL)
     .sub(offerDepth);
 

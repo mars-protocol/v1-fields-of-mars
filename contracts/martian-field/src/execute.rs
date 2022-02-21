@@ -53,7 +53,7 @@ pub fn update_position(
             Action::Repay { amount } => callbacks.push(
                 CallbackMsg::Repay {
                     user_addr: info.sender.clone(),
-                    repay_amount: amount,
+                    repay_amount: Some(amount),
                 }
             ),
             Action::Bond { slippage_tolerance } => callbacks.extend([
@@ -106,6 +106,9 @@ pub fn update_position(
         CallbackMsg::AssertHealth {
             user_addr: info.sender.clone(),
         },
+        CallbackMsg::Snapshot {
+            user_addr: info.sender.clone(),
+        }
     ]);
 
     let callback_msgs = callbacks
@@ -294,7 +297,7 @@ pub fn liquidate(
         },
         CallbackMsg::Repay {
             user_addr: user_addr.clone(),
-            repay_amount: health.debt_value,
+            repay_amount: None,
         },
         CallbackMsg::Refund {
             user_addr: user_addr.clone(),
@@ -305,6 +308,9 @@ pub fn liquidate(
             user_addr: user_addr.clone(),
             recipient_addr: user_addr.clone(),
             percentage: Decimal::one(),
+        },
+        CallbackMsg::ClearBadDebt {
+            user_addr: user_addr.clone(),
         },
     ];
 

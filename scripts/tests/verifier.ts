@@ -14,8 +14,8 @@ import {
 export interface CheckData {
   bond: string;
   debt: string;
-  ancUstPool: PoolResponse;
-  astroUstPool: PoolResponse;
+  primaryPair: PoolResponse;
+  astroPair: PoolResponse;
   state: StateResponse;
   users: {
     address: string;
@@ -70,14 +70,14 @@ export class Verifier {
       }
     );
 
-    const ancUstPool: PoolResponse = await this.terra.wasm.contractQuery(
+    const primaryPair: PoolResponse = await this.terra.wasm.contractQuery(
       this.config.primary_pair.contract_addr,
       {
         pool: {},
       }
     );
 
-    const astroUstPool: PoolResponse = await this.terra.wasm.contractQuery(
+    const astroPair: PoolResponse = await this.terra.wasm.contractQuery(
       this.config.astro_pair.contract_addr,
       {
         pool: {},
@@ -113,8 +113,8 @@ export class Verifier {
     return {
       bond,
       debt: debt.amount,
-      ancUstPool,
-      astroUstPool,
+      primaryPair,
+      astroPair,
       state,
       users: _users,
     };
@@ -132,35 +132,35 @@ export class Verifier {
       _generateRow("debt.amount", expected.debt, actual.debt),
       // ANC-UST pool
       _generateRow(
-        "ancUstPool.assets[0]",
-        expected.ancUstPool.assets[0].amount,
-        actual.ancUstPool.assets[0].amount
+        "primaryPair.assets[0]",
+        expected.primaryPair.assets[0].amount,
+        actual.primaryPair.assets[0].amount
       ),
       _generateRow(
-        "ancUstPool.assets[1]",
-        expected.ancUstPool.assets[1].amount,
-        actual.ancUstPool.assets[1].amount
+        "primaryPair.assets[1]",
+        expected.primaryPair.assets[1].amount,
+        actual.primaryPair.assets[1].amount
       ),
       _generateRow(
-        "ancUstPool.shares",
-        expected.ancUstPool.total_share,
-        actual.ancUstPool.total_share
+        "primaryPair.shares",
+        expected.primaryPair.total_share,
+        actual.primaryPair.total_share
       ),
       // ASTRO-UST pool
       _generateRow(
-        "astroUstPool.assets[0]",
-        expected.astroUstPool.assets[0].amount,
-        actual.astroUstPool.assets[0].amount
+        "astroPair.assets[0]",
+        expected.astroPair.assets[0].amount,
+        actual.astroPair.assets[0].amount
       ),
       _generateRow(
-        "astroUstPool.assets[1]",
-        expected.astroUstPool.assets[1].amount,
-        actual.astroUstPool.assets[1].amount
+        "astroPair.assets[1]",
+        expected.astroPair.assets[1].amount,
+        actual.astroPair.assets[1].amount
       ),
       _generateRow(
-        "astroUstPool.shares",
-        expected.astroUstPool.total_share,
-        actual.astroUstPool.total_share
+        "astroPair.shares",
+        expected.astroPair.total_share,
+        actual.astroPair.total_share
       ),
     ];
 

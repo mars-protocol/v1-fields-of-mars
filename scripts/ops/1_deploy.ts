@@ -1,8 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import yargs from "yargs/yargs";
-import { createLCDClient, createWallet } from "./helpers/cli";
-import { storeCodeWithConfirm, instantiateWithConfirm } from "./helpers/tx";
+import { createLCDClient, createWallet } from "../helpers/cli";
+import { storeCodeWithConfirm, instantiateWithConfirm } from "../helpers/tx";
 
 const argv = yargs(process.argv)
   .options({

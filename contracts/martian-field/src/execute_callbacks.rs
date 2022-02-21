@@ -259,7 +259,7 @@ pub fn repay(
     deps: DepsMut,
     env: Env,
     user_addr: Addr,
-    repay_amount: Uint128,
+    repay_amount: Option<Uint128>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
@@ -272,6 +272,15 @@ pub fn repay(
     )?;
 
     let debt_amount = total_debt_amount.multiply_ratio(position.debt_units, state.total_debt_units);
+
+    // If `repay_amount` is not specified, default to all of the user's unlocked secondary asset
+    let repay_amount = repay_amount.unwrap_or_else(|| {
+        position
+            .unlocked_assets
+            .find(&config.secondary_asset_info)
+            .map(|asset| asset.amount)
+            .unwrap_or_else(Uint128::zero)
+    });
 
     // We only repay up to the debt amount
     let repay_amount = cmp::min(repay_amount, debt_amount);
@@ -505,6 +514,15 @@ pub fn cover(
     //
     // not a very elegant solution, but it works and is the best i can come up with rn
     primary_sell_amount = primary_sell_amount.checked_add(Uint128::new(1))?;
+
+    // we only sell up to the user's available unlocked primary asset amount
+    let primary_available_amount = position
+        .unlocked_assets
+        .find(&config.primary_asset_info)
+        .map(|asset| asset.amount)
+        .unwrap_or_else(Uint128::zero);
+    primary_sell_amount = cmp::min(primary_sell_amount, primary_available_amount);
+
     let primary_to_sell = Asset::new(config.primary_asset_info.clone(), primary_sell_amount);
 
     position.unlocked_assets.deduct(&primary_to_sell)?;
@@ -516,7 +534,7 @@ pub fn cover(
             2,
             &primary_to_sell,
             None,
-            Some(Decimal::from_ratio(1u128, 20u128)), // 5%. NOTE
+            Some(Decimal::from_ratio(1u128, 20u128)), // 5%. NOTE: switch this to 50% to pass the integration test
         )?)
         .add_attribute("action", "martian_field/callback/cover")
         .add_attribute("debt_amount", debt_amount)
@@ -591,6 +609,40 @@ pub fn assert_health(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Resp
     Ok(Response::new()
         .add_attribute("action", "martian_field/callback/assert_health")
         .add_event(event))
+}
+
+pub fn clear_bad_debt(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let mut state = STATE.load(deps.storage)?;
+    let mut position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
+
+    let res = Response::new().add_attribute("action", "martian_field/callback/clear_bad_debt");
+    if position.debt_units.is_zero() {
+        return Ok(res);
+    }
+
+    // compute the amount of bad debt
+    let total_debt_amount = config.red_bank.query_user_debt(
+        &deps.querier,
+        &env.contract.address,
+        &config.secondary_asset_info,
+    )?;
+    let bad_debt_amount = total_debt_amount.multiply_ratio(position.debt_units, state.total_debt_units);
+    let bad_debt = Asset::new(config.secondary_asset_info, bad_debt_amount);
+
+    // waive the user's debt
+    let debt_units_to_waive = position.debt_units;
+    position.debt_units = position.debt_units.checked_sub(debt_units_to_waive)?;
+    POSITION.save(deps.storage, &user_addr, &position)?;
+    state.total_debt_units = state.total_debt_units.checked_sub(debt_units_to_waive)?;
+    STATE.save(deps.storage, &state)?;
+
+    let event = Event::new("bad_debt")
+        .add_attribute("user", user_addr)
+        .add_attribute("bad_debt", bad_debt.to_string())
+        .add_attribute("debt_units_waived", debt_units_to_waive);
+
+    Ok(res.add_event(event))
 }
 
 pub fn snapshot(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Response> {

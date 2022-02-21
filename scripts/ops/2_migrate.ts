@@ -1,8 +1,8 @@
 import * as path from "path";
 import yargs from "yargs/yargs";
 import { MsgMigrateContract } from "@terra-money/terra.js";
-import { createLCDClient, createWallet } from "./helpers/cli";
-import { storeCodeWithConfirm, sendTxWithConfirm } from "./helpers/tx";
+import { createLCDClient, createWallet } from "../helpers/cli";
+import { storeCodeWithConfirm, sendTxWithConfirm } from "../helpers/tx";
 
 const argv = yargs(process.argv)
   .options({
@@ -10,7 +10,7 @@ const argv = yargs(process.argv)
       type: "string",
       demandOption: true,
     },
-    contract: {
+    contracts: {
       type: "string",
       demandOption: true,
     },
@@ -25,14 +25,20 @@ const argv = yargs(process.argv)
   const terra = createLCDClient(argv["network"]);
   const admin = createWallet(terra);
 
-  let codeId = argv["code-id"];
-  if (!codeId) {
-    codeId = await storeCodeWithConfirm(admin, path.resolve("../artifacts/martian_field.wasm"));
+  const uploadCode = async () => {
+    const codeId = await storeCodeWithConfirm(
+      admin,
+      path.resolve("../artifacts/martian_field.wasm")
+    );
     console.log(`Code uploaded! codeId: ${codeId}`);
-  }
+    return codeId;
+  };
+  const codeId = argv["code-id"] ? argv["code-id"] : await uploadCode();
 
-  const { txhash } = await sendTxWithConfirm(admin, [
-    new MsgMigrateContract(admin.key.accAddress, argv["contract"], codeId, {}),
-  ]);
+  const msgs = argv["contracts"]
+    .split(",")
+    .map((addr) => new MsgMigrateContract(admin.key.accAddress, addr, codeId, {}));
+
+  const { txhash } = await sendTxWithConfirm(admin, msgs);
   console.log(`Contract migrated! txhash: ${txhash}`);
 })();
