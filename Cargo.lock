@@ -439,6 +439,7 @@ checksum = "320cfe77175da3a483efed4bc0adc1968ca050b098ce4f2f1c13a56626128790"
 [[package]]
 name = "mars-core"
 version = "1.0.0"
+source = "git+https://github.com/mars-protocol/mars-core?tag=v1.0.0-rc4#7b5fbcc9301b3cbb195098a2a6edb143abb166fc"
 dependencies = [
  "astroport 0.3.1 (git+https://github.com/astroport-fi/astroport-core.git?tag=v1.0.0)",
  "cosmwasm-std",
