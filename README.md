@@ -2,6 +2,9 @@
 
 Martian Field is a leveraged yield farming strategy utilizing contract-to-contract (C2C) lending from [Mars Protocol](https://twitter.com/mars_protocol).
 
+## Bug bounty
+A bug bounty is currently open for these contracts. See details at: https://immunefi.com/bounty/marsprotocol/
+
 ## Overview
 
 A common type of yield farms in the Terra ecosystem works as follows. The user provides a _primary asset_ (e.g. ANC, Anchor Protocol's governance token) and equal value of UST to an AMM pool (e.g. Terraswap), then deposit the AMM's liquidity token into a staking contract. Over time, staking reward is accrued in the form of the primary asset (ANC in this case) and withdrawable by the user.
