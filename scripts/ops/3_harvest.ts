@@ -1,6 +1,6 @@
 import { MsgExecuteContract } from "@terra-money/terra.js";
-import { createLCDClient, createWallet } from "./helpers/cli";
-import { sendTxWithConfirm } from "./helpers/tx";
+import { createLCDClient, createWallet } from "../helpers/cli";
+import { sendTxWithConfirm } from "../helpers/tx";
 
 const CONTRACT_ADDR = "terra16htwvqxqkygazqxmgt9wpqr0vtf6jekm6mf44n";
 
