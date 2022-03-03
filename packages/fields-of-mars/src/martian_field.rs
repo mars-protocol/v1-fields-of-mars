@@ -451,6 +451,11 @@ pub mod msg {
         Config {},
         /// Return the global state of the strategy. Response: `StateUnchecked`
         State {},
+        /// Enumerate all user positions. Response: `Vec<PositionsResponseItem>`
+        Positions {
+            start_after: Option<String>,
+            limit: Option<u32>,
+        },
         /// Return data on an individual user's position. Response: `PositionUnchecked`
         Position {
             user: String,
@@ -468,6 +473,12 @@ pub mod msg {
         Snapshot {
             user: String,
         },
+    }
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct PositionsResponseItem {
+        pub user: String,
+        pub position: PositionUnchecked,
     }
 
     /// We currently don't need any input parameter for migration

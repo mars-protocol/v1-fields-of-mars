@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { expect } from "chai";
 import { LocalTerra, MsgExecuteContract, MsgSend } from "@terra-money/terra.js";
 import { sendTransaction } from "../helpers/tx";
 import { encodeBase64 } from "../helpers/encoding";
@@ -12,7 +13,7 @@ import {
   deployMartianField,
 } from "./fixture";
 import { Verifier } from "./verifier";
-import { Config } from "./types";
+import { Config, PositionsResponse } from "./types";
 
 // LocalTerra instance
 const terra = new LocalTerra();
@@ -1015,6 +1016,29 @@ async function testOpenPosition2() {
       },
     ],
   });
+
+  // Also, make sure the `positions` query works
+  const response: PositionsResponse = await terra.wasm.contractQuery(field, {
+    positions: {},
+  });
+  expect(response).to.deep.equal([
+    {
+      user: user1.key.accAddress,
+      position: {
+        bond_units: "170235131000000",
+        debt_units: "420000000000000",
+        unlocked_assets: [],
+      },
+    },
+    {
+      user: user2.key.accAddress,
+      position: {
+        bond_units: "84267018084785",
+        debt_units: "56547629523809",
+        unlocked_assets: [],
+      },
+    },
+  ]);
 }
 
 //--------------------------------------------------------------------------------------------------

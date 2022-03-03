@@ -71,6 +71,11 @@ export type StateResponse = {
   pending_rewards: Asset[];
 };
 
+export type PositionsResponse = {
+  user: string;
+  position: PositionResponse;
+}[];
+
 export type PositionResponse = {
   bond_units: string;
   debt_units: string;

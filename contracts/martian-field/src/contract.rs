@@ -107,6 +107,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&queries::query_config(deps, env)?),
         QueryMsg::State {} => to_binary(&queries::query_state(deps, env)?),
+        QueryMsg::Positions {
+            start_after,
+            limit,
+        } => to_binary(&queries::query_positions(deps, start_after, limit)?),
         QueryMsg::Position {
             user,
         } => to_binary(&queries::query_position(deps, env, user)?),
