@@ -78,7 +78,9 @@ export type PositionResponse = {
 };
 
 export type HealthResponse = {
+  bond_amount: string;
   bond_value: string;
+  debt_amount: string;
   debt_value: string;
   ltv: string | null;
 };

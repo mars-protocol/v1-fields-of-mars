@@ -215,9 +215,19 @@ export class Verifier {
 
       rows = rows.concat([
         _generateRow(
+          `users[${i}].bond_amount`,
+          expected.users[i].health.bond_amount,
+          actual.users[i].health.bond_amount
+        ),
+        _generateRow(
           `users[${i}].bond_value`,
           expected.users[i].health.bond_value,
           actual.users[i].health.bond_value
+        ),
+        _generateRow(
+          `users[${i}].debt_amount`,
+          expected.users[i].health.debt_amount,
+          actual.users[i].health.debt_amount
         ),
         _generateRow(
           `users[${i}].debt_value`,

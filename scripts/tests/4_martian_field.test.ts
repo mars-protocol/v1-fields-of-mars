@@ -493,7 +493,9 @@ async function testOpenPosition1() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "170235131",
           bond_value: "836972930",
+          debt_amount: "420000000",
           debt_value: "420000000",
           ltv: "0.501808344028521926",
         },
@@ -664,7 +666,9 @@ async function testHarvest() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "171695726",
           bond_value: "842922313",
+          debt_amount: "420000000",
           debt_value: "420000000",
           ltv: "0.498266558522101905",
         },
@@ -779,7 +783,9 @@ async function testAccrueInterest() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "171695726",
           bond_value: "842922313",
+          debt_amount: "441000000",
           debt_value: "441000000",
           ltv: "0.523179886448207001",
         },
@@ -888,12 +894,16 @@ async function testAccrueInterest() {
 // total debt value = 500375011
 //
 // User1 health:
+// bond amount = 256685744 * 170235131000000 / 254502149084785 = 171695726
 // bond value = 1261070124 * 170235131000000 / 254502149084785 = 843523084
+// debt amount = 500375011 * 420000000000000 / 476547629523809 = 441000000
 // debt value = 500375011 * 420000000000000 / 476547629523809 = 441000000
 // ltv = 441000000 / 843523084 = 0.522807269136928563
 //
 // User2 health:
+// bond amount = 256685744 * 84267018084785 / 254502149084785 = 84990017
 // bond value = 1261070124 * 84267018084785 / 254502149084785 = 417547039
+// debt amount = 500375011 * 56547629523809 / 476547629523809 = 59375010
 // debt value = 500375011 * 56547629523809 / 476547629523809 = 59375010
 // ltv = 59375010 / 417547039 = 0.142199571435590996
 //--------------------------------------------------------------------------------------------------
@@ -981,7 +991,9 @@ async function testOpenPosition2() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "171695726",
           bond_value: "843523084",
+          debt_amount: "441000000",
           debt_value: "441000000",
           ltv: "0.522807269136928563",
         },
@@ -994,7 +1006,9 @@ async function testOpenPosition2() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "84990017",
           bond_value: "417547039",
+          debt_amount: "59375010",
           debt_value: "59375010",
           ltv: "0.142199571435590996",
         },
@@ -1080,12 +1094,16 @@ async function testOpenPosition2() {
 // total debt value = 400375011
 //
 // User1 health:
+// bond amount = 256685744 * 170235131000000 / 254502149084785 = 171695726
 // bond value = 1261070124 * 170235131000000 / 254502149084785 = 843523084
+// debt amount = 400375011 * 324761904761905 / 381309534285714 = 341000000
 // debt value = 400375011 * 324761904761905 / 381309534285714 = 341000000
 // ltv = 341000000 / 843523084 = 0.404256867972092154
 //
 // User2 health:
+// bond amount = 256685744 * 84267018084785 / 254502149084785 = 84990017
 // bond value = 1261070124 * 84267018084785 / 254502149084785 = 417547039
+// debt amount = 400375011 * 56547629523809 / 381309534285714 = 59375010
 // debt value = 400375011 * 56547629523809 / 381309534285714 = 59375010
 // ltv = 59375010 / 417547039 = 0.142199571435590996
 //--------------------------------------------------------------------------------------------------
@@ -1154,7 +1172,9 @@ async function testPayDebt() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "171695726",
           bond_value: "843523084",
+          debt_amount: "341000000",
           debt_value: "341000000",
           ltv: "0.404256867972092154",
         },
@@ -1167,7 +1187,9 @@ async function testPayDebt() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "84990017",
           bond_value: "417547039",
+          debt_amount: "59375010",
           debt_value: "59375010",
           ltv: "0.142199571435590996",
         },
@@ -1272,12 +1294,16 @@ async function testPayDebt() {
 // total debt value = 400375011
 //
 // User1 health:
+// bond amount = 226428348 * 140235131000000 / 224502149084785 = 141438329
 // bond value = 1112175335 * 140235131000000 / 224502149084785 = 694719647
+// debt amount = 400375011 * 324761904761905 / 381309534285714 = 341000000
 // debt value = 400375011 * 324761904761905 / 381309534285714 = 341000000
 // ltv = 341000000 / 694719647 = 00.490845482019310157
 //
 // User2 health:
+// bond amount = 226428348 * 84267018084785 / 224502149084785 = 84990018
 // bond value = 1112175335 * 84267018084785 / 224502149084785 = 417455687
+// debt amount = 400375011 * 56547629523809 / 381309534285714 = 59375010
 // debt value = 400375011 * 56547629523809 / 381309534285714 = 59375010
 // ltv = 59375010 / 417455687 = 0.14223068902640198(0)
 //--------------------------------------------------------------------------------------------------
@@ -1331,7 +1357,9 @@ async function testReducePosition1() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "141438329",
           bond_value: "694719647",
+          debt_amount: "341000000",
           debt_value: "341000000",
           ltv: "0.490845482019310157",
         },
@@ -1344,7 +1372,9 @@ async function testReducePosition1() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "84990018",
           bond_value: "417455687",
+          debt_amount: "59375010",
           debt_value: "59375010",
           ltv: "0.14223068902640198",
         },
@@ -1425,12 +1455,16 @@ async function testReducePosition1() {
 // total debt value = 400375011
 //
 // User1 health:
+// bond amount = 226428348 * 140235131000000 / 224502149084785 = 141438329
 // bond value = 688175690 * 140235131000000 / 224502149084785 = 429868526
+// debt amount = 400375011 * 324761904761905 / 381309534285714 = 341000000
 // debt value = 400375011 * 324761904761905 / 381309534285714 = 341000000
 // ltv = 341000000 / 429868526 = 0.793265799599387278
 //
 // User2 health:
+// bond amount = 226428348 * 84267018084785 / 224502149084785 = 84990018
 // bond value = 688175690 * 84267018084785 / 224502149084785 = 258307163
+// debt amount = 400375011 * 56547629523809 / 381309534285714 = 59375010
 // debt value = 400375011 * 56547629523809 / 381309534285714 = 59375010
 // ltv = 59375010 / 258307163 = 0.229862034449273092
 //--------------------------------------------------------------------------------------------------
@@ -1486,7 +1520,9 @@ async function testDump() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "141438329",
           bond_value: "429868526",
+          debt_amount: "341000000",
           debt_value: "341000000",
           ltv: "0.793265799599387278",
         },
@@ -1499,7 +1535,9 @@ async function testDump() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "84990018",
           bond_value: "258307163",
+          debt_amount: "59375010",
           debt_value: "59375010",
           ltv: "0.229862034449273092",
         },
@@ -1681,7 +1719,9 @@ async function testLiquidation() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "0",
           bond_value: "0",
+          debt_amount: "0",
           debt_value: "0",
           ltv: null,
         },
@@ -1694,7 +1734,9 @@ async function testLiquidation() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "84990019",
           bond_value: "174764423",
+          debt_amount: "59375011",
           debt_value: "59375011",
           ltv: "0.339743123805009215",
         },
@@ -1852,7 +1894,9 @@ async function testReducePosition2() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "0",
           bond_value: "0",
+          debt_amount: "0",
           debt_value: "0",
           ltv: null,
         },
@@ -1865,7 +1909,9 @@ async function testReducePosition2() {
           unlocked_assets: [],
         },
         health: {
+          bond_amount: "0",
           bond_value: "0",
+          debt_amount: "0",
           debt_value: "0",
           ltv: null,
         },

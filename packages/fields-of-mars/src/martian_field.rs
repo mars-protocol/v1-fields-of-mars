@@ -219,8 +219,12 @@ impl From<Position> for PositionUnchecked {
 
 #[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Health {
+    /// Amount of primary pair liquidity tokens owned by this position
+    pub bond_amount: Uint128,
     /// Value of the position's asset, measured in the short asset
     pub bond_value: Uint128,
+    /// Amount of secondary assets owed by this position
+    pub debt_amount: Uint128,
     /// Value of the position's debt, measured in the short asset
     pub debt_value: Uint128,
     /// The ratio of `debt_value` to `bond_value`; None if `bond_value` is zero

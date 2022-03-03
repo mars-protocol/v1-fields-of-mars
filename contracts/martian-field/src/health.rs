@@ -22,7 +22,7 @@ pub fn compute_health(
     state: &State,
     position: &Position,
 ) -> StdResult<Health> {
-    let total_bonded_amount = config.astro_generator.query_bonded_amount(
+    let total_bond_amount = config.astro_generator.query_bonded_amount(
         querier,
         &env.contract.address,
         &config.primary_pair.liquidity_token,
@@ -53,7 +53,7 @@ pub fn compute_health(
     let pool_value = U256::from(2) * (primary_value * secondary_value).integer_sqrt();
 
     let pool_value_u128 = Uint128::new(pool_value.as_u128());
-    let total_bonded_value = pool_value_u128.multiply_ratio(total_bonded_amount, total_shares);
+    let total_bond_value = pool_value_u128.multiply_ratio(total_bond_amount, total_shares);
 
     // compute the value of the contract's total debt
     let total_debt_value = total_debt_amount * secondary_price;
@@ -62,7 +62,7 @@ pub fn compute_health(
     let bond_value = if state.total_bond_units.is_zero() {
         Uint128::zero()
     } else {
-        total_bonded_value.multiply_ratio(position.bond_units, state.total_bond_units)
+        total_bond_value.multiply_ratio(position.bond_units, state.total_bond_units)
     };
 
     // compute the value of the user's debt
@@ -82,8 +82,27 @@ pub fn compute_health(
         Some(Decimal::from_ratio(debt_value, bond_value))
     };
 
+    // Compute bond and debt amounts. We don't use them in the core logics, but outputing these
+    // numbers massively simplifies frontend develoment
+    //
+    // This does increase gas cost, but only marginally so I consider it ok
+    //
+    // NOTE: Must handle the case where total units is zero, otherwise will get `unreachable` error
+    let bond_amount = if state.total_bond_units.is_zero() {
+        Uint128::zero()
+    } else {
+        total_bond_amount.multiply_ratio(position.bond_units, state.total_bond_units)
+    };
+    let debt_amount = if state.total_debt_units.is_zero() {
+        Uint128::zero()
+    } else {
+        total_debt_amount.multiply_ratio(position.debt_units, state.total_debt_units)
+    };
+
     Ok(Health {
+        bond_amount,
         bond_value,
+        debt_amount,
         debt_value,
         ltv,
     })
