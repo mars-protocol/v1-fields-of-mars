@@ -601,8 +601,10 @@ pub fn assert_health(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Resp
         .add_attribute("height", env.block.height.to_string())
         .add_attribute("user", &user_addr)
         .add_attribute("bond_units", position.bond_units)
-        .add_attribute("debt_units", position.debt_units)
+        .add_attribute("bond_amount", health.bond_amount)
         .add_attribute("bond_value", health.bond_value)
+        .add_attribute("debt_units", position.debt_units)
+        .add_attribute("debt_amount", health.debt_amount)
         .add_attribute("debt_value", health.debt_value)
         .add_attribute("ltv", &ltv_str);
 
