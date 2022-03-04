@@ -217,6 +217,12 @@ impl From<Position> for PositionUnchecked {
     }
 }
 
+impl Position {
+    pub fn is_empty(self: &Position) -> bool {
+        self.bond_units.is_zero() && self.debt_units.is_zero() && self.unlocked_assets.len() == 0
+    }
+}
+
 #[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Health {
     /// Amount of primary pair liquidity tokens owned by this position
@@ -425,6 +431,11 @@ pub mod msg {
         /// the event and repay the same amount of debt at Red Bank on behalf of the Fields contract, 
         /// so that other users don't have to share the bad debt
         ClearBadDebt {
+            user_addr: Addr,
+        },
+        /// Remove the user's position from contract storage if it is empty. Invoked at the end of
+        /// `update_position` and `liquidate` callback chains
+        PurgeStorage {
             user_addr: Addr,
         },
         /// See the comment on struct `Snapshot`. This callback should be removed at some point

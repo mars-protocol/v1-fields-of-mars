@@ -106,6 +106,9 @@ pub fn update_position(
         CallbackMsg::AssertHealth {
             user_addr: info.sender.clone(),
         },
+        CallbackMsg::PurgeStorage {
+            user_addr: info.sender.clone(),
+        },
         CallbackMsg::Snapshot {
             user_addr: info.sender.clone(),
         }
@@ -310,6 +313,9 @@ pub fn liquidate(
             percentage: Decimal::one(),
         },
         CallbackMsg::ClearBadDebt {
+            user_addr: user_addr.clone(),
+        },
+        CallbackMsg::PurgeStorage {
             user_addr: user_addr.clone(),
         },
     ];

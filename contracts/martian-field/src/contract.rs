@@ -86,6 +86,9 @@ fn execute_callback(deps: DepsMut, env: Env, info: MessageInfo, msg: CallbackMsg
         CallbackMsg::ClearBadDebt {
             user_addr,
         } => callbacks::clear_bad_debt(deps, env, user_addr),
+        CallbackMsg::PurgeStorage {
+            user_addr,
+        } => callbacks::purge_storage(deps, user_addr),
         CallbackMsg::Snapshot {
             user_addr,
         } => callbacks::snapshot(deps, env, user_addr),

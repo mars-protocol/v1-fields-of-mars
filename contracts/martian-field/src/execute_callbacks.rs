@@ -645,6 +645,16 @@ pub fn clear_bad_debt(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Res
     Ok(res.add_event(event))
 }
 
+pub fn purge_storage(deps: DepsMut, user_addr: Addr) -> StdResult<Response> {
+    let position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
+
+    if position.is_empty() {
+        POSITION.remove(deps.storage, &user_addr);
+    }
+
+    Ok(Response::new().add_attribute("action", "martian_field/callback/purge_storage"))
+}
+
 pub fn snapshot(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
