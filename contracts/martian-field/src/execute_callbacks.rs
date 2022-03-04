@@ -371,11 +371,7 @@ pub fn swap(
         .add_attribute("asset_offered", offer_asset.to_string()))
 }
 
-pub fn balance(
-    deps: DepsMut,
-    _env: Env,
-    max_spread: Option<Decimal>,
-) -> StdResult<Response> {
+pub fn balance(deps: DepsMut, max_spread: Option<Decimal>) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
 

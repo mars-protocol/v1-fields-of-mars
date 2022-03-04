@@ -76,7 +76,7 @@ fn execute_callback(deps: DepsMut, env: Env, info: MessageInfo, msg: CallbackMsg
         } => callbacks::swap(deps, user_addr, offer_asset_info, offer_amount, max_spread),
         CallbackMsg::Balance {
             max_spread,
-        } => callbacks::balance(deps, env, max_spread),
+        } => callbacks::balance(deps, max_spread),
         CallbackMsg::Cover {
             user_addr,
         } => callbacks::cover(deps, env, user_addr),
