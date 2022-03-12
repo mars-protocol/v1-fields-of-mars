@@ -284,14 +284,14 @@ impl Pair {
             .split(", ")
             .collect();
 
-        let primary_asset_label = primary_asset_info.to_string();
+        let primary_asset_label = get_asset_label(primary_asset_info);
         let primary_withdrawn_amount_str = asset_strs
             .iter()
             .find(|asset_str| asset_str.contains(&primary_asset_label))
             .map(|asset_str| asset_str.replace(&primary_asset_label, ""))
             .ok_or_else(|| StdError::generic_err("failed to parse primary withdrawn amount"))?;
 
-        let secondary_asset_label = secondary_asset_info.to_string();
+        let secondary_asset_label = get_asset_label(secondary_asset_info);
         let secondary_withdrawn_amount_str = asset_strs
             .iter()
             .find(|asset_str| asset_str.contains(&secondary_asset_label))
@@ -313,4 +313,11 @@ impl Pair {
 
 fn event_contains_attr(event: &Event, key: &str, value: &str) -> bool {
     event.attributes.iter().any(|attr| attr.key == key && attr.value == value)
+}
+
+fn get_asset_label(asset_info: &AssetInfo) -> String {
+    match asset_info {
+        AssetInfo::Cw20(contract_addr) => contract_addr.into(),
+        AssetInfo::Native(denom) => denom.clone(),
+    }
 }

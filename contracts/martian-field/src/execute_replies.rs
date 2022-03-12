@@ -101,7 +101,7 @@ pub fn after_swap(deps: DepsMut, response: SubMsgExecutionResponse) -> StdResult
 
     // parse Astroport's event log to find out how much asset was returned from the swap
     let returned_asset_unchecked = Pair::parse_swap_events(&response.events)?;
-    let returned_asset = returned_asset_unchecked.check(deps.api)?;
+    let returned_asset = returned_asset_unchecked.check(deps.api, None)?;
     assets.add(&returned_asset)?;
 
     // save the updated state/position

@@ -1,18 +1,17 @@
 [package]
 name = "fields-of-mars"
 version = "1.0.0"
-authors = ["larry_0x <larry@delphidigital.io>"]
+authors = ["larry <larry@delphidigital.io>"]
 description = "Leveraged yield farming strategy utilizing contract-to-contract (C2C) lending from Mars Protocol"
 edition = "2018"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/mars-protocol/field-of-mars"
 
 [dependencies]
-astroport = "0.3.1"
-cosmwasm-std = "^0.16"
-cw20 = "^0.9"
-cw-asset = { version = "0.3.2", features = ["legacy"] }
-mars-core = "1.0.0"
+astroport = "1.0"
+cosmwasm-std = "0.16"
+cw20 = "0.9"
+cw-asset = { version = "1.0", features = ["legacy"] }
+mars-core = "1.0"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-terra-cosmwasm = "2.2.0"

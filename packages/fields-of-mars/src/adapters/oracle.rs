@@ -43,9 +43,16 @@ impl Oracle {
         let response: MarsDecimal = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: self.contract_addr.to_string(),
             msg: to_binary(&QueryMsg::AssetPriceByReference {
-                asset_reference: asset_info.to_string().as_bytes().to_vec(),
+                asset_reference: get_asset_reference(asset_info),
             })?,
         }))?;
         Ok(response.to_std_decimal()) // cast mars_core::math::decimal::Decimal to cosmwasm_std::Decimal
+    }
+}
+
+fn get_asset_reference(asset_info: &AssetInfo) -> Vec<u8> {
+    match asset_info {
+        AssetInfo::Cw20(contract_addr) => contract_addr.as_bytes().to_vec(),
+        AssetInfo::Native(denom) => denom.as_bytes().to_vec(),
     }
 }

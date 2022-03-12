@@ -95,9 +95,9 @@ impl From<Config> for ConfigUnchecked {
 impl ConfigUnchecked {
     pub fn check(&self, api: &dyn Api) -> StdResult<Config> {
         Ok(Config {
-            primary_asset_info: self.primary_asset_info.check(api)?,
-            secondary_asset_info: self.secondary_asset_info.check(api)?,
-            astro_token_info: self.astro_token_info.check(api)?,
+            primary_asset_info: self.primary_asset_info.check(api, None)?,
+            secondary_asset_info: self.secondary_asset_info.check(api, None)?,
+            astro_token_info: self.astro_token_info.check(api, None)?,
             primary_pair: self.primary_pair.check(api)?,
             astro_pair: self.astro_pair.check(api)?,
             astro_generator: self.astro_generator.check(api)?,

@@ -40,7 +40,7 @@ pub fn update_position(
                 &env.contract.address,
                 &info.sender,
                 &mut received_coins,
-                &asset.check(api)?,
+                &asset.check(api, None)?,
                 &mut msgs,
                 &mut attrs,
             )?,
