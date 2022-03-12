@@ -3,6 +3,7 @@
 Martian Field is a leveraged yield farming strategy utilizing contract-to-contract (C2C) lending from [Mars Protocol](https://twitter.com/mars_protocol).
 
 ## Bug bounty
+
 A bug bounty is currently open for these contracts. See details at: https://immunefi.com/bounty/marsprotocol/
 
 ## Overview
@@ -155,13 +156,13 @@ ts-node 1_deploy.ts --network mainnet|testnet --msg /path/to/instantiate_msg.jso
 | ASTRO-UST Pair         | [`terra1l7xu2rl3c7qmtx3r5sd2tz25glf6jh8ul7aag7`](https://finder.extraterrestrial.money/mainnet/address/terra1l7xu2rl3c7qmtx3r5sd2tz25glf6jh8ul7aag7) |
 | ASTRO-UST LP Token     | [`terra17n5sunn88hpy965mzvt3079fqx3rttnplg779g`](https://finder.extraterrestrial.money/mainnet/address/terra17n5sunn88hpy965mzvt3079fqx3rttnplg779g) |
 | Astro Generator        | [`terra1zgrx9jjqrfye8swykfgmd6hpde60j0nszzupp9`](https://finder.extraterrestrial.money/mainnet/address/terra1zgrx9jjqrfye8swykfgmd6hpde60j0nszzupp9) |
-| Mars Oracle            | TBD                                                                                                                                                  |
-| Mars Red Bank          | TBD                                                                                                                                                  |
-| Mars Treasury          | TBD                                                                                                                                                  |
-| Mars Governance        | TBD                                                                                                                                                  |
-| Martian Field LUNA-UST | TBD                                                                                                                                                  |
-| Martian Field ANC-UST  | TBD                                                                                                                                                  |
-| Martian Field MIR-UST  | TBD                                                                                                                                                  |
+| Mars Oracle            | [`terra155awqc2dxvswu2sgqxlsvwm06xl3g9fw6d5vp7`](https://finder.extraterrestrial.money/mainnet/address/terra155awqc2dxvswu2sgqxlsvwm06xl3g9fw6d5vp7) |
+| Mars Red Bank          | [`terra19dtgj9j5j7kyf3pmejqv8vzfpxtejaypgzkz5u`](https://finder.extraterrestrial.money/mainnet/address/terra19dtgj9j5j7kyf3pmejqv8vzfpxtejaypgzkz5u) |
+| Mars Treasury          | [`terra163vehtqzfcle397aepz64hdn89m89vr297mcz2`](https://finder.extraterrestrial.money/mainnet/address/terra163vehtqzfcle397aepz64hdn89m89vr297mcz2) |
+| Mars Governance        | [`terra1685de0sx5px80d47ec2xjln224phshysqxxeje`](https://finder.extraterrestrial.money/mainnet/address/terra1685de0sx5px80d47ec2xjln224phshysqxxeje) |
+| Martian Field LUNA-UST | [`terra1kztywx50wv38r58unxj9p6k3pgr2ux6w5x68md`](https://finder.extraterrestrial.money/mainnet/address/terra1kztywx50wv38r58unxj9p6k3pgr2ux6w5x68md) |
+| Martian Field ANC-UST  | [`terra1vapq79y9cqghqny7zt72g4qukndz282uvqwtz6`](https://finder.extraterrestrial.money/mainnet/address/terra1vapq79y9cqghqny7zt72g4qukndz282uvqwtz6) |
+| Martian Field MIR-UST  | [`terra12dq4wmfcsnz6ycep6ek4umtuaj6luhfp256hyu`](https://finder.extraterrestrial.money/mainnet/address/terra12dq4wmfcsnz6ycep6ek4umtuaj6luhfp256hyu) |
 
 ### Testnet
 
@@ -179,13 +180,13 @@ ts-node 1_deploy.ts --network mainnet|testnet --msg /path/to/instantiate_msg.jso
 | ASTRO-UST Pair         | [`terra1ec0fnjk2u6mms05xyyrte44jfdgdaqnx0upesr`](https://finder.extraterrestrial.money/testnet/address/terra1ec0fnjk2u6mms05xyyrte44jfdgdaqnx0upesr) |
 | ASTRO-UST LP Token     | [`terra18zjm4scu5wqlskwafclxa9kpa9l3zrvju4vdry`](https://finder.extraterrestrial.money/testnet/address/terra18zjm4scu5wqlskwafclxa9kpa9l3zrvju4vdry) |
 | Astro Generator        | [`terra1gjm7d9nmewn27qzrvqyhda8zsfl40aya7tvaw5`](https://finder.extraterrestrial.money/testnet/address/terra1gjm7d9nmewn27qzrvqyhda8zsfl40aya7tvaw5) |
-| Mars Oracle            | [`terra1uxs9f90kr2lgt3tpkpyk5dllqrwra5tgwv0pc5`](https://finder.extraterrestrial.money/testnet/address/terra1uxs9f90kr2lgt3tpkpyk5dllqrwra5tgwv0pc5) |
-| Mars Red Bank          | [`terra19fy8q4vx6uzv4rmhvvp329fgr5343qrunntq60`](https://finder.extraterrestrial.money/testnet/address/terra19fy8q4vx6uzv4rmhvvp329fgr5343qrunntq60) |
-| Mars Treasury          | [`terra1u4sk8992wz4c9p5c8ckffj4h8vh97hfeyw9x5n`](https://finder.extraterrestrial.money/testnet/address/terra1u4sk8992wz4c9p5c8ckffj4h8vh97hfeyw9x5n) |
-| Mars Governance        | [`terra1w0acggjar67f7l4phnvqzeg0na0k5fcn9lv5zz`](https://finder.extraterrestrial.money/testnet/address/terra1w0acggjar67f7l4phnvqzeg0na0k5fcn9lv5zz) |
-| Martian Field LUNA-UST | [`terra1n5zgnmwg6w9ka2xjzz27dswgyltdjlul74ux49`](https://finder.extraterrestrial.money/testnet/address/terra1n5zgnmwg6w9ka2xjzz27dswgyltdjlul74ux49) |
-| Martian Field ANC-UST  | [`terra1rqkvxjzg7j659nc7w7ndqhx8fuc8fe6m30eaq6`](https://finder.extraterrestrial.money/testnet/address/terra1rqkvxjzg7j659nc7w7ndqhx8fuc8fe6m30eaq6) |
-| Martian Field MIR-UST  | [`terra18ylhc5fcxlcjmysmtftfh67yp6sg8srr2z2sct`](https://finder.extraterrestrial.money/testnet/address/terra18ylhc5fcxlcjmysmtftfh67yp6sg8srr2z2sct) |
+| Mars Oracle            | [`terra108j350s2f4qprjluhup04zqggxuzhm4vzktm3f`](https://finder.extraterrestrial.money/testnet/address/terra108j350s2f4qprjluhup04zqggxuzhm4vzktm3f) |
+| Mars Red Bank          | [`terra1avkm5w0gzwm92h0dlxymsdhx4l2rm7k0lxnwq7`](https://finder.extraterrestrial.money/testnet/address/terra1avkm5w0gzwm92h0dlxymsdhx4l2rm7k0lxnwq7) |
+| Mars Treasury          | [`terra1ky7jek93rffwnapgx4p60f8km8f84wzz02llkc`](https://finder.extraterrestrial.money/testnet/address/terra1ky7jek93rffwnapgx4p60f8km8f84wzz02llkc) |
+| Mars Governance        | [`terra1jtdz9fhrrwd8yak6e3z7utmkypvx0qf0n393c6`](https://finder.extraterrestrial.money/testnet/address/terra1jtdz9fhrrwd8yak6e3z7utmkypvx0qf0n393c6) |
+| Martian Field LUNA-UST | [`terra1pkpgcqy38gyr978xfh9fx0ttq0jllzyfl05k4f`](https://finder.extraterrestrial.money/testnet/address/terra1pkpgcqy38gyr978xfh9fx0ttq0jllzyfl05k4f) |
+| Martian Field ANC-UST  | [`terra1x3tu0tgsa3wuz97w2nm29fvhnhjnag00nxsgmy`](https://finder.extraterrestrial.money/testnet/address/terra1x3tu0tgsa3wuz97w2nm29fvhnhjnag00nxsgmy) |
+| Martian Field MIR-UST  | [`terra1wrj7lrrxzdmcmpask6y48eudq7huvu8eylssjs`](https://finder.extraterrestrial.money/testnet/address/terra1wrj7lrrxzdmcmpask6y48eudq7huvu8eylssjs) |
 
 ## License
 
