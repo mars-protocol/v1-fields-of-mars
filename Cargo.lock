@@ -19,8 +19,9 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "0.3.1"
-source = "git+https://github.com/astroport-fi/astroport-core.git?tag=v1.0.0#05bfb278302d462c355e47ed67566a8a97f417dd"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b56c6d8a5a14a5f569a3473a962ed1d12bfec2a19ef43584c86aae5667bdeaa8"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.8.0",
@@ -158,7 +159,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e9fb829a7277225eba246db958b4294a6150dd36351ed07b9116be4c1334a31a"
 dependencies = [
- "astroport 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "astroport 0.3.1",
  "cosmwasm-std",
  "cw20 0.9.1",
  "schemars",
@@ -343,7 +344,7 @@ dependencies = [
 name = "fields-of-mars"
 version = "1.0.0"
 dependencies = [
- "astroport 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "astroport 0.3.1",
  "cosmwasm-std",
  "cw-asset",
  "cw20 0.9.1",
@@ -439,9 +440,10 @@ checksum = "320cfe77175da3a483efed4bc0adc1968ca050b098ce4f2f1c13a56626128790"
 [[package]]
 name = "mars-core"
 version = "1.0.0"
-source = "git+https://github.com/mars-protocol/mars-core?tag=v1.0.0-rc4#7b5fbcc9301b3cbb195098a2a6edb143abb166fc"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7466180f16cf2ec2218ed1dfd11543a5dc0620dbf5e08288d41a6aa6e559748"
 dependencies = [
- "astroport 0.3.1 (git+https://github.com/astroport-fi/astroport-core.git?tag=v1.0.0)",
+ "astroport 1.0.1",
  "cosmwasm-std",
  "cw2",
  "cw20 0.9.1",
@@ -469,7 +471,7 @@ dependencies = [
 name = "mock-astro-generator"
 version = "1.0.0"
 dependencies = [
- "astroport 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "astroport 0.3.1",
  "cosmwasm-std",
  "cw-asset",
  "cw-storage-plus 0.9.1",
@@ -483,7 +485,7 @@ dependencies = [
 name = "mock-oracle"
 version = "1.0.0"
 dependencies = [
- "astroport 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "astroport 0.3.1",
  "cosmwasm-std",
  "cw-asset",
  "cw-storage-plus 0.9.1",
