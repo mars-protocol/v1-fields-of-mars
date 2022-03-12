@@ -24,8 +24,8 @@ function shuffle(array: Msg[]) {
     (contract) =>
       new MsgExecuteContract(operator.key.accAddress, contract, {
         harvest: {
-          max_spread: "0.05",
-          slippage_tolerance: "0.05",
+          max_spread: "0.01",
+          slippage_tolerance: "0.01",
         },
       })
   );
