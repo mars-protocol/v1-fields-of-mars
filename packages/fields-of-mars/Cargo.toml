@@ -2,6 +2,7 @@
 name = "fields-of-mars"
 version = "1.0.0"
 authors = ["larry_0x <larry@delphidigital.io>"]
+description = "Leveraged yield farming strategy utilizing contract-to-contract (C2C) lending from Mars Protocol"
 edition = "2018"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/mars-protocol/field-of-mars"
