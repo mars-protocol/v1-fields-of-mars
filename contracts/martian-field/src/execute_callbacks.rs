@@ -7,10 +7,8 @@ use cosmwasm_std::{
 
 use cw_asset::{Asset, AssetInfo, AssetList};
 
-use fields_of_mars::martian_field::{Position, Snapshot, State};
-
 use crate::health::compute_health;
-use crate::state::{CACHED_USER_ADDR, CONFIG, POSITION, SNAPSHOT, STATE};
+use crate::state::{CACHED_USER_ADDR, CONFIG, POSITION, STATE, Position, State};
 
 static DEFAULT_BOND_UNITS_PER_SHARE_BONDED: Uint128 = Uint128::new(1_000_000);
 static DEFAULT_DEBT_UNITS_PER_ASSET_BORROWED: Uint128 = Uint128::new(1_000_000);
@@ -339,7 +337,7 @@ pub fn swap(
         &config.astro_pair
     } else {
         return Err(StdError::generic_err(
-            format!("invalid offer asset: {}", offer_asset_info.to_string())
+            format!("invalid offer asset: {}", offer_asset_info)
         ));
     };
 
@@ -651,22 +649,4 @@ pub fn purge_storage(deps: DepsMut, user_addr: Addr) -> StdResult<Response> {
     }
 
     Ok(Response::new().add_attribute("action", "martian_field/callback/purge_storage"))
-}
-
-pub fn snapshot(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Response> {
-    let config = CONFIG.load(deps.storage)?;
-    let state = STATE.load(deps.storage)?;
-    let position = POSITION.load(deps.storage, &user_addr).unwrap_or_default();
-    let health = compute_health(&deps.querier, &env, &config, &state, &position)?;
-
-    let snapshot = Snapshot {
-        time: env.block.time.seconds(),
-        height: env.block.height,
-        position: position.into(),
-        health,
-    };
-
-    SNAPSHOT.save(deps.storage, &user_addr, &snapshot)?;
-
-    Ok(Response::new().add_attribute("action", "martian_field/callback/snapshot"))
 }

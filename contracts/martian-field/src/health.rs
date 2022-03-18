@@ -1,6 +1,8 @@
 use cosmwasm_std::{Decimal, Env, QuerierWrapper, StdResult, Uint128};
 
-use fields_of_mars::martian_field::{Config, Health, Position, State};
+use fields_of_mars::martian_field::Config;
+
+use crate::state::{Position, State};
 
 /// This module is purely a workaround that lets us ignore lints for all the code the `construct_uint!`
 /// macro generates
@@ -14,7 +16,15 @@ mod uints {
 /// Used internally - we don't want to leak this type since we might change the implementation in the future
 use uints::U256;
 
-/// Compute the health of a user's position
+pub struct Health {
+    pub bond_amount: Uint128,
+    pub bond_value: Uint128,
+    pub debt_amount: Uint128,
+    pub debt_value: Uint128,
+    pub ltv: Option<Decimal>,
+}
+
+/// Compute the health of a user's position; combine
 pub fn compute_health(
     querier: &QuerierWrapper,
     env: &Env,

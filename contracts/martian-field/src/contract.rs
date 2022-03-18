@@ -3,12 +3,14 @@ use cosmwasm_std::{
     StdResult,
 };
 
-use fields_of_mars::martian_field::msg::{
-    CallbackMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
-};
+use fields_of_mars::martian_field::{CallbackMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
+use crate::execute;
+use crate::execute_callbacks as callbacks;
+use crate::execute_replies as replies;
 use crate::helpers::unwrap_reply;
-use crate::{execute, execute_callbacks as callbacks, execute_replies as replies, queries};
+use crate::legacy;
+use crate::queries;
 
 #[entry_point]
 pub fn instantiate(deps: DepsMut, _env: Env, _info: MessageInfo, msg: InstantiateMsg) -> StdResult<Response> {
@@ -91,7 +93,7 @@ fn execute_callback(deps: DepsMut, env: Env, info: MessageInfo, msg: CallbackMsg
         } => callbacks::purge_storage(deps, user_addr),
         CallbackMsg::Snapshot {
             user_addr,
-        } => callbacks::snapshot(deps, env, user_addr),
+        } => legacy::record_snapshot(deps, env, user_addr),
     }
 }
 
@@ -108,21 +110,18 @@ pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> StdResult<Response> {
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&queries::query_config(deps, env)?),
+        QueryMsg::Config {} => to_binary(&queries::query_config(deps)?),
         QueryMsg::State {} => to_binary(&queries::query_state(deps, env)?),
         QueryMsg::Positions {
             start_after,
             limit,
-        } => to_binary(&queries::query_positions(deps, start_after, limit)?),
+        } => to_binary(&queries::query_positions(deps, env, start_after, limit)?),
         QueryMsg::Position {
             user,
-        } => to_binary(&queries::query_position(deps, env, user)?),
-        QueryMsg::Health {
-            user,
-        } => to_binary(&queries::query_health(deps, env, user)?),
+        } => to_binary(&queries::query_position(deps, env, deps.api.addr_validate(&user)?)?),
         QueryMsg::Snapshot {
             user,
-        } => to_binary(&queries::query_snapshot(deps, user)?),
+        } => to_binary(&legacy::query_snapshot(deps, user)?),
     }
 }
 

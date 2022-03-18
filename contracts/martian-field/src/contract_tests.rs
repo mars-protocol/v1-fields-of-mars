@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, Coin, Decimal, OwnedDeps, StdError};
 use cw_asset::{Asset, AssetInfo};
 
 use fields_of_mars::adapters::{Generator, Oracle, Pair, RedBank};
-use fields_of_mars::martian_field::msg::{Action, ExecuteMsg};
+use fields_of_mars::martian_field::{Action, ExecuteMsg};
 use fields_of_mars::martian_field::Config;
 
 use crate::contract::{execute, instantiate};
@@ -39,7 +39,7 @@ fn setup_test() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
         treasury: Addr::unchecked("treasury"),
         governance: Addr::unchecked("governance"),
         operators: vec![Addr::unchecked("operator")],
-        max_ltv: Decimal::from_ratio(83u128, 100u128),
+        max_ltv: Decimal::from_ratio(65u128, 100u128),
         fee_rate: Decimal::from_ratio(5u128, 100u128),
         bonus_rate: Decimal::from_ratio(1u128, 100u128),
     };
@@ -60,7 +60,7 @@ fn handling_native_deposits() {
         Action::Deposit(Asset::native("uusd", 67890u128).into()),
     ]);
     let res = execute(deps.as_mut(), mock_env(), mock_info("alice", &deposits), msg);
-    assert_eq!(res, Err(StdError::generic_err("sent fund mismatch! expected: uusd:67890, received 0")));
+    assert_eq!(res, Err(StdError::generic_err("sent fund mismatch! expected: native:uusd:67890, received 0")));
 
     // fund amount mismatch
     let deposits = vec![
@@ -72,7 +72,7 @@ fn handling_native_deposits() {
         Action::Deposit(Asset::native("uusd", 67890u128).into()),
     ]);
     let res = execute(deps.as_mut(), mock_env(), mock_info("alice", &deposits), msg);
-    assert_eq!(res, Err(StdError::generic_err("sent fund mismatch! expected: uusd:67890, received 69420")));
+    assert_eq!(res, Err(StdError::generic_err("sent fund mismatch! expected: native:uusd:67890, received 69420")));
 
     // extra fund
     let deposits = vec![
@@ -85,5 +85,5 @@ fn handling_native_deposits() {
         Action::Deposit(Asset::native("uusd", 69420u128).into()),
     ]);
     let res = execute(deps.as_mut(), mock_env(), mock_info("alice", &deposits), msg);
-    assert_eq!(res, Err(StdError::generic_err("extra funds received: uatom:88888")));
+    assert_eq!(res, Err(StdError::generic_err("extra funds received: native:uatom:88888")));
 }

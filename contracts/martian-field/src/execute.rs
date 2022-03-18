@@ -5,12 +5,11 @@ use cosmwasm_std::{
 
 use cw_asset::{Asset, AssetInfo, AssetList};
 
-use fields_of_mars::martian_field::msg::{Action, CallbackMsg};
-use fields_of_mars::martian_field::{Config, State};
+use fields_of_mars::martian_field::{Config, Action, CallbackMsg};
 
 use crate::health::compute_health;
 use crate::helpers::assert_sent_fund;
-use crate::state::{CONFIG, POSITION, STATE};
+use crate::state::{State, CONFIG, POSITION, STATE};
 
 pub fn init_storage(deps: DepsMut, config: Config) -> StdResult<Response> {
     CONFIG.save(deps.storage, &config)?;
@@ -90,7 +89,7 @@ pub fn update_position(
     // contract
     if received_coins.len() > 0 {
         return Err(StdError::generic_err(
-            format!("extra funds received: {}", received_coins.to_string())
+            format!("extra funds received: {}", received_coins)
         ));
     }
 

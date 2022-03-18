@@ -3,9 +3,8 @@ use cosmwasm_std::{DepsMut, Response, StdResult, SubMsgExecutionResponse};
 use cw_asset::{Asset, AssetList};
 
 use fields_of_mars::adapters::Pair;
-use fields_of_mars::martian_field::{Position, State};
 
-use crate::state::{CACHED_USER_ADDR, CONFIG, POSITION, STATE};
+use crate::state::{Position, State, CACHED_USER_ADDR, CONFIG, POSITION, STATE};
 
 pub fn after_provide_liquidity(
     deps: DepsMut,
