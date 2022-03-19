@@ -573,10 +573,13 @@ pub fn assert_health(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Resp
 
     // If ltv is Some(ltv), we assert it is no larger than `config.max_ltv`
     // If it is None, meaning `bond_value` is zero, we assert debt is also zero
+    //
+    // NOTE: We assert `debt_units` is zero, instead of `debt_amount` or `debt_value`. This is because
+    // amount and value can actually be non-zero but get rounded down to zero
     let healthy = if let Some(ltv) = health.ltv {
         ltv <= config.max_ltv
     } else {
-        health.debt_value.is_zero()
+        position.debt_units.is_zero()
     };
 
     // Convert `ltv` to String so that it can be recorded in logs
