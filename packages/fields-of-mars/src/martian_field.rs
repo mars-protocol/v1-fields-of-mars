@@ -337,11 +337,6 @@ pub enum CallbackMsg {
     PurgeStorage {
         user_addr: Addr,
     },
-    /// See the comment on struct `Snapshot`. This callback should be removed at some point
-    /// after launch when our tx indexing infrastructure is ready
-    Snapshot {
-        user_addr: Addr,
-    },
 }
 
 impl CallbackMsg {
@@ -361,23 +356,14 @@ pub enum QueryMsg {
     Config {},
     /// Return the global state of the strategy. Response: `PositionResponse`
     State {},
-    /// Enumerate all user positions. Response: `Vec<PositionsResponseItem>`
-    Positions {
-        start_after: Option<String>,
-        limit: Option<u32>,
-    },
     /// Return data on an individual user's position. Response: `PositionResponse`
     Position {
         user: String,
     },
-    /// Query the snapshot of a user's position. Response: `martian_field::legacy::Snapshot`
-    ///
-    /// NOTE: Snapshot is a temporary functionality used for calculating the user's PnL, which
-    /// is to be displayed the frontend. Once the frontend team has built an off-chain indexing
-    /// facility that can calculate PnL without the use of snapshots, this query function will
-    /// be removed.
-    Snapshot {
-        user: String,
+    /// Enumerate all user positions. Response: `Vec<PositionsResponseItem>`
+    Positions {
+        start_after: Option<String>,
+        limit: Option<u32>,
     },
 }
 

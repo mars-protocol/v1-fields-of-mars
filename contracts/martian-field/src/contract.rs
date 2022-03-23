@@ -91,9 +91,6 @@ fn execute_callback(deps: DepsMut, env: Env, info: MessageInfo, msg: CallbackMsg
         CallbackMsg::PurgeStorage {
             user_addr,
         } => callbacks::purge_storage(deps, user_addr),
-        CallbackMsg::Snapshot {
-            user_addr,
-        } => legacy::record_snapshot(deps, env, user_addr),
     }
 }
 
@@ -119,13 +116,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Position {
             user,
         } => to_binary(&queries::query_position(deps, env, deps.api.addr_validate(&user)?)?),
-        QueryMsg::Snapshot {
-            user,
-        } => to_binary(&legacy::query_snapshot(deps, user)?),
     }
 }
 
 #[entry_point]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::new()) // do nothing
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    legacy::delete_snapshots(deps)?;
+    Ok(Response::new())
 }

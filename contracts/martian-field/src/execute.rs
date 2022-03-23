@@ -108,9 +108,6 @@ pub fn update_position(
         CallbackMsg::PurgeStorage {
             user_addr: info.sender.clone(),
         },
-        CallbackMsg::Snapshot {
-            user_addr: info.sender.clone(),
-        }
     ]);
 
     let callback_msgs = callbacks

@@ -1,83 +1,40 @@
-use cosmwasm_std::{Addr, Deps, DepsMut, Env, Response, StdResult};
-use cosmwasm_std::{Decimal, Uint128};
-use cw_asset::AssetListUnchecked;
+use cosmwasm_std::{Addr, Binary, DepsMut, Order, StdResult};
 use cw_storage_plus::Map;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
-use crate::queries::query_position;
-
-#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct LegacyPositionResponse {
-    /// Amount of bond units representing user's share of bonded LP tokens
-    pub bond_units: Uint128,
-    /// Amount of debt units representing user's share of the debt
-    pub debt_units: Uint128,
-    /// Amount of assets not locked in Astroport pool; pending refund or liquidation
-    pub unlocked_assets: AssetListUnchecked,
-}
-
-#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct LegacyHealthResponse {
-    /// Amount of primary pair liquidity tokens owned by this position
-    pub bond_amount: Uint128,
-    /// Value of the position's asset, measured in the short asset
-    pub bond_value: Uint128,
-    /// Amount of secondary assets owed by this position
-    pub debt_amount: Uint128,
-    /// Value of the position's debt, measured in the short asset
-    pub debt_value: Uint128,
-    /// The ratio of `debt_value` to `bond_value`; None if `bond_value` is zero
-    pub ltv: Option<Decimal>,
-}
-
-/// Every time the user invokes `update_position`, we record a snaphot of the position
+/// Snapshot is used by the frontend calculate user PnL. Once we build a transaction indexer that can
+/// calculate PnL without relying on on-chain snapshots, this will be removed
 ///
-/// This snapshot does have any impact on the contract's normal functioning. Rather it is used by
-/// the frontend to calculate PnL. Once we have the infrastructure for calculating PnL off-chain
-/// available, we will migrate the contract to delete this
-#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Snapshot {
-    pub time: u64,
-    pub height: u64,
-    pub position: LegacyPositionResponse,
-    pub health: LegacyHealthResponse,
-}
+/// We are only deleting snapshots here, no need to parse it into a structured data type, so we use
+/// the `Binary` type here
+const SNAPSHOT: Map<&Addr, Binary> = Map::new("snapshot");
 
-// snapshot is used by the frontend calculate user PnL. once we build a transaction indexer that can
-// calculate PnL without relying on on-chain snapshots, this will be removed
-pub const SNAPSHOT: Map<&Addr, Snapshot> = Map::new("snapshot");
+/// There are 500-1000 total positions, which won't fit inside the WASM memory at the same time.
+/// Therefore, we 10 keys at a time
+const MAX_BATCH_SIZE: usize = 10;
 
-pub fn record_snapshot(deps: DepsMut, env: Env, user_addr: Addr) -> StdResult<Response> {
-    let time = env.block.time.seconds();
-    let height = env.block.height;
-    let position = query_position(deps.as_ref(), env, user_addr.clone())?;
+/// Delete all data under the `"snapshot"` prefix
+pub fn delete_snapshots(deps: DepsMut) -> StdResult<()> {
+    loop {
+        // Each key is a byte array, i.e. `Vec<u8>`
+        let keys_raw: Vec<Vec<u8>> = SNAPSHOT
+            .keys(deps.storage, None, None, Order::Ascending)
+            .take(MAX_BATCH_SIZE)
+            .collect();
 
-    let legacy_position = LegacyPositionResponse {
-        bond_units: position.bond_units,
-        debt_units: position.debt_units,
-        unlocked_assets: position.unlocked_assets,
-    };
-    let legacy_health = LegacyHealthResponse {
-        bond_amount: position.bond_amount,
-        bond_value: position.bond_value,
-        debt_amount: position.debt_amount,
-        debt_value: position.debt_value,
-        ltv: position.ltv,
-    };
-    let snapshot = Snapshot {
-        time,
-        height,
-        position: legacy_position,
-        health: legacy_health,
-    };
+        // Break if the number of keys is zero
+        if keys_raw.is_empty() {
+            break;
+        }
 
-    SNAPSHOT.save(deps.storage, &user_addr, &snapshot)?;
+        // Parse the keys to `Addr`
+        let keys = keys_raw
+            .into_iter()
+            .map(|key_raw| Ok(Addr::unchecked(String::from_utf8(key_raw)?)))
+            .collect::<StdResult<Vec<Addr>>>()?;
 
-    Ok(Response::new().add_attribute("action", "martian_field/callback/snapshot"))
-}
+        // Delete the data of each key from storage
+        keys.iter().for_each(|key| SNAPSHOT.remove(deps.storage, key));
+    }
 
-pub fn query_snapshot(deps: Deps, user: String) -> StdResult<Snapshot> {
-    let user_addr = deps.api.addr_validate(&user)?;
-    Ok(SNAPSHOT.load(deps.storage, &user_addr).unwrap_or_default())
+    Ok(())
 }
