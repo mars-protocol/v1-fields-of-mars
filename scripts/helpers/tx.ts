@@ -10,7 +10,7 @@ import {
 
 const DEFAULT_GAS_SETTINGS = {
   gasPrices: "0.15uusd",
-  gasAdjustment: 1.1,
+  gasAdjustment: 1.4,
 };
 
 /**
