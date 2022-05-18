@@ -459,6 +459,7 @@ dependencies = [
  "cw-asset",
  "cw-storage-plus 0.9.1",
  "fields-of-mars",
+ "schemars",
  "serde",
 ]
 
