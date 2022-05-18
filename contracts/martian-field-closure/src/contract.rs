@@ -69,7 +69,7 @@ pub fn refund(deps: DepsMut, env: Env) -> StdResult<Response> {
 
     STATE.save(deps.storage, &state)?;
 
-    Ok(Response::new().add_messages(msgs))
+    Ok(Response::new().add_messages(msgs).add_events(events))
 }
 
 pub fn purge_storage(deps: DepsMut) -> StdResult<Response> {
@@ -155,7 +155,5 @@ pub fn after_unbond(deps: DepsMut, env: Env) -> StdResult<Response> {
     // burn LP shares
     let submsg = config.primary_pair.withdraw_submsg(2, shares_amount)?;
 
-    Ok(Response::new()
-        .add_submessages(submsgs)
-        .add_submessage(submsg))
+    Ok(Response::new().add_submessages(submsgs).add_submessage(submsg))
 }
