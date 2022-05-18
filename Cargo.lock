@@ -452,6 +452,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "martian-field-closure"
+version = "1.0.0"
+dependencies = [
+ "cosmwasm-std",
+ "cw-asset",
+ "cw-storage-plus 0.9.1",
+ "fields-of-mars",
+ "serde",
+]
+
+[[package]]
 name = "mock-astro-generator"
 version = "1.0.0"
 dependencies = [
