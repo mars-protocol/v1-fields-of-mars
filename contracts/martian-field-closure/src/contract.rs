@@ -95,10 +95,15 @@ pub fn query(_deps: Deps, _env: Env, _msg: Empty) -> StdResult<Binary> {
 pub fn migrate(deps: DepsMut, env: Env, _msg: Empty) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
 
-    // can only initiate self-destruction if there is no outstanding debt owed to Red Bank
+    // if contract has outstanding debt owed to Red Bank, must repay it first
+    // the admin must first transfer sufficient amount of secondary asset (UST) to the contract
+    // using `MsgSend` or `Cw20ExecuteMsg::Transfer` prior to migration
     let debt_amount = config.red_bank.query_user_debt(&deps.querier, &env.contract.address, &config.secondary_asset_info)?;
+    let mut msgs: Vec<CosmosMsg> = vec![];
     if !debt_amount.is_zero() {
-        return Err(StdError::generic_err("must pay off debt before initiating self-destruct"));
+        msgs.push(
+            config.red_bank.repay_msg(&Asset::new(config.secondary_asset_info.clone(), debt_amount))?,
+        );
     }
 
     // query the current bond amount
@@ -116,7 +121,7 @@ pub fn migrate(deps: DepsMut, env: Env, _msg: Empty) -> StdResult<Response> {
         1,
     );
 
-    Ok(Response::new().add_submessage(submsg))
+    Ok(Response::new().add_messages(msgs).add_submessage(submsg))
 }
 
 #[entry_point]

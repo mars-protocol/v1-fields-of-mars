@@ -4,7 +4,6 @@ import chalk from "chalk";
 import { expect } from "chai";
 import { LocalTerra, MsgExecuteContract, MsgMigrateContract, MsgSend } from "@terra-money/terra.js";
 import { sendTransaction, storeCode } from "../helpers/tx";
-import { encodeBase64 } from "../helpers/encoding";
 import {
   deployCw20Token,
   deployAstroportFactory,
@@ -22,8 +21,8 @@ const terra = new LocalTerra();
 // User addresses
 const deployer = terra.wallets.test1;
 // for testing, we order the accounts alphabetically
-const alice = terra.wallets.test3;   // terra1757tkx08n0cqrw7p86ny9lnxsqeth0wgp0em95
-const bob = terra.wallets.test2;     // terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp
+const alice = terra.wallets.test3; // terra1757tkx08n0cqrw7p86ny9lnxsqeth0wgp0em95
+const bob = terra.wallets.test2; // terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp
 const charlie = terra.wallets.test4; // terra199vw7724lzkwz6lf2hsx04lrxfkz09tg8dlp6r
 
 let anchorToken: string;
@@ -319,38 +318,28 @@ async function setupTest() {
         spender: field,
       },
     }),
-    new MsgExecuteContract(
-      alice.key.accAddress,
-      field,
-      {
-        update_position: [
-          {
-            deposit: {
-              info: {
-                cw20: anchorToken,
-              },
-              amount: "69000000",
+    new MsgExecuteContract(alice.key.accAddress, field, {
+      update_position: [
+        {
+          deposit: {
+            info: {
+              cw20: anchorToken,
             },
+            amount: "69000000",
           },
-          {
-            deposit: {
-              info: {
-                native: "uusd",
-              },
-              amount: "420000000",
-            },
+        },
+        {
+          borrow: {
+            amount: "420000000",
           },
-          {
-            bond: {
-              slippage_tolerance: "0.005",
-            },
+        },
+        {
+          bond: {
+            slippage_tolerance: "0.005",
           },
-        ],
-      },
-      {
-        uusd: 420000000,
-      }
-    ),
+        },
+      ],
+    }),
   ]);
   console.log(chalk.green("Done!"));
 
@@ -509,8 +498,11 @@ async function testNuke() {
   console.log(chalk.green("Done!"), "Code ID:", codeId);
 
   // migrate contract + Nuke
+  // NOTE: since Fields contract currently has outstanding debt (from Alice's position), we need to
+  // first transfer sufficient amount of UST to the contract, so that it can repay during migration
   process.stdout.write("Migrating contract + nuking... ");
   const { txhash } = await sendTransaction(deployer, [
+    new MsgSend(deployer.key.accAddress, field, { uusd: 420000000 }),
     new MsgMigrateContract(deployer.key.accAddress, field, codeId, {}),
     new MsgExecuteContract(deployer.key.accAddress, field, { refund: {} }),
     new MsgExecuteContract(deployer.key.accAddress, field, { purge_storage: {} }),
@@ -524,12 +516,24 @@ async function testNuke() {
   const charlieAncBalanceAfter = await queryCw20Balance(terra, charlie.key.accAddress, anchorToken);
   const charlieUstBalanceAfter = await queryNativeBalance(terra, charlie.key.accAddress, "uusd");
 
-  const aliceAncBalanceChange = new BN(aliceAncBalanceAfter).sub(new BN(aliceAncBalanceBefore)).toNumber();
-  const aliceUstBalanceChange = new BN(aliceUstBalanceAfter).sub(new BN(aliceUstBalanceBefore)).toNumber();
-  const bobAncBalanceChange = new BN(bobAncBalanceAfter).sub(new BN(bobAncBalanceBefore)).toNumber();
-  const bobUstBalanceChange = new BN(bobUstBalanceAfter).sub(new BN(bobUstBalanceBefore)).toNumber();
-  const charlieAncBalanceChange = new BN(charlieAncBalanceAfter).sub(new BN(charlieAncBalanceBefore)).toNumber();
-  const charlieUstBalanceChange = new BN(charlieUstBalanceAfter).sub(new BN(charlieUstBalanceBefore)).toNumber();
+  const aliceAncBalanceChange = new BN(aliceAncBalanceAfter)
+    .sub(new BN(aliceAncBalanceBefore))
+    .toNumber();
+  const aliceUstBalanceChange = new BN(aliceUstBalanceAfter)
+    .sub(new BN(aliceUstBalanceBefore))
+    .toNumber();
+  const bobAncBalanceChange = new BN(bobAncBalanceAfter)
+    .sub(new BN(bobAncBalanceBefore))
+    .toNumber();
+  const bobUstBalanceChange = new BN(bobUstBalanceAfter)
+    .sub(new BN(bobUstBalanceBefore))
+    .toNumber();
+  const charlieAncBalanceChange = new BN(charlieAncBalanceAfter)
+    .sub(new BN(charlieAncBalanceBefore))
+    .toNumber();
+  const charlieUstBalanceChange = new BN(charlieUstBalanceAfter)
+    .sub(new BN(charlieUstBalanceBefore))
+    .toNumber();
 
   expect(aliceAncBalanceChange).to.equal(70215858);
   expect(aliceUstBalanceChange).to.equal(423496764);
