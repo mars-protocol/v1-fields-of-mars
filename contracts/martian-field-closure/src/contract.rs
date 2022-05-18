@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     entry_point, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, Event, MessageInfo,
-    Order, Reply, Response, StdError, StdResult, SubMsg, SubMsgExecutionResponse,
+    Order, Reply, Response, StdError, StdResult, SubMsg,
 };
 use cw_asset::{Asset, AssetInfo};
 
@@ -15,37 +15,9 @@ pub fn instantiate(_deps: DepsMut, _env: Env, _info: MessageInfo, _msg: Empty) -
 #[entry_point]
 pub fn execute(deps: DepsMut, env: Env, _info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        ExecuteMsg::Unwind {} => unwind(deps, env),
         ExecuteMsg::Refund {} => refund(deps, env),
         ExecuteMsg::PurgeStorage {} => purge_storage(deps),
     }
-}
-
-pub fn unwind(deps: DepsMut, env: Env) -> StdResult<Response> {
-    let config = CONFIG.load(deps.storage)?;
-
-    // can only initiate self-destruction if there is no outstanding debt owed to Red Bank
-    let debt_amount = config.red_bank.query_user_debt(&deps.querier, &env.contract.address, &config.secondary_asset_info)?;
-    if !debt_amount.is_zero() {
-        return Err(StdError::generic_err("must pay off debt before initiating self-destruct"));
-    }
-
-    // query the current bond amount
-    // if there is zero bonded assets and zero debt, we simply wipe the storage and return
-    let bond_amount = config.astro_generator.query_bonded_amount(&deps.querier, &env.contract.address, &config.primary_pair.liquidity_token)?;
-    if bond_amount.is_zero() {
-        CONFIG.remove(deps.storage);
-        STATE.remove(deps.storage);
-        return Ok(Response::new());
-    }
-
-    // withdraw locked liquidity from Astro generator
-    let submsg = SubMsg::reply_on_success(
-        config.astro_generator.unbond_msg(&config.primary_pair.liquidity_token, bond_amount)?,
-        1,
-    );
-
-    Ok(Response::new().add_submessage(submsg))
 }
 
 pub fn refund(deps: DepsMut, env: Env) -> StdResult<Response> {
@@ -115,15 +87,44 @@ pub fn purge_storage(deps: DepsMut) -> StdResult<Response> {
 }
 
 #[entry_point]
+pub fn query(_deps: Deps, _env: Env, _msg: Empty) -> StdResult<Binary> {
+    Err(StdError::generic_err("`query` is not implemented"))
+}
+
+#[entry_point]
+pub fn migrate(deps: DepsMut, env: Env, _msg: Empty) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+
+    // can only initiate self-destruction if there is no outstanding debt owed to Red Bank
+    let debt_amount = config.red_bank.query_user_debt(&deps.querier, &env.contract.address, &config.secondary_asset_info)?;
+    if !debt_amount.is_zero() {
+        return Err(StdError::generic_err("must pay off debt before initiating self-destruct"));
+    }
+
+    // query the current bond amount
+    // if there is zero bonded assets and zero debt, we simply wipe the storage and return
+    let bond_amount = config.astro_generator.query_bonded_amount(&deps.querier, &env.contract.address, &config.primary_pair.liquidity_token)?;
+    if bond_amount.is_zero() {
+        CONFIG.remove(deps.storage);
+        STATE.remove(deps.storage);
+        return Ok(Response::new());
+    }
+
+    // withdraw locked liquidity from Astro generator
+    let submsg = SubMsg::reply_on_success(
+        config.astro_generator.unbond_msg(&config.primary_pair.liquidity_token, bond_amount)?,
+        1,
+    );
+
+    Ok(Response::new().add_submessage(submsg))
+}
+
+#[entry_point]
 pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> StdResult<Response> {
     match reply.id {
         1 => after_unbond(deps, env),
         _ => Ok(Response::new()),
     }
-}
-
-pub fn unwrap_reply(reply: Reply) -> StdResult<SubMsgExecutionResponse> {
-    reply.result.into_result().map_err(StdError::generic_err)
 }
 
 pub fn after_unbond(deps: DepsMut, env: Env) -> StdResult<Response> {
@@ -153,14 +154,3 @@ pub fn after_unbond(deps: DepsMut, env: Env) -> StdResult<Response> {
         .add_submessages(submsgs)
         .add_submessage(submsg))
 }
-
-#[entry_point]
-pub fn query(_deps: Deps, _env: Env, _msg: Empty) -> StdResult<Binary> {
-    Err(StdError::generic_err("`query` is not implemented"))
-}
-
-#[entry_point]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> StdResult<Response> {
-    Ok(Response::new())
-}
-

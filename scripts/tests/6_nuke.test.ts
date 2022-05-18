@@ -512,7 +512,6 @@ async function testNuke() {
   process.stdout.write("Migrating contract + nuking... ");
   const { txhash } = await sendTransaction(deployer, [
     new MsgMigrateContract(deployer.key.accAddress, field, codeId, {}),
-    new MsgExecuteContract(deployer.key.accAddress, field, { unwind: {} }),
     new MsgExecuteContract(deployer.key.accAddress, field, { refund: {} }),
     new MsgExecuteContract(deployer.key.accAddress, field, { purge_storage: {} }),
   ]);
