@@ -25,7 +25,7 @@ pub fn update_position(
 ) -> StdResult<Response> {
     let api = deps.api;
     let config = CONFIG.load(deps.storage)?;
-    
+
     let mut received_coins = AssetList::from(info.funds);
     let mut msgs: Vec<CosmosMsg> = vec![];
     let mut attrs: Vec<Attribute> = vec![];
@@ -136,12 +136,12 @@ fn handle_deposit(
         return Ok(());
     }
 
-    // If asset is a native token, we assert that the same amount was indeed received
-    // If asset is a CW20 token, we:
-    // - Transfer the specified amount from the user's wallet
-    // - Remove the asset from the list. After every deposit action has been processed, assert that 
-    // the asset list is empty. This way, we ensure the user doesn't send any extra fund, which will 
-    // be lost in the contract
+    // If asset is a CW20 token, we transfer the specified amount from the user's wallet
+    // If asset is a native token, we:
+    // - Assert that the same amount was indeed received
+    // - Remove the asset from the list. After every deposit action has been processed, assert that
+    //   the asset list is empty. This way, we ensure the user doesn't send any extra fund, which will
+    //   be lost in the contract
     match &asset.info {
         AssetInfo::Cw20(_) => {
             msgs.push(asset.transfer_from_msg(sender_addr, contract_addr)?);
