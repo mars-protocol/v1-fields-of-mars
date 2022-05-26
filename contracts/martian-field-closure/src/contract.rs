@@ -16,7 +16,6 @@ pub fn instantiate(_deps: DepsMut, _env: Env, _info: MessageInfo, _msg: Empty) -
 pub fn execute(deps: DepsMut, env: Env, _info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::Refund {} => refund(deps, env),
-        ExecuteMsg::PurgeStorage {} => purge_storage(deps),
     }
 }
 

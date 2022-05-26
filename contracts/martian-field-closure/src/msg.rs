@@ -6,6 +6,4 @@ use serde::{Deserialize, Serialize};
 pub enum ExecuteMsg {
     /// Refund the first 10 users of their assets; call this function repeatedly to refund all users
     Refund {},
-    /// Once all positions have been closed, call this function to completely wipe contract storage
-    PurgeStorage {},
 }
